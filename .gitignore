@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+
+checkpoints/
+wandb/
+.vscode/
+
+Dockerfile
+docker_build.sh
+run1.sh
+run2.sh
+run3.sh
+run4.sh
+runj.sh
+todo.md
