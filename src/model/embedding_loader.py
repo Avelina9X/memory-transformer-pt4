@@ -8,7 +8,6 @@ import torch
 def _get_model_type( name: str, cache_dir: Optional[str]=None ):
     return AutoConfig.from_pretrained( name, cache_dir=cache_dir ).model_type
 
-# TODO: logging
 def _load_embeddings( name: str, cache_dir: Optional[str]=None ):
     model_type = _get_model_type( name, cache_dir )
     
