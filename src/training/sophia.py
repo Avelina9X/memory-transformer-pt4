@@ -1,3 +1,5 @@
+# type: ignore
+
 """
 @article{liu2023sophia,
  title={Sophia: A Scalable Stochastic Second-order Optimizer for Language Model Pre-training},
