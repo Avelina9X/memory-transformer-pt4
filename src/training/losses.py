@@ -64,7 +64,7 @@ class SimCTGLoss( nn.Module ):
         '''
         res_list = []
         base_mask = torch.ones(seqlen, seqlen) - torch.eye(seqlen, seqlen)
-        base_mask = base_mask.type(torch.FloatTensor)
+        base_mask = base_mask.type( torch.FloatTensor ) # type: ignore
         bsz = len(valid_len_list)
         for i in range(bsz):
             one_base_mask = base_mask.clone()
@@ -92,7 +92,7 @@ class SimCTGLoss( nn.Module ):
         loss_matrix = torch.nn.functional.relu(loss_matrix)
 
         ### input mask
-        input_mask = torch.ones_like(input_ids).type(torch.FloatTensor)
+        input_mask = torch.ones_like( input_ids ).type( torch.FloatTensor ) # type: ignore
         if loss_matrix.is_cuda:
             input_mask = input_mask.cuda(loss_matrix.get_device())
         input_mask = input_mask.masked_fill(input_ids.eq(self.pad_token_id), 0.0)

@@ -55,7 +55,7 @@ class LSWTPreTrainedModel( PreTrainedModel ):
                 
 
 class LSWTModel( LSWTPreTrainedModel ):
-    def __init__( self, config: LSWTConfig, parent_embeddings: torch.Tensor=None ):
+    def __init__( self, config: LSWTConfig, parent_embeddings: Optional[torch.Tensor]=None ):
         super().__init__( config )
         
         self.input_embedding = SharedEmbeddings( config.vocab_size, config.d_vocab )
@@ -88,9 +88,9 @@ class LSWTModel( LSWTPreTrainedModel ):
     
     def forward(
         self,
-        input_ids: torch.LongTensor = None,
-        inputs_embeds: torch.Tensor = None,
-        past_key_values: List[Tuple[torch.Tensor]] = None, # (n_layers)+(k_v)+(B, heads, seq_length, d_key)
+        input_ids: Optional[torch.LongTensor] = None,
+        inputs_embeds: Optional[torch.Tensor] = None,
+        past_key_values: Optional[List[List[torch.Tensor]]] = None, # (n_layers)+(k_v)+(B, heads, seq_length, d_key)
     ):
         hidden_state_list = []
         past_key_value_list = []
@@ -128,15 +128,15 @@ class LSWTModel( LSWTPreTrainedModel ):
         
         return BaseModelOutputWithPast(
             last_hidden_state=embeddings,
-            past_key_values=past_key_value_list,
-            hidden_states=hidden_state_list,
+            past_key_values=past_key_value_list, # type: ignore
+            hidden_states=hidden_state_list, # type: ignore
             attentions=None,
         )
             
         
 
 class LSWTForCausalLM( LSWTPreTrainedModel ):
-    def __init__( self, config: LSWTConfig, parent_embeddings: torch.Tensor=None ):
+    def __init__( self, config: LSWTConfig, parent_embeddings: Optional[torch.Tensor]=None ):
         super().__init__( config )
         
         self.model = LSWTModel( config, parent_embeddings )
@@ -145,9 +145,9 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
     
     def forward(
         self,
-        input_ids: torch.LongTensor = None,
-        inputs_embeds: torch.Tensor = None,
-        past_key_values: Tuple[Tuple[torch.Tensor]] = None, # (n_layers)+(k_v)+(B, heads, seq_length, d_key)
+        input_ids: Optional[torch.LongTensor] = None,
+        inputs_embeds: Optional[torch.Tensor] = None,
+        past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None, # (n_layers)+(k_v)+(B, heads, seq_length, d_key)
         
         use_cache=True,
         return_dict=True,

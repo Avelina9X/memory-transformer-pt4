@@ -24,6 +24,8 @@ import argparse
 import logging
 import pathlib
 
+from typing import Optional
+
 WANDB_MODE = 'online'
 
 def find_and_extract( source, prefix ):
@@ -46,15 +48,15 @@ def modify_dicts( config: dict, model_config: LSWTConfig, train_config: LSWTConf
             getattr( train_config, train_key )
             train_config.__setattr__( train_key, value )
 
-def get_checkpoint_path( name: str=None ):
-    name = name or wandb.run.name or wandb.run.id
+def get_checkpoint_path( name: Optional[str]=None ):
+    name = name or wandb.run.name or wandb.run.id # type: ignore
     
     root_dir = pathlib.Path().cwd().joinpath( 'checkpoints', name )
     config_dir = root_dir.joinpath( 'config.json' )
     model_dir = root_dir.joinpath( 'model.safetensors' )
     return root_dir, config_dir, model_dir
 
-def save_model( model: LSWTForCausalLM, log_wandb: False ):
+def save_model( model: LSWTForCausalLM, log_wandb: bool=False ):
     root_dir, config_dir, model_dir = get_checkpoint_path()
     
     model.half().save_pretrained( root_dir, safe_serialization=True )
@@ -63,13 +65,18 @@ def save_model( model: LSWTForCausalLM, log_wandb: False ):
         model_name = model.config.model_type
         
         model_artifact = wandb.Artifact( name=model_name, type="model" )
-        model_artifact.add_file( model_dir )
-        model_artifact.add_file( config_dir )
+        model_artifact.add_file( model_dir ) # type: ignore
+        model_artifact.add_file( config_dir ) # type: ignore
         
-        wandb.run.log_artifact( model_artifact )
+        wandb.run.log_artifact( model_artifact ) # type: ignore
 
 
-def train( config: dict=None, model_config: LSWTConfig=None, train_config: LSWTConfigTraining=None, wandb_mode=None ):
+def train(
+        config: Optional[dict]=None,
+        model_config: Optional[LSWTConfig]=None,
+        train_config: Optional[LSWTConfigTraining]=None,
+        wandb_mode: Optional[str]=None
+    ):
     
     wandb_mode = wandb_mode or WANDB_MODE
     
@@ -78,7 +85,7 @@ def train( config: dict=None, model_config: LSWTConfig=None, train_config: LSWTC
         group='pretraining',
         mode=wandb_mode,
         config=config
-    ):
+    ): # type: ignore
         
         # Get validation and test datasets
         dataset_wikitext = load_wikitext( HF_CACHE_DIR )
@@ -178,16 +185,14 @@ if __name__ == '__main__':
     parser.add_argument( '--sweep-count', type=int, default=None )
     arguments = parser.parse_args()
     
-    torch._dynamo.config.cache_size_limit = 256
+    torch._dynamo.config.cache_size_limit = 256 # type: ignore
     
     if arguments.sweep_id is not None:
         # Disable warnings
         warnings.simplefilter( 'ignore' )
-        torch._logging.set_logs(
-            dynamo=logging.FATAL,
-            inductor=logging.FATAL,
-            dynamic=logging.FATAL
-        )
+        torch._logging.set_logs( dynamo=logging.FATAL ) # type: ignore
+        torch._logging.set_logs( inductor=logging.FATAL ) # type: ignore
+        torch._logging.set_logs( dynamic=logging.FATAL ) # type: ignore
     
         # Run agent
         wandb.agent(

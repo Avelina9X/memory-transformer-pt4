@@ -23,7 +23,7 @@ from typing import Dict
 
 from .compile_options import TORCH_COMPILE_OPTIONS
 
-def _bar_format( iter_n, iter_total, elapsed, epoch, loss, acc ):
+def _bar_format( iter_n, iter_total, elapsed, epoch, loss, acc ) -> str:
     return tqdm.tqdm.format_meter(
         n=iter_n,
         total=iter_total,
@@ -35,7 +35,7 @@ def _bar_format( iter_n, iter_total, elapsed, epoch, loss, acc ):
         prefix=f'Epoch {epoch}',
     )
 
-def _load_optimizer( train_config: LSWTConfigTraining, model: LSWTForCausalLM ):
+def _load_optimizer( train_config: LSWTConfigTraining, model: LSWTForCausalLM ) -> torch.optim.Optimizer:
     if train_config.optimizer == 'SophiaG':
         return SophiaG(
             params=model.get_param_groups(),
@@ -52,8 +52,10 @@ def _load_optimizer( train_config: LSWTConfigTraining, model: LSWTForCausalLM ):
             eps=train_config.opt_eps,
             weight_decay=( train_config.opt_weight_decay ),
         )
+    else:
+        raise ValueError( 'Invalid optimizer' )
 
-def _load_loss_function( train_config: LSWTConfigTraining, model_config: LSWTConfig ):
+def _load_loss_function( train_config: LSWTConfigTraining, model_config: LSWTConfig ) -> torch.nn.Module:
     if train_config.loss_objective == 'MLE':
         return MLELoss( model_config.vocab_size, model_config.pad_token_id )
     elif train_config.loss_objective == 'SimCTG':
@@ -68,7 +70,7 @@ class Trainer():
         self.tokenizer = tokenizer
         
         self.optimizer = _load_optimizer( train_config, model )
-        self.optimizer_scaler = torch.cuda.amp.GradScaler()
+        self.optimizer_scaler = torch.cuda.amp.GradScaler() # type: ignore
         
         self.batch_groups = train_config.batch_size // train_config.batch_size_step
         
@@ -80,7 +82,7 @@ class Trainer():
             batch_size=train_config.batch_size
         ).as_data_loader()
         
-        self.loss_function = _load_loss_function( train_config, model.config )
+        self.loss_function = _load_loss_function( train_config, model.config ) # type: ignore
         
         self.acc_function = AccuracyMetric( model.config.vocab_size, model.config.pad_token_id )
         
@@ -127,7 +129,7 @@ class Trainer():
     def forward_pass( self, tokens, past_key_values, cache_length ):
         past_key_values = self.model.cache_to( past_key_values, 'cuda' )
         
-        torch._inductor.cudagraph_mark_step_begin()
+        # torch._inductor.cudagraph_mark_step_begin()
         
         outputs = self.model(
             input_ids=tokens,
@@ -151,7 +153,7 @@ class Trainer():
     @torch.compile( **TORCH_COMPILE_OPTIONS )
     def train_sub_step( self, tokens_x, tokens_y, past_key_values ):
         tokens_x = tokens_x.to( device='cuda', non_blocking=True )
-        with torch.autocast( device_type='cuda', dtype=torch.float16 ):
+        with torch.autocast( device_type='cuda', dtype=torch.float16 ): # type: ignore
             logits, past_key_values, hidden_states = self.forward_pass( tokens_x, past_key_values, self.train_config.length_cache )
             
             y_pred = logits
@@ -159,7 +161,7 @@ class Trainer():
             
             mle_loss, aux_loss = self.loss_function( hidden_states, y_pred, tokens_x, y_true )
             accu_loss = ( mle_loss + aux_loss ) / self.batch_groups
-        self.optimizer_scaler.scale( accu_loss ).backward()
+        self.optimizer_scaler.scale( accu_loss ).backward() # type: ignore
         
         logits.detach()
         hidden_states.detach()
@@ -180,7 +182,7 @@ class Trainer():
         
         if self.train_config.opt_max_grad_norm > 0.0:
             self.optimizer_scaler.unscale_( self.optimizer )
-            torch.nn.utils.clip_grad_norm_( self.model.parameters(), self.train_config.opt_max_grad_norm )
+            torch.nn.utils.clip_grad_norm_( self.model.parameters(), self.train_config.opt_max_grad_norm ) # type: ignore
             
         self.optimizer_scaler.step( self.optimizer )
         self.optimizer_scaler.update()
@@ -196,8 +198,8 @@ class Trainer():
         
         for idx in range( self.batch_groups ):
             loss, accuracy, past_key_values = self.train_sub_step( tokens_xs[idx], tokens_ys[idx], self.past_key_values_list[idx] )
-            self.past_key_values_list[idx] = None
-            self.past_key_values_list[idx] = past_key_values
+            self.past_key_values_list[idx] = None # type: ignore
+            self.past_key_values_list[idx] = past_key_values # type: ignore
             
             self.metrics[ 'loss' ].update( loss )
             self.metrics[ 'acc' ].update( accuracy )

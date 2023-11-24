@@ -81,7 +81,7 @@ class Eval():
         accuracy = 0.0
         total_num_true = 0
         
-        with torch.autocast( device_type='cuda', dtype=torch.float16 ):
+        with torch.autocast( device_type='cuda', dtype=torch.float16 ): # type: ignore
             with torch.no_grad():
                 tokens_xs = torch.split( tokens_x, chunk_size, dim=1 )
                 tokens_ys = torch.split( tokens_y, chunk_size, dim=1 )
@@ -130,8 +130,8 @@ class Eval():
         
         loss, accuracy = self.eval_sub_step( tokens_x, tokens_y, chunk_size, chunk_compute )    
         
-        self.metrics[ 'loss' ].update( loss )
-        self.metrics[ 'acc' ].update( accuracy )
+        self.metrics[ 'loss' ].update( loss ) # type: ignore
+        self.metrics[ 'acc' ].update( accuracy ) # type: ignore
     
     def eval_epoch( self, iterator, iterator_key: str, chunk_size: int, chunk_compute: bool=True ):
         for idx, row in enumerate( iterator ):

@@ -4,11 +4,13 @@ import torch
 import json
 from json import JSONDecodeError
 
+from torch.utils.data import IterableDataset, DataLoader
+
 _PILE_DIR_JSONL = '/data/lhk3/the_pile/{:02d}.jsonl'
 _PILE_TEST_FILE = _PILE_DIR_JSONL.format( 0 )
 
 
-class PileShardDataset( torch.utils.data.IterableDataset ):
+class PileShardDataset( IterableDataset ):
     def __init__( self, tokenizer, seq_length, shards_per_file, file_idx ):
         self.tokenizer = tokenizer
         self.seq_length = seq_length
@@ -85,14 +87,14 @@ class PileShardDataset( torch.utils.data.IterableDataset ):
         ) )
     
     def as_data_loader( self ):
-        return torch.utils.data.DataLoader(
+        return DataLoader(
             self,
             num_workers=1,
             batch_size=None,
             prefetch_factor=2,
         )
 
-class PileDataset( torch.utils.data.IterableDataset ):
+class PileDataset( IterableDataset ):
     def __init__( self, tokenizer, seq_length, batch_size ):
         self.tokenizer = tokenizer
         self.seq_length = seq_length
@@ -112,7 +114,7 @@ class PileDataset( torch.utils.data.IterableDataset ):
             yield test_next_x, test_next_y
     
     def as_data_loader( self ):
-        return torch.utils.data.DataLoader(
+        return DataLoader(
             self,
             num_workers=0,
             batch_size=None,
