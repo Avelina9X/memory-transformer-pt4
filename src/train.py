@@ -1,5 +1,5 @@
 import os
-HF_CACHE_DIR = os.environ[ 'HF_CACHE_DIR' ]
+
 os.environ[ 'TOKENIZERS_PARALLELISM' ] = 'true'
 
 from training.trainer import Trainer
@@ -9,6 +9,8 @@ from training.data import load_pile_uncopyrighted, load_wikitext
 from model.configuration import LSWTConfigTraining, LSWTConfig
 from model.modeling import LSWTForCausalLM
 from model.embedding_loader import embedding_loader
+
+from constants import WANDB_API_KEY, HF_CACHE_DIR
 
 from transformers import AutoTokenizer
 from datasets import load_dataset
@@ -178,7 +180,7 @@ def train(
             
 
 if __name__ == '__main__':       
-    wandb.login( key=os.environ[ 'WANDB_API_KEY' ] )
+    wandb.login( key=WANDB_API_KEY )
     
     parser = argparse.ArgumentParser()
     parser.add_argument( '--sweep-id', type=str, default=None )

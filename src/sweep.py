@@ -1,8 +1,10 @@
 import os
 import wandb
 
+from constants import WANDB_API_KEY
+
 if __name__ == '__main__':
-    wandb.login( key=os.environ[ 'WANDB_API_KEY' ] )
+    wandb.login( key=WANDB_API_KEY )
     
     sweep_config = {
         'name': 'simctg-small-sweep',
