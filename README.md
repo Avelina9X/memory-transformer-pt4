@@ -18,6 +18,7 @@ A private repo for the LSWTransformer, codename `memory-transformer-pt4`.
 - TODO: improved commenting within functions
 - TODO: refactor RoPE modulation code
 - TODO: ad citations to readme
+- TODO: pydantic validation for configs
 
 ## Model Sizes
 | Name | $d_{model}$ | $n_{layers}$ | $n_{heads}$ | $d_{key}$ | Parameters |
