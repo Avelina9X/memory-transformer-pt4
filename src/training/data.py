@@ -137,3 +137,11 @@ def load_pile_uncopyrighted( cache_dir ):
         split='train',
         cache_dir=cache_dir,
     )
+
+def load_proofpile2( cache_dir ):
+    return load_dataset(
+        'EleutherAI/proof-pile-2',
+        'default',
+        revision='25a8c858a775f8d8d4798061c21b8091393d5980',
+        cache_dir=cache_dir,
+    )
