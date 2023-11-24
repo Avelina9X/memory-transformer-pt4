@@ -21,7 +21,7 @@ import rich
 
 from typing import Dict
 
-from .compile_options import TORCH_COMPILE_OPTIONS
+from constants import TORCH_COMPILE_OPTIONS
 
 def _bar_format( iter_n, iter_total, elapsed, epoch, loss, acc ) -> str:
     return tqdm.tqdm.format_meter(

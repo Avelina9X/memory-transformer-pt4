@@ -20,7 +20,7 @@ import math
 
 from typing import Dict
 
-from .compile_options import TORCH_COMPILE_OPTIONS
+from constants import TORCH_COMPILE_OPTIONS
 
 class Eval():
     def __init__( self, model: LSWTForCausalLM, tokenizer: PreTrainedTokenizerBase, **kwargs ):
