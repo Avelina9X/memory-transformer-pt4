@@ -1,3 +1,14 @@
+"""
+The LSWTransformer constants package.
+Contains helpful constants used by other packages.
+
+Contains:
+    - WANDB_API_KEY: the WandB api key, loaded from an ENVAR
+    - HF_API_KEY: the HF api key, loaded from an ENVAR
+    - HF_CACHE_DIR: the directory for HF models and datasets, loaded from an ENVAR
+    - TORCH_COMPILE_OPTIONS: options dict for `torch.compile`
+"""
+
 import os
 
 WANDB_API_KEY = os.environ[ 'WANDB_API_KEY' ]
