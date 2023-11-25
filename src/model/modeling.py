@@ -199,7 +199,21 @@ class LSWTModel( LSWTPreTrainedModel ):
         
 
 class LSWTForCausalLM( LSWTPreTrainedModel ):
+    """
+    Causal LM model class for the LSW Transformer.
+    
+    Contains an LSWTModel and a projection layer for the shared embedding LM head.
+    """
+    
     def __init__( self, config: LSWTConfig, parent_embeddings: Optional[torch.Tensor]=None ):
+        """
+        Constructs a new LSWTForCausalLM.
+
+        Args:
+            config (LSWTConfig): Config for the LSWT architecture
+            parent_embeddings (Optional[torch.Tensor], optional): Optinal warm start embeddings.
+        """
+        
         super().__init__( config )
         
         self.model = LSWTModel( config, parent_embeddings )
@@ -213,13 +227,29 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
         self,
         input_ids: Optional[torch.LongTensor] = None,
         inputs_embeds: Optional[torch.Tensor] = None,
-        past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None, # (n_layers)+(k_v)+(B, heads, seq_length, d_key)
+        past_key_values: Optional[List[List[torch.Tensor]]] = None,
         
         use_cache=True,
         return_dict=True,
         output_attentions=False,
         output_hidden_states=True,
     ):
+        """_summary_
+
+        Args:
+            input_ids (Optional[torch.LongTensor], optional): input ids of size [Batch x Seq_Length]
+            inputs_embeds (Optional[torch.Tensor], optional): input embeddings of size [Batch x Seq_Length x D_Model]
+            past_key_values (Optional[List[List[torch.Tensor]]], optional): Previous KV cache for fast decoding or memory.
+            
+            use_cache (bool, optional): If set to `True`, returns KV cache for fast decoding or memory. Defaults to True.
+            return_dict (bool, optional): Whether or not to return a CausalLMOutputWithPast. Must be True.
+            output_attentions (bool, optional): Returns attentions for all layers. Must be False.
+            output_hidden_states (bool, optional): Whether or not to return the hidden states of all layers. Defaults to True.
+
+        Returns:
+            CausalLMOutputWithPast: Model outputs
+        """
+        
         assert return_dict, "Must always return_dict"
         assert not output_attentions, "Must never output_attentions"
         
