@@ -30,6 +30,16 @@ def _load_embeddings( name: str, cache_dir: Optional[str]=None ):
     
 
 def embedding_loader( config: LSWTConfig, cache_dir: Optional[str]=None ) -> torch.Tensor:
+    """
+    Retrieves the weight tensor from a `torch.nn.Embedding` layer of a transformer from the HF hub
+
+    Args:
+        config (LSWTConfig): The LSWT model config containing the desired parent embeddings
+        cache_dir (Optional[str], optional): Cache directory to download models to. Defaults to None.
+
+    Returns:
+        torch.Tensor: the `embedding.weight` tensor
+    """
     embeddings = _load_embeddings( config.parent_embeddings, cache_dir )
     
     assert embeddings.num_embeddings == config.vocab_size, 'Loaded embeddings vocab size =/= config.vocab_size'
