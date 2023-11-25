@@ -129,7 +129,9 @@ class LSWTModel( LSWTPreTrainedModel ):
             self.input_embedding.half()
         else:
             self.input_embedding.requires_grad_( True )
-        
+    
+    def get_input_embeddings( self ):
+        return self.input_embedding.embedding
     
     def forward(
         self,
@@ -203,6 +205,9 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
         self.model = LSWTModel( config, parent_embeddings )
         self.head_proj = torch.nn.Linear( config.d_model, config.d_vocab, bias=False )
         self.post_init()
+    
+    def get_input_embeddings( self ):
+        return self.model.get_input_embeddings()
     
     def forward(
         self,
