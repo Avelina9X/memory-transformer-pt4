@@ -1,4 +1,4 @@
-from typing import Tuple, List, Optional
+from typing import Dict, Tuple, List, Optional
 
 from transformers import PreTrainedModel
 from transformers.modeling_outputs import BaseModelOutputWithPast, CausalLMOutputWithPast
@@ -8,6 +8,10 @@ from .configuration import LSWTConfig
 from .layers import SharedEmbeddings, RotaryEmbedding, LSWTBlock
 
 class LSWTPreTrainedModel( PreTrainedModel ):
+    """
+    Base class for LSW Transformer models.
+    """
+    
     config_class = LSWTConfig
     base_model_prefix = 'model'
     
@@ -28,7 +32,18 @@ class LSWTPreTrainedModel( PreTrainedModel ):
             module.bias.data.zero_()
             module.weight.data.fill_( 1.0 )
     
-    def get_param_groups( self ):
+    def get_param_groups( self ) -> List[Dict]:
+        """
+        Returns optimizer parameter groups with weight decay disabled for certain params.
+        Weight decay is disabled for:
+            - layer norm
+            - bias terms
+            - embedding weights
+
+        Returns:
+            List[Dict]: list of param groups to be used by the optimizer
+        """
+        
         decay_params = []
         non_decay_params = []
         
@@ -47,9 +62,19 @@ class LSWTPreTrainedModel( PreTrainedModel ):
             { 'params': non_decay_params, 'weight_decay': 0.0 }
         ]
     
-    def cache_to( self, cache, device, trim=0 ):
+    def cache_to( self, cache: Optional[List[List[torch.Tensor]]], device: str | torch.device, trim=0 ):
+        """_summary_
+
+        Args:
+            cache (Optional[List[List[torch.Tensor]]]): Key value cache to move
+            device (str | torch.device): the device to move to
+            trim (int, optional): Desired trim size. Zero means no trim. Defaults to 0.
+
+        Returns:
+            List[List[torch.Tensor]]: Moved key value cache
+        """
+
         if cache is not None:
-            # cache = tuple( [ tuple( [ kv.detach()[ :, :, -trim : , : ].to( device=device, non_blocking=True ) for kv in layer ] ) for layer in cache ] )
             cache = [ [ kv.detach()[ :, :, -trim : , : ].to( device=device, non_blocking=False ) for kv in layer ] for layer in cache ]
         return cache
                 
