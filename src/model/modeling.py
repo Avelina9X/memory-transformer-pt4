@@ -10,6 +10,11 @@ from .layers import SharedEmbeddings, RotaryEmbedding, LSWTBlock
 class LSWTPreTrainedModel( PreTrainedModel ):
     """
     Base class for LSW Transformer models.
+    
+    Class attributes:
+        - config_class: The config class to use for this model architecture.
+        - base_model_prefix: A string indicating the attribute associated to the base model in derived
+        classes of same architecture adding modules on top of the base model.
     """
     
     config_class = LSWTConfig
