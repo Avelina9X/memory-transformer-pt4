@@ -64,7 +64,7 @@ class RotaryEmbedding( torch.nn.Module ):
         self.register_buffer('scale', scale)
 
     def forward(self, seq_len, device):
-        t = torch.arange(seq_len, device = device).type_as(self.inv_freq)
+        t = torch.arange(seq_len, device = device).type_as(self.inv_freq) # type: ignore
         if self.reverse: t = t.flip( dims=[ 0 ] )
         
         freqs = torch.einsum('i , j -> i j', t, self.inv_freq)
@@ -87,6 +87,21 @@ def _rotate_half(x):
 
 def _apply_rotary_pos_emb( pos, t, scale = 1.):
     return (t * pos.cos() * scale).type( t.dtype ) + ( _rotate_half(t) * pos.sin() * scale).type( t.dtype )
+
+def apply_rope( query, key, rope_pos, rope_scale, reverse ):
+    q_length = query.shape[-2]
+    k_length = key.shape[-2]
+    
+    # Get rotary embeddings for queries and keys
+    rope_pos_q = rope_pos[ -q_length : ]
+    rope_pos_k = rope_pos[ -k_length : ]
+    rope_scale_q = ( rope_scale[ -q_length : ] ) if reverse else 1.0
+    rope_scale_k = ( rope_scale[ -k_length : ] ** -1.0 ) if reverse else 1.0
+    
+    query = _apply_rotary_pos_emb( rope_pos_q, query, rope_scale_q )
+    key = _apply_rotary_pos_emb( rope_pos_k, key, rope_scale_k )
+    
+    return query, key
 
 
 class LSWTAttention( torch.nn.Module ):
@@ -129,8 +144,6 @@ class LSWTAttention( torch.nn.Module ):
         return x.contiguous().view( B, S, self.config.d_model )
     
     def forward( self, embeddings, past_key_values, rope_pos, rope_scale ):
-        q_length = embeddings.shape[-2]
-        k_length = embeddings.shape[-2] + ( past_key_values[0].shape[-2] if past_key_values else 0 )
         
         # Project qkv and split into heads
         q = self.split_heads( self.proj_q( embeddings ) ).permute( 0, 2, 1, 3 )
@@ -146,15 +159,8 @@ class LSWTAttention( torch.nn.Module ):
         past_keys = k
         past_values = v
         
-        # Get rotary embeddings for queries and keys
-        rope_pos_q = rope_pos[ -q_length : ]
-        rope_pos_k = rope_pos[ -k_length : ]
-        rope_scale_q = ( rope_scale[ -q_length : ] ) if self.config.rope_xpos_enabled else 1.0
-        rope_scale_k = ( rope_scale[ -k_length : ] ** -1.0 ) if self.config.rope_xpos_enabled else 1.0
-        
-        # Apply rotary embeddings
-        q = _apply_rotary_pos_emb( rope_pos_q, q, rope_scale_q )
-        k = _apply_rotary_pos_emb( rope_pos_k, k, rope_scale_k )
+        # Apply rotary embeddings        
+        q, k = apply_rope( q, k, rope_pos, rope_scale, self.config.rope_xpos_enabled )
         
         # If we are using registers prepend the keys and values
         if self.config.n_registers > 0:

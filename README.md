@@ -16,7 +16,6 @@ A private repo for the LSWTransformer, codename `memory-transformer-pt4`.
 ## To Do List
 - TODO: docstrings for packages, classes and functions
 - TODO: improved commenting within functions
-- TODO: refactor RoPE modulation code
 - TODO: add citations to readme
 - TODO: improve SimCTG code for scattered padding + on device compute
 
