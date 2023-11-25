@@ -63,7 +63,8 @@ class LSWTPreTrainedModel( PreTrainedModel ):
         ]
     
     def cache_to( self, cache: Optional[List[List[torch.Tensor]]], device: str | torch.device, trim=0 ):
-        """_summary_
+        """
+        Moves KV cache between devices.
 
         Args:
             cache (Optional[List[List[torch.Tensor]]]): Key value cache to move
