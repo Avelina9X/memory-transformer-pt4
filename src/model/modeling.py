@@ -86,7 +86,21 @@ class LSWTPreTrainedModel( PreTrainedModel ):
                 
 
 class LSWTModel( LSWTPreTrainedModel ):
+    """
+    Base model class for the LSW Transformer decoder.
+    
+    Contains the input embeddings and model backbone, but does not contain the model head.
+    """
+    
     def __init__( self, config: LSWTConfig, parent_embeddings: Optional[torch.Tensor]=None ):
+        """
+        Constructs a new LSWTModel.
+
+        Args:
+            config (LSWTConfig): Config for the LSWT architecture
+            parent_embeddings (Optional[torch.Tensor], optional): Optinal warm start embeddings.
+        """
+        
         super().__init__( config )
         
         self.input_embedding = SharedEmbeddings( config.vocab_size, config.d_vocab )
@@ -122,7 +136,23 @@ class LSWTModel( LSWTPreTrainedModel ):
         input_ids: Optional[torch.LongTensor] = None,
         inputs_embeds: Optional[torch.Tensor] = None,
         past_key_values: Optional[List[List[torch.Tensor]]] = None, # (n_layers)+(k_v)+(B, heads, seq_length, d_key)
-    ):
+    ) -> BaseModelOutputWithPast:
+        """
+        Forward pass function.
+
+        Args:
+            input_ids (Optional[torch.LongTensor], optional): input ids of size [Batch x Seq_Length]
+            inputs_embeds (Optional[torch.Tensor], optional): input embeddings of size [Batch x Seq_Length x D_Model]
+            past_key_values (Optional[List[List[torch.Tensor]]], optional): Previous KV cache for fast decoding or memory.
+
+        Raises:
+            ValueError: when both input_ids and inputs_embeds are passed.
+            ValueError: when neither input_ids or inputs_embeds are passed.
+
+        Returns:
+            BaseModelOutputWithPast: Model outputs
+        """
+        
         hidden_state_list = []
         past_key_value_list = []
         
