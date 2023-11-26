@@ -18,6 +18,8 @@ A private repo for the LSWTransformer, codename `memory-transformer-pt4`.
 - TODO: improved commenting within functions
 - TODO: add citations to readme
 - TODO: improve SimCTG code for scattered padding + on device compute
+- TODO: add embedding + projection helper method to LSWTModel and LSWTForCausalLM
+- TODO: refactor cache transfer list comprehension
 
 ## Model Sizes
 | Name | $d_{model}$ | $n_{layers}$ | $n_{heads}$ | $d_{key}$ | Parameters |
