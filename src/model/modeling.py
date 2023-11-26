@@ -81,7 +81,13 @@ class LSWTPreTrainedModel( PreTrainedModel ):
         """
 
         if cache is not None:
-            cache = [ [ kv.detach()[ :, :, -trim : , : ].to( device=device, non_blocking=False ) for kv in layer ] for layer in cache ]
+            cache = [
+                [
+                    kv.detach()[ :, :, -trim : , : ].to(
+                        device=device, non_blocking=False
+                    ) for kv in layer
+                ] for layer in cache
+            ]
         return cache
                 
 
