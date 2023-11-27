@@ -139,6 +139,20 @@ class LSWTModel( LSWTPreTrainedModel ):
     def get_input_embeddings( self ):
         return self.input_embedding.embedding
     
+    def embed_input( self, input_ids: torch.LongTensor ) -> torch.Tensor:
+        """
+        Embedds and projects inputs.
+
+        Args:
+            input_ids (torch.LongTensor): input ids of size [Batch x Seq_Length]
+
+        Returns:
+            torch.Tensor: input embeddings of size [Batch x Seq_Length x D_Model]
+        """
+        embeddings = self.input_embedding( input_ids, mode='embed' )
+        embeddings = self.input_proj( embeddings )
+        return embeddings
+    
     def forward(
         self,
         input_ids: Optional[torch.LongTensor] = None,
@@ -229,6 +243,18 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
     def get_input_embeddings( self ):
         return self.model.get_input_embeddings()
     
+    def embed_input( self, input_ids: torch.LongTensor ) -> torch.Tensor:
+        """
+        Embedds and projects inputs.
+
+        Args:
+            input_ids (torch.LongTensor): input ids of size [Batch x Seq_Length]
+
+        Returns:
+            torch.Tensor: input embeddings of size [Batch x Seq_Length x D_Model]
+        """
+        return self.model.embed_input( input_ids )
+    
     def forward(
         self,
         input_ids: Optional[torch.LongTensor] = None,
@@ -240,7 +266,8 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
         output_attentions=False,
         output_hidden_states=True,
     ):
-        """_summary_
+        """
+        Forward pass function.
 
         Args:
             input_ids (Optional[torch.LongTensor], optional): input ids of size [Batch x Seq_Length]
