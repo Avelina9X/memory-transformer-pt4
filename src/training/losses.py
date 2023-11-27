@@ -32,7 +32,7 @@ class SimCTGLoss( nn.Module ):
     }
     """
     
-    def __init__(self, margin, vocab_size, pad_token_id):
+    def __init__( self, margin, vocab_size, pad_token_id, device: str | torch.device='cuda' ):
         super(SimCTGLoss, self).__init__()
         '''
            margin: predefined margin to push similarity score away
@@ -44,6 +44,8 @@ class SimCTGLoss( nn.Module ):
         self.pad_token_id = pad_token_id
         
         self.train_fct = CrossEntropyLoss()
+        
+        self.device = device
 
     # the part for contrastive loss
     def build_mask_matrix(self, seqlen, valid_len_list):
@@ -63,7 +65,7 @@ class SimCTGLoss( nn.Module ):
                      [0., 0., 0., 0.]
         '''
         res_list = []
-        base_mask = torch.ones(seqlen, seqlen) - torch.eye(seqlen, seqlen)
+        base_mask = torch.ones(seqlen, seqlen, device=self.device) - torch.eye(seqlen, seqlen, device=self.device)
         base_mask = base_mask.type( torch.FloatTensor ) # type: ignore
         bsz = len(valid_len_list)
         for i in range(bsz):
