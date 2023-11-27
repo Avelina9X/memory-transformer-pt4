@@ -1,5 +1,6 @@
+from typing import List, Optional
 from datasets import load_dataset
-from transformers import PreTrainedTokenizerBase, AutoTokenizer
+from transformers import PreTrainedTokenizerBase
 import torch
 import json
 from json import JSONDecodeError
@@ -7,11 +8,25 @@ from json import JSONDecodeError
 from torch.utils.data import IterableDataset, DataLoader
 
 _PILE_DIR_JSONL = '/data/lhk3/the_pile/{:02d}.jsonl'
-_PILE_TEST_FILE = _PILE_DIR_JSONL.format( 0 )
 
 
 class PileShardDataset( IterableDataset ):
-    def __init__( self, tokenizer, seq_length, shards_per_file, file_idx ):
+    def __init__(
+        self,
+        tokenizer: PreTrainedTokenizerBase,
+        seq_length: int,
+        shards_per_file: int,
+        file_idx: int,
+    ):
+        """
+        Creates an iterable dataset for a single shard of the pile.
+
+        Args:
+            tokenizer (PreTrainedTokenizerBase): tokenizer to encode text.
+            seq_length (int): desired sequence length.
+            shards_per_file (int): number of shards to split iteration over.
+            file_idx (int): id of the pile shard.
+        """
         self.tokenizer = tokenizer
         self.seq_length = seq_length
         self.shards_per_file = shards_per_file
@@ -95,13 +110,29 @@ class PileShardDataset( IterableDataset ):
         )
 
 class PileDataset( IterableDataset ):
-    def __init__( self, tokenizer, seq_length, batch_size ):
+    def __init__(
+        self,
+        tokenizer: PreTrainedTokenizerBase,
+        seq_length: int,
+        batch_size: int,
+        pile_shards: Optional[List[int]]=None
+    ):
+        """
+        Creates an iterable dataset for multiple shards over the pile.
+
+        Args:
+            tokenizer (PreTrainedTokenizerBase): tokenizer to encode text.
+            seq_length (int): desired sequence length.
+            batch_size (int): desired local batch size.
+            pile_shards (Optional[List[int]], optional): List of shard IDs to use, when None uses all 30.
+        """
         self.tokenizer = tokenizer
         self.seq_length = seq_length
         self.batch_size = batch_size
+        self.pile_shards = pile_shards or list( range( 30 ) )
         
-        assert batch_size % 30 == 0, 'batch size must be divisible by pile shard count (30)'
-        self.shards_per_file = batch_size // 30
+        assert batch_size % len( self.pile_shards ) == 0, 'batch size must be divisible by pile shard count'
+        self.shards_per_file = batch_size // len( self.pile_shards )
     
     def __iter__( self ):
         gen = [
@@ -112,7 +143,7 @@ class PileDataset( IterableDataset ):
                     self.shards_per_file,
                     i
                 ).as_data_loader()
-            ) for i in range( 30 )
+            ) for i in self.pile_shards
         ]
         
         while True:
