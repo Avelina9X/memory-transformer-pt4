@@ -32,7 +32,7 @@ class SimCTGLoss( nn.Module ):
     }
     """
     
-    def __init__( self, margin, vocab_size, pad_token_id, device: str | torch.device='cuda' ):
+    def __init__( self, margin, vocab_size, pad_token_id, compute_device: str | torch.device='cuda' ):
         super(SimCTGLoss, self).__init__()
         '''
            margin: predefined margin to push similarity score away
@@ -45,9 +45,10 @@ class SimCTGLoss( nn.Module ):
         
         self.train_fct = CrossEntropyLoss()
         
-        self.device = device
+        self.compute_device = compute_device
 
     # the part for contrastive loss
+    # TODO: completely rewrite this function. The SimCTG og code is kinda messed up.
     def build_mask_matrix(self, seqlen, valid_len_list):
         '''
             (1) if a sequence of length 4 contains zero padding token (i.e., the valid length is 4),
@@ -65,7 +66,7 @@ class SimCTGLoss( nn.Module ):
                      [0., 0., 0., 0.]
         '''
         res_list = []
-        base_mask = torch.ones(seqlen, seqlen, device=self.device) - torch.eye(seqlen, seqlen, device=self.device)
+        base_mask = torch.ones(seqlen, seqlen, device=self.compute_device) - torch.eye(seqlen, seqlen, device=self.compute_device)
         base_mask = base_mask.type( torch.FloatTensor ) # type: ignore
         bsz = len(valid_len_list)
         for i in range(bsz):
