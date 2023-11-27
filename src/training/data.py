@@ -104,7 +104,16 @@ class PileDataset( IterableDataset ):
         self.shards_per_file = batch_size // 30
     
     def __iter__( self ):
-        gen = [ iter( PileShardDataset( self.tokenizer, self.seq_length, self.shards_per_file, i ).as_data_loader() ) for i in range( 30 ) ]
+        gen = [
+            iter(
+                PileShardDataset(
+                    self.tokenizer,
+                    self.seq_length,
+                    self.shards_per_file,
+                    i
+                ).as_data_loader()
+            ) for i in range( 30 )
+        ]
         
         while True:
             test_next = [ next( i ) for i in gen ]
