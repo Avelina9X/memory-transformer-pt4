@@ -47,38 +47,25 @@ class SimCTGLoss( nn.Module ):
         
         self.compute_device = compute_device
 
-    # the part for contrastive loss
-    # TODO: completely rewrite this function. The SimCTG og code is kinda messed up.
-    def build_mask_matrix(self, seqlen, valid_len_list):
-        '''
-            (1) if a sequence of length 4 contains zero padding token (i.e., the valid length is 4),
-                then the loss padding matrix looks like
-                     [0., 1., 1., 1.],
-                     [1., 0., 1., 1.],
-                     [1., 1., 0., 1.],
-                     [1., 1., 1., 0.]
+    # the part for contrastive loss    
+    def build_mask_matrix( self, input_mask: torch.Tensor ) -> torch.Tensor:
+        """
+        Builds the contrastive loss mask.
 
-            (2) if a sequence of length 4 contains 1 padding token (i.e., the valid length is 3),
-                then the loss padding matrix looks like
-                     [0., 1., 1., 0.],
-                     [1., 0., 1., 0.],
-                     [1., 1., 0., 0.],
-                     [0., 0., 0., 0.]
-        '''
-        res_list = []
-        base_mask = torch.ones(seqlen, seqlen, device=self.compute_device) - torch.eye(seqlen, seqlen, device=self.compute_device)
-        base_mask = base_mask.type( torch.FloatTensor ) # type: ignore
-        bsz = len(valid_len_list)
-        for i in range(bsz):
-            one_base_mask = base_mask.clone()
-            one_valid_len = valid_len_list[i]
-            one_base_mask[:,one_valid_len:] = 0.
-            one_base_mask[one_valid_len:, :] = 0.
-            res_list.append(one_base_mask)
-        res_mask = torch.stack(res_list, dim = 0)#torch.FloatTensor(res_list)
-        #print (res_mask)
-        assert res_mask.size() == torch.Size([bsz, seqlen, seqlen])
-        return res_mask
+        Args:
+            input_mask (torch.Tensor): Mask where zeros are masked out
+
+        Returns:
+            torch.Tensor: Mask matrix where the diagonal and pad entries are masked out
+        """
+        seq_len = input_mask.shape[-1]
+        base_mask = 1.0 - torch.eye( seq_len, seq_len, device=input_mask.device )
+        base_mask = base_mask[ None, ... ]
+        
+        input_mask = input_mask[ ..., None ]
+        
+        return base_mask * input_mask * input_mask.mT
+        
 
     def contrastive_loss(self, score_matrix, input_ids):
         '''
@@ -104,7 +91,7 @@ class SimCTGLoss( nn.Module ):
             input_mask = input_mask.cuda(loss_matrix.get_device())
 
         valid_len_list = torch.sum(input_mask, dim = -1).tolist()
-        loss_mask = self.build_mask_matrix(seqlen, [int(item) for item in valid_len_list])
+        loss_mask = self.build_mask_matrix( input_mask )
         if score_matrix.is_cuda:
             loss_mask = loss_mask.cuda(score_matrix.get_device())
         masked_loss_matrix = loss_matrix * loss_mask
