@@ -90,7 +90,6 @@ class SimCTGLoss( nn.Module ):
         if loss_matrix.is_cuda:
             input_mask = input_mask.cuda(loss_matrix.get_device())
 
-        valid_len_list = torch.sum(input_mask, dim = -1).tolist()
         loss_mask = self.build_mask_matrix( input_mask )
         if score_matrix.is_cuda:
             loss_mask = loss_mask.cuda(score_matrix.get_device())
