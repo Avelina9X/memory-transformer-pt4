@@ -13,11 +13,25 @@ A private repo for the LSWTransformer, codename `memory-transformer-pt4`.
 - **SimCTG Loss** to encourage embedding diversity.
 - **Sophia Optimizer** for faster convergence.
 
+## Usage
+### Environemt
+We recomend using the official PyTorch docker container and installing all of `requirments.txt`. In the future we'll provide a dockerfile which does all the setup for you.
+
+### Envars
+The following environment variables **must** be set:
+- `WANDB_API_KEY` - Your WandB API key to track training/evaluation.
+- `HF_API_KEY` - Your Hugging Face API key to access protected datasets.
+- `HF_CACHE_DIR` - The directory to store loaded models and datasets.
+
+The following environment variables are **optional** but recommended:
+- `KERAS_BACKEND="torch"` - Forces Keras to use the torch backend (for Keras NLP)
+
 ## To Do List
 - TODO: docstrings for packages, classes and functions
 - TODO: improved commenting within functions
 - TODO: add citations to readme
 - TODO: improve SimCTG code for scattered padding + on device compute
+- TODO: deploy models to 🤗 and use shield.io for pretty links
 
 ## Model Sizes
 | Name | $d_{model}$ | $n_{layers}$ | $n_{heads}$ | $d_{key}$ | Parameters |
