@@ -4,7 +4,7 @@ import warnings
 import torch
 import wandb
 
-from constants import WANDB_API_KEY
+from constants import WANDB_API_KEY, WANDB_PROJECT_NAME
 
 from train import train
 
@@ -29,7 +29,7 @@ if __name__ == '__main__':
         wandb.agent(
             sweep_id=arguments.sweep_id,
             function=train,
-            project='memory-transformer-pt4',
+            project=WANDB_PROJECT_NAME,
             count=arguments.sweep_count,
         )
         

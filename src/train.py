@@ -10,7 +10,7 @@ from model.configuration import LSWTConfigTraining, LSWTConfig
 from model.modeling import LSWTForCausalLM
 from model.embedding_loader import embedding_loader
 
-from constants import HF_CACHE_DIR
+from constants import HF_CACHE_DIR, WANDB_PROJECT_NAME
 
 from transformers import AutoTokenizer
 from datasets import load_dataset
@@ -79,7 +79,7 @@ def train(
     wandb_mode = wandb_mode or WANDB_MODE
     
     with wandb.init(
-        project='memory-transformer-pt4',
+        project=WANDB_PROJECT_NAME,
         group='pretraining',
         mode=wandb_mode,
         config=config

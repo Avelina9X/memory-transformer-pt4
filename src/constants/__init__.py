@@ -12,6 +12,7 @@ Contains:
 import os
 
 WANDB_API_KEY = os.environ[ 'WANDB_API_KEY' ]
+WANDB_PROJECT_NAME = os.environ[ 'WANDB_PROJECT_NAME' ]
 
 HF_API_KEY = os.environ[ 'HF_API_KEY' ]
 HF_CACHE_DIR = os.environ[ 'HF_CACHE_DIR' ]

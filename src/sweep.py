@@ -1,7 +1,7 @@
 import os
 import wandb
 
-from constants import WANDB_API_KEY
+from constants import WANDB_API_KEY, WANDB_PROJECT_NAME
 
 if __name__ == '__main__':
     wandb.login( key=WANDB_API_KEY )
@@ -26,4 +26,4 @@ if __name__ == '__main__':
         }
     }
     
-    print( wandb.sweep( sweep_config, project='memory-transformer-pt4' ) )
+    print( wandb.sweep( sweep_config, project=WANDB_PROJECT_NAME ) )
