@@ -14,11 +14,11 @@ class DropPath( torch.nn.Module ):
         keep_prob = 1.0 - self.drop_prob
         
         if not self.training or self.drop_prob == 0.0:
-            return skip + residual * keep_prob
+            return skip + residual
         else:
             new_shape = ( residual.shape[0], ) + ( 1, ) * ( residual.ndim - 1 )
             residual = residual * residual.new_empty( new_shape ).bernoulli_( keep_prob )
-            return skip + residual
+            return skip + residual / keep_prob
 
 class SharedEmbeddings( torch.nn.Module ):
     def __init__( self, vocab_size: int, d_vocab: int ):
