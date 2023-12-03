@@ -51,7 +51,6 @@ class PileShardDataset( IterableDataset ):
                         yield text
                     except Exception as e:
                         if isinstance( e, JSONDecodeError ):
-                            print( 'fuck' )
                             pass
                         else:
                             raise e
