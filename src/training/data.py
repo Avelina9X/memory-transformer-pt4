@@ -31,7 +31,7 @@ class PileShardDataset( IterableDataset ):
         self.seq_length = seq_length
         self.shards_per_file = shards_per_file
         self.file_idx = file_idx
-    
+
     @classmethod
     def tokenize_line( cls, line: str, tokenizer: PreTrainedTokenizerBase ):
         tokens = tokenizer.encode( line, add_special_tokens=False )
@@ -71,13 +71,13 @@ class PileShardDataset( IterableDataset ):
             for _ in range( shard_num ):
                 xs.append( [] )
                 ys.append( [] )
-            
+
             return count, xs, ys
-        
+
         count, xs, ys = reset()
-        
+
         generators = [ iter( cls.line_token_generator( path, tokenizer, shard_num, i ) ) for i in range( shard_num ) ]
-        
+
         try:
             while True:
                 for g_idx, generator in enumerate( generators ):
@@ -85,14 +85,14 @@ class PileShardDataset( IterableDataset ):
                     xs[ g_idx ].append( x )
                     ys[ g_idx ].append( y )
                 count += 1
-                
+
                 if count == seq_length:
                     yield ( torch.LongTensor( xs ), torch.LongTensor( ys ) )
-                    
+
                     count, xs, ys = reset()
         except StopIteration:
             return
-    
+
     def __iter__( self ):
         return iter( self.sequence_generator(
             path=_PILE_DIR_JSONL.format( self.file_idx ),
@@ -100,7 +100,7 @@ class PileShardDataset( IterableDataset ):
             shard_num=self.shards_per_file,
             seq_length=self.seq_length,
         ) )
-    
+
     def as_data_loader( self ):
         return DataLoader(
             self,
@@ -130,10 +130,10 @@ class PileDataset( IterableDataset ):
         self.seq_length = seq_length
         self.batch_size = batch_size
         self.pile_shards = pile_shards or list( range( 30 ) )
-        
+
         assert batch_size % len( self.pile_shards ) == 0, 'batch size must be divisible by pile shard count'
         self.shards_per_file = batch_size // len( self.pile_shards )
-    
+
     def __iter__( self ):
         gen = [
             iter(
@@ -145,14 +145,14 @@ class PileDataset( IterableDataset ):
                 ).as_data_loader()
             ) for i in self.pile_shards
         ]
-        
+
         while True:
             test_next = [ next( i ) for i in gen ]
             test_next_x = torch.cat( [ i[0] for i in test_next ] )
             test_next_y = torch.cat( [ i[1] for i in test_next ] )
-            
+
             yield test_next_x, test_next_y
-    
+
     def as_data_loader( self ):
         return DataLoader(
             self,

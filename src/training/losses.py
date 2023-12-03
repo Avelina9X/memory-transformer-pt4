@@ -9,15 +9,15 @@ from torch.nn import CrossEntropyLoss
 class MLELoss( nn.Module ):
     def __init__( self, vocab_size, pad_token_id ):
         super().__init__()
-        
+
         self.vocab_size = vocab_size
         self.pad_token_id = pad_token_id
-        
+
         self.train_fct = CrossEntropyLoss( ignore_index=pad_token_id )
-    
+
     def forward( self, last_hidden_states, logits, input_ids, labels ):
         mle_loss = self.train_fct(logits.view(-1, self.vocab_size), labels.view(-1))
-        
+
         return mle_loss, mle_loss * 0.0
 
 class SimCTGLoss( nn.Module ):
@@ -31,7 +31,7 @@ class SimCTGLoss( nn.Module ):
         url={https://openreview.net/forum?id=V88BafmH9Pj}
     }
     """
-    
+
     def __init__( self, margin, vocab_size, pad_token_id, compute_device: str | torch.device='cuda' ):
         super(SimCTGLoss, self).__init__()
         '''
@@ -42,12 +42,12 @@ class SimCTGLoss( nn.Module ):
         self.margin = margin
         self.vocab_size = vocab_size
         self.pad_token_id = pad_token_id
-        
+
         self.train_fct = CrossEntropyLoss()
-        
+
         self.compute_device = compute_device
 
-    # the part for contrastive loss    
+    # the part for contrastive loss
     def build_mask_matrix( self, input_mask: torch.Tensor ) -> torch.Tensor:
         """
         Builds the contrastive loss mask.
@@ -61,11 +61,11 @@ class SimCTGLoss( nn.Module ):
         seq_len = input_mask.shape[-1]
         base_mask = 1.0 - torch.eye( seq_len, seq_len, device=input_mask.device )
         base_mask = base_mask[ None, ... ]
-        
+
         input_mask = input_mask[ ..., None ]
-        
+
         return base_mask * input_mask * input_mask.mT
-        
+
 
     def contrastive_loss(self, score_matrix, input_ids):
         '''
@@ -116,7 +116,7 @@ class SimCTGLoss( nn.Module ):
 
         # compute cl loss
         norm_rep = last_hidden_states / last_hidden_states.norm(dim=2, keepdim=True)
-        cosine_scores = torch.matmul(norm_rep, norm_rep.transpose(1,2)) 
+        cosine_scores = torch.matmul(norm_rep, norm_rep.transpose(1,2))
         assert cosine_scores.size() == torch.Size([bsz, seqlen, seqlen])
         cl_loss = self.contrastive_loss(cosine_scores, input_ids)
         return mle_loss, cl_loss
@@ -129,12 +129,12 @@ class SimCTGLoss( nn.Module ):
 class AccuracyMetric( nn.Module ):
     def __init__( self, vocab_size, pad_token_id ):
         super().__init__()
-        
+
         self.vocab_size = vocab_size
         self.pad_token_id = pad_token_id
-        
+
     def forward( self, logits: torch.Tensor, labels: torch.LongTensor ):
         tp = ( logits.argmax( dim=-1 ) == labels ).sum()
         valid_len = ( labels != self.pad_token_id ).sum()
-        
+
         return tp / valid_len

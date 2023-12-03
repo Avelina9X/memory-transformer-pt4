@@ -31,8 +31,8 @@ class SophiaG(Optimizer):
             raise ValueError("Invalid rho parameter at index 1: {}".format(rho))
         if not 0.0 <= weight_decay:
             raise ValueError("Invalid weight_decay value: {}".format(weight_decay))
-        defaults = dict(lr=lr, betas=betas, rho=rho, 
-                        weight_decay=weight_decay, 
+        defaults = dict(lr=lr, betas=betas, rho=rho,
+                        weight_decay=weight_decay,
                         maximize=maximize, capturable=capturable)
         super(SophiaG, self).__init__(params, defaults)
 
@@ -46,7 +46,7 @@ class SophiaG(Optimizer):
         if not step_is_tensor:
             for s in state_values:
                 s['step'] = torch.tensor(float(s['step']))
-    
+
     @torch.no_grad()
     def update_hessian(self):
         for group in self.param_groups:
@@ -61,7 +61,7 @@ class SophiaG(Optimizer):
                         if self.defaults['capturable'] else torch.tensor(0.)
                     state['exp_avg'] = torch.zeros_like(p, memory_format=torch.preserve_format)
                     state['hessian'] = torch.zeros_like(p, memory_format=torch.preserve_format)
-                
+
                 if 'hessian' not in state.keys():
                     state['hessian'] = torch.zeros_like(p, memory_format=torch.preserve_format)
 
@@ -87,7 +87,7 @@ class SophiaG(Optimizer):
                 if p.grad is None:
                     continue
                 params_with_grad.append(p)
-                
+
                 if p.grad.is_sparse:
                     raise RuntimeError('Hero does not support sparse gradients')
                 grads.append(p.grad)
@@ -98,14 +98,14 @@ class SophiaG(Optimizer):
                         if self.defaults['capturable'] else torch.tensor(0.)
                     state['exp_avg'] = torch.zeros_like(p, memory_format=torch.preserve_format)
                     state['hessian'] = torch.zeros_like(p, memory_format=torch.preserve_format)
-                
+
                 if 'hessian' not in state.keys():
-                    state['hessian'] = torch.zeros_like(p, memory_format=torch.preserve_format)                
+                    state['hessian'] = torch.zeros_like(p, memory_format=torch.preserve_format)
 
                 exp_avgs.append(state['exp_avg'])
                 state_steps.append(state['step'])
                 hessian.append(state['hessian'])
-                
+
                 if self.defaults['capturable']:
                     bs = torch.ones((1,), dtype=torch.float, device=p.device) * bs
 
@@ -143,7 +143,7 @@ def sophiag(params: List[Tensor],
     if not all(isinstance(t, torch.Tensor) for t in state_steps):
         raise RuntimeError("API has changed, `state_steps` argument must contain a list of singleton tensors")
 
-    
+
     func = _single_tensor_sophiag
 
     func(params,
@@ -182,8 +182,8 @@ def _single_tensor_sophiag(params: List[Tensor],
         step_t = state_steps[i]
 
         if capturable:
-            assert param.is_cuda and step_t.is_cuda and bs.is_cuda 
-            
+            assert param.is_cuda and step_t.is_cuda and bs.is_cuda
+
         if torch.is_complex(param):
             grad = torch.view_as_real(grad)
             exp_avg = torch.view_as_real(exp_avg)
@@ -198,17 +198,17 @@ def _single_tensor_sophiag(params: List[Tensor],
 
         # Decay the first and second moment running average coefficient
         exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
-        
+
         if capturable:
             step = step_t
-            step_size = lr 
+            step_size = lr
             step_size_neg = step_size.neg()
 
             ratio = (exp_avg.abs() / (rho * bs * hess + 1e-15)).clamp(None,1)
             param.addcmul_(exp_avg.sign(), ratio, value=step_size_neg)
         else:
             step = step_t.item()
-            step_size_neg = - lr 
-            
+            step_size_neg = - lr
+
             ratio = (exp_avg.abs() / (rho * bs * hess + 1e-15)).clamp(None,1)
             param.addcmul_(exp_avg.sign(), ratio, value=step_size_neg)
