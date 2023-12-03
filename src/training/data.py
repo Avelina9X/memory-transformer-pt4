@@ -43,7 +43,7 @@ class PileShardDataset( IterableDataset ):
 
     @classmethod
     def line_parser( cls, path: str, shard_num: int, shard_id: int ):
-        with open( path, 'rt', buffering=1 ) as file:
+        with open( path, 'rt', encoding="utf-8", buffering=1 ) as file:
             for line_num, line in enumerate( file ):
                 if ( line_num % shard_num ) == shard_id:
                     try:
