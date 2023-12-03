@@ -107,9 +107,9 @@ def train(
         rich.print( trainer.model.config )
 
         # Compute params
-        params_total = sum( [ p.numel() for p in model.parameters() ] )
-        params_trainable = sum( [ p.numel() for p in model.parameters() if p.requires_grad ] )
-        params_non_trainable = sum( [ p.numel() for p in model.parameters() if not p.requires_grad ] )
+        params_total = sum( p.numel() for p in model.parameters() )
+        params_trainable = sum( p.numel() for p in model.parameters() if p.requires_grad )
+        params_non_trainable = sum( p.numel() for p in model.parameters() if not p.requires_grad )
 
         # Print parametes
         print( '\nParameter Count:' )
