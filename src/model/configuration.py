@@ -1,8 +1,26 @@
+# pylint: disable=R0902,R0913,R0914
+
+"""
+Configuration classes for the LSWTransformer
+
+Contains:
+    - LSWTConfig: configuration class for model architecture
+    - LSWTConfigTraining: configuration class for training settings
+"""
+
 import json
+from typing import Dict, Any
 
 from transformers import PretrainedConfig
 
 class LSWTConfig( PretrainedConfig ):
+    """
+    Configuration class for the LSWTransformer architecture.
+    
+    Class attributes:
+        - model_type: the model type prefix
+    """
+
     model_type = "lsw_transformer"
 
     def __init__(
@@ -136,10 +154,22 @@ class LSWTConfig( PretrainedConfig ):
         # Assertions
         assert d_model % n_heads == 0, 'd_model must be divisible by n_heads'
 
-    def to_wandb_dict( self, prefix='model' ):
+    def to_wandb_dict( self, prefix='model' ) -> Dict[str, Any]:
+        """ Serializes this instance to WandB style dict.
+
+        Args:
+            prefix (str, optional): Prefix for all attributes. Defaults to 'model'.
+
+        Returns:
+            Dict[str, Any]: Dict of all attributes that make up this configuration instance
+        """
         return { f'{prefix}.{key}': value for key, value in self.to_diff_dict().items() }
 
 class LSWTConfigTraining():
+    """
+    Configuration class for traing the LSWTransformer.
+    """
+
     def __init__(
         self,
 
@@ -225,11 +255,24 @@ class LSWTConfigTraining():
         assert batch_size % batch_size_step == 0, 'batch_size must be divisible by batch_size_step'
         assert loss_objective in [ 'MLE', 'SimCTG' ], 'loss_objective must be "MLE" or "SimCTG"'
 
-    def to_json_string( self ):
+    def to_json_string( self ) -> str:
+        """ Serializes this instance to a JSON string.
+
+        Returns:
+            str: JSON string of the attributes that make up this configuration instance.
+        """
         return json.dumps( self.__dict__, indent=2 )
+
+    def to_wandb_dict( self, prefix='train' ) -> Dict[str, Any]:
+        """ Serializes this instance to WandB style dict.
+
+        Args:
+            prefix (str, optional): Prefix for all attributes. Defaults to 'train'.
+
+        Returns:
+            Dict[str, Any]: Dict of all attributes that make up this configuration instance
+        """
+        return { f'{prefix}.{key}': value for key, value in self.__dict__.items() }
 
     def __repr__( self ):
         return f'{self.__class__.__name__} {self.to_json_string()}'
-
-    def to_wandb_dict( self, prefix='train' ):
-        return { f'{prefix}.{key}': value for key, value in self.__dict__.items() }
