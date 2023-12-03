@@ -1,4 +1,5 @@
 # type: ignore
+# pylint: skip-file
 
 """
 @article{liu2023sophia,
