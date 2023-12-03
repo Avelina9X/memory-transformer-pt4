@@ -1,4 +1,7 @@
 # Long-Short-Working Transformer
+
+[![linting: pylint](https://img.shields.io/badge/linting-pylint-yellowgreen)](https://github.com/pylint-dev/pylint)
+
 A private repo for the LSWTransformer, codename `memory-transformer-pt4`.
 
 ## Features
