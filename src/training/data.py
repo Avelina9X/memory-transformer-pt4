@@ -108,6 +108,9 @@ class PileShardDataset( IterableDataset ):
             batch_size=None,
             prefetch_factor=2,
         )
+    
+    def __getitem__( self, index ):
+        raise NotImplementedError( "This dataset does not support random access using __getitem__" )
 
 class PileDataset( IterableDataset ):
     def __init__(
@@ -161,6 +164,9 @@ class PileDataset( IterableDataset ):
             # pin_memory=True,
             # pin_memory_device='cuda',
         )
+    
+    def __getitem__( self, index ):
+        raise NotImplementedError( "This dataset does not support random access using __getitem__" )
 
 def load_wikitext( cache_dir ):
     return load_dataset(
