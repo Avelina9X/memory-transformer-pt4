@@ -15,7 +15,7 @@ from typing import Dict
 from constants import TORCH_COMPILE_OPTIONS
 
 class Eval():
-    def __init__( self, model: LSWTForCausalLM, tokenizer: PreTrainedTokenizerBase, **kwargs ):
+    def __init__( self, model: LSWTForCausalLM, tokenizer: PreTrainedTokenizerBase ):
         self.model = model
         self.tokenizer = tokenizer
 
@@ -126,7 +126,7 @@ class Eval():
         self.metrics[ 'acc' ].update( accuracy ) # type: ignore
 
     def eval_epoch( self, iterator, iterator_key: str, chunk_size: int, chunk_compute: bool=True ):
-        for idx, row in enumerate( iterator ):
+        for row in iterator:
             self.eval_step( row[ iterator_key ], chunk_size, chunk_compute )
 
         torch.cuda.empty_cache()
