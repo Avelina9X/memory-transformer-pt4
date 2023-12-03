@@ -39,7 +39,8 @@ def _load_optimizer( train_config: LSWTConfigTraining, model: LSWTForCausalLM ) 
             rho=( train_config.opt_rho ),
             weight_decay=( train_config.opt_weight_decay )
         )
-    elif train_config.optimizer == 'AdamW':
+
+    if train_config.optimizer == 'AdamW':
         return AdamW(
             params=model.get_param_groups(),
             lr=0.0,
@@ -47,16 +48,17 @@ def _load_optimizer( train_config: LSWTConfigTraining, model: LSWTForCausalLM ) 
             eps=train_config.opt_eps,
             weight_decay=( train_config.opt_weight_decay ),
         )
-    else:
-        raise ValueError( 'Invalid optimizer' )
+
+    raise ValueError( 'Invalid optimizer' )
 
 def _load_loss_function( train_config: LSWTConfigTraining, model_config: LSWTConfig ) -> torch.nn.Module:
     if train_config.loss_objective == 'MLE':
         return MLELoss( model_config.vocab_size, model_config.pad_token_id )
-    elif train_config.loss_objective == 'SimCTG':
+
+    if train_config.loss_objective == 'SimCTG':
         return SimCTGLoss( train_config.loss_sim_margin, model_config.vocab_size, model_config.pad_token_id )
-    else:
-        raise ValueError( 'Invalid loss function' )
+
+    raise ValueError( 'Invalid loss function' )
 
 class Trainer():
     def __init__( self, train_config: LSWTConfigTraining, model: LSWTForCausalLM, tokenizer: PreTrainedTokenizerBase ):

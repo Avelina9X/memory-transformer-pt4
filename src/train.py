@@ -27,8 +27,7 @@ def find_and_extract( source, prefix ):
     idx = source.find( prefix + '.' )
     if idx != 0:
         return None
-    else:
-        return source[ len( prefix ) + 1 : ]
+    return source[ len( prefix ) + 1 : ]
 
 def modify_dicts( config: dict, model_config: LSWTConfig, train_config: LSWTConfigTraining ):
     for key, value in config.items():

@@ -15,10 +15,10 @@ class DropPath( torch.nn.Module ):
 
         if not self.training or self.drop_prob == 0.0:
             return skip + residual
-        else:
-            new_shape = ( residual.shape[0], ) + ( 1, ) * ( residual.ndim - 1 )
-            residual = residual * residual.new_empty( new_shape ).bernoulli_( keep_prob )
-            return skip + residual / keep_prob
+
+        new_shape = ( residual.shape[0], ) + ( 1, ) * ( residual.ndim - 1 )
+        residual = residual * residual.new_empty( new_shape ).bernoulli_( keep_prob )
+        return skip + residual / keep_prob
 
 class SharedEmbeddings( torch.nn.Module ):
     def __init__( self, vocab_size: int, d_vocab: int ):
@@ -72,14 +72,14 @@ class RotaryEmbedding( torch.nn.Module ):
 
         if not self.use_xpos:
             return freqs, torch.ones(1, device = device)
-        else:
-            power = (t - (seq_len // 2)) / self.scale_base
-            scale = self.scale ** power[ :, None ]
-            scale = torch.cat((scale, scale), dim = -1)
 
-            if self.reverse: scale = scale ** -1.0
+        power = (t - (seq_len // 2)) / self.scale_base
+        scale = self.scale ** power[ :, None ]
+        scale = torch.cat((scale, scale), dim = -1)
 
-            return freqs, scale
+        if self.reverse: scale = scale ** -1.0
+
+        return freqs, scale
 
 def _rotate_half(x):
     x1, x2 = x.chunk(2, dim=-1)
