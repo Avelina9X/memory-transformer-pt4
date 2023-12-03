@@ -56,7 +56,7 @@ class RotaryEmbedding( torch.nn.Module ):
         self.reverse = reverse
 
         inv_freq = 1.0 / (base_freq ** (torch.arange(0, dim, 2).float() / dim))
-        self.register_buffer("inv_freq", inv_freq)
+        self.register_buffer("inv_freq", inv_freq) # TODO: should this be persistant? # pylint: disable=W0511
 
         self.use_xpos = use_xpos
         self.scale_base = scale_base
