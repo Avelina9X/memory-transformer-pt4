@@ -17,8 +17,8 @@ A private repo for the LSWTransformer, codename `memory-transformer-pt4`.
 - **Sophia Optimizer** for faster convergence.
 
 ## Usage
-### Environemt
-We recomend using the official PyTorch docker container and installing all of `requirments.txt`. In the future we'll provide a dockerfile which does all the setup for you.
+### Environment
+We recommend using the official PyTorch docker container and installing all of `requirments.txt`. In the future we'll provide a dockerfile which does all the setup for you.
 
 ### Envars
 The following environment variables **must** be set:
