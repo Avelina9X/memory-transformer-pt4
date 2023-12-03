@@ -67,11 +67,11 @@ def save_model( model: LSWTForCausalLM, log_wandb: bool=False ):
 
 
 def train(
-        config: Optional[dict]=None,
-        model_config: Optional[LSWTConfig]=None,
-        train_config: Optional[LSWTConfigTraining]=None,
-        wandb_mode: Optional[str]=None
-    ):
+    config: Optional[dict]=None,
+    model_config: Optional[LSWTConfig]=None,
+    train_config: Optional[LSWTConfigTraining]=None,
+    wandb_mode: Optional[str]=None
+):
 
     wandb_mode = wandb_mode or WANDB_MODE
 
