@@ -16,6 +16,7 @@ class MLELoss( nn.Module ):
         self.train_fct = CrossEntropyLoss( ignore_index=pad_token_id )
 
     def forward( self, last_hidden_states, logits, input_ids, labels ):
+        # pylint: disable=W0613
         mle_loss = self.train_fct(logits.view(-1, self.vocab_size), labels.view(-1))
 
         return mle_loss, mle_loss * 0.0
