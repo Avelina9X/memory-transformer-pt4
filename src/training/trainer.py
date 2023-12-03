@@ -63,7 +63,7 @@ def _load_loss_function( train_config: LSWTConfigTraining, model_config: LSWTCon
         raise ValueError( 'Invalid loss function' )
 
 class Trainer():
-    def __init__( self, train_config: LSWTConfigTraining, model: LSWTForCausalLM, tokenizer: PreTrainedTokenizerBase, **kwargs ):
+    def __init__( self, train_config: LSWTConfigTraining, model: LSWTForCausalLM, tokenizer: PreTrainedTokenizerBase ):
         self.train_config = train_config
         self.model = model
         self.tokenizer = tokenizer
