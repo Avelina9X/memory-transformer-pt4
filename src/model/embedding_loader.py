@@ -1,9 +1,9 @@
-from .configuration import LSWTConfig
-from transformers import AutoConfig, GPT2Model, OPTModel
-
 from typing import Optional
 
+from transformers import AutoConfig, GPT2Model, OPTModel
 import torch
+
+from .configuration import LSWTConfig
 
 def _get_model_type( name: str, cache_dir: Optional[str]=None ):
     return AutoConfig.from_pretrained( name, cache_dir=cache_dir ).model_type

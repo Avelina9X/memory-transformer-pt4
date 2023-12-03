@@ -1,18 +1,15 @@
+import gc
+from typing import Dict
+
+import torch
+from torcheval import metrics
 from transformers import PreTrainedTokenizerBase
 
 from model.modeling import LSWTForCausalLM
+from constants import TORCH_COMPILE_OPTIONS
 
 from .losses import MLELoss, AccuracyMetric
 
-import torch
-
-from torcheval import metrics
-
-import gc
-
-from typing import Dict
-
-from constants import TORCH_COMPILE_OPTIONS
 
 class Eval():
     def __init__( self, model: LSWTForCausalLM, tokenizer: PreTrainedTokenizerBase ):

@@ -1,6 +1,12 @@
 import os
+import pathlib
+from typing import Optional
 
-os.environ[ 'TOKENIZERS_PARALLELISM' ] = 'true'
+import rich
+import wandb
+
+from transformers import AutoTokenizer
+import numpy as np
 
 from training.trainer import Trainer
 from training.eval import Eval
@@ -12,16 +18,8 @@ from model.embedding_loader import embedding_loader
 
 from constants import HF_CACHE_DIR, WANDB_PROJECT_NAME
 
-from transformers import AutoTokenizer
 
-import rich
-import wandb
-
-import numpy as np
-
-import pathlib
-
-from typing import Optional
+os.environ[ 'TOKENIZERS_PARALLELISM' ] = 'true'
 
 WANDB_MODE = 'online'
 

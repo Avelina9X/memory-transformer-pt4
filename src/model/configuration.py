@@ -1,5 +1,6 @@
-from transformers import PretrainedConfig
 import json
+
+from transformers import PretrainedConfig
 
 class LSWTConfig( PretrainedConfig ):
     model_type = "lsw_transformer"

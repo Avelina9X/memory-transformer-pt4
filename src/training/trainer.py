@@ -1,5 +1,15 @@
-from transformers import PreTrainedTokenizerBase
+import gc
+import time
+from typing import Dict
 
+import tqdm
+import numpy as np
+from transformers import PreTrainedTokenizerBase
+import torch
+from torch.optim import AdamW
+from torcheval import metrics
+
+from constants import TORCH_COMPILE_OPTIONS
 from model.configuration import LSWTConfigTraining, LSWTConfig
 from model.modeling import LSWTForCausalLM
 
@@ -7,20 +17,6 @@ from .sophia import SophiaG
 from .data import PileDataset
 from .losses import MLELoss, SimCTGLoss, AccuracyMetric
 
-from torch.optim import AdamW
-import torch
-
-from torcheval import metrics
-
-import numpy as np
-
-import gc
-import tqdm
-import time
-
-from typing import Dict
-
-from constants import TORCH_COMPILE_OPTIONS
 
 def _bar_format( iter_n, iter_total, elapsed, epoch, loss, acc ) -> str:
     return tqdm.tqdm.format_meter(

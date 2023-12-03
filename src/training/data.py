@@ -1,11 +1,14 @@
-from typing import List, Optional
-from datasets import load_dataset
-from transformers import PreTrainedTokenizerBase
-import torch
 import json
 from json import JSONDecodeError
 
+from typing import List, Optional
+
+import torch
 from torch.utils.data import IterableDataset, DataLoader
+
+from datasets import load_dataset
+from transformers import PreTrainedTokenizerBase
+
 
 _PILE_DIR_JSONL = '/data/lhk3/the_pile/{:02d}.jsonl'
 
