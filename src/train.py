@@ -37,11 +37,11 @@ def modify_dicts( config: dict, model_config: LSWTConfig, train_config: LSWTConf
 
         if model_key is not None:
             getattr( model_config, model_key )
-            model_config.__setattr__( model_key, value )
+            setattr( model_config, model_key, value )
 
         if train_key is not None:
             getattr( train_config, train_key )
-            train_config.__setattr__( train_key, value )
+            setattr( train_config, train_key, value )
 
 def get_checkpoint_path( name: Optional[str]=None ):
     name = name or wandb.run.name or wandb.run.id # type: ignore
