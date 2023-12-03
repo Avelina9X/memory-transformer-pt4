@@ -1,4 +1,4 @@
-from typing import Dict, Tuple, List, Optional
+from typing import Dict, List, Optional
 
 from transformers import PreTrainedModel
 from transformers.modeling_outputs import BaseModelOutputWithPast, CausalLMOutputWithPast
@@ -304,10 +304,17 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
             attentions=base_outputs.attentions,
         )
 
-    # TODO: do this legit
+    # TODO: do this legit + remove pylint ignores # pylint: disable=W0511
     def prepare_inputs_for_generation(
-        self, input_ids, past_key_values=None, attention_mask=None, inputs_embeds=None, **kwargs
+        self,
+        input_ids,
+        past_key_values=None,
+        attention_mask=None,
+        inputs_embeds=None,
+        **kwargs
     ):
+        # pylint: disable=W0613
+        # pylint: disable=W0612
         if past_key_values is not None:
             past_length = past_key_values[0][0].shape[2]
 
