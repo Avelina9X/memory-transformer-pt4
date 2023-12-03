@@ -1,4 +1,3 @@
-import os
 import wandb
 
 from constants import WANDB_API_KEY, WANDB_PROJECT_NAME

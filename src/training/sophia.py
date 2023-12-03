@@ -9,12 +9,10 @@
 }
 """
 
-
-import math
 import torch
 from torch import Tensor
 from torch.optim.optimizer import Optimizer
-from typing import List, Optional
+from typing import List
 
 
 class SophiaG(Optimizer):

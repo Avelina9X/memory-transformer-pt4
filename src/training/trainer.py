@@ -17,7 +17,6 @@ import numpy as np
 import gc
 import tqdm
 import time
-import rich
 
 from typing import Dict
 

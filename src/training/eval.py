@@ -1,22 +1,14 @@
 from transformers import PreTrainedTokenizerBase
 
-from model.configuration import LSWTConfigTraining, LSWTConfig
 from model.modeling import LSWTForCausalLM
 
-from .losses import MLELoss, SimCTGLoss, AccuracyMetric
+from .losses import MLELoss, AccuracyMetric
 
 import torch
 
 from torcheval import metrics
 
-import numpy as np
-
 import gc
-import tqdm
-import time
-import rich
-
-import math
 
 from typing import Dict
 

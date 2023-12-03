@@ -13,7 +13,6 @@ from model.embedding_loader import embedding_loader
 from constants import HF_CACHE_DIR, WANDB_PROJECT_NAME
 
 from transformers import AutoTokenizer
-from datasets import load_dataset
 
 import rich
 import wandb
