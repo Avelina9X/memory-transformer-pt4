@@ -46,4 +46,3 @@ def embedding_loader( config: LSWTConfig, cache_dir: Optional[str]=None ) -> tor
     assert embeddings.embedding_dim == config.d_vocab, 'Loaded embeddings dim =/= config.d_model'
 
     return embeddings.weight # type: ignore
-

@@ -339,4 +339,3 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
             }
         )
         return model_inputs
-
