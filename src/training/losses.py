@@ -34,7 +34,7 @@ class SimCTGLoss( nn.Module ):
     """
 
     def __init__( self, margin, vocab_size, pad_token_id, compute_device: str | torch.device='cuda' ):
-        super(SimCTGLoss, self).__init__()
+        super().__init__()
         '''
            margin: predefined margin to push similarity score away
            vocab_size: the vocabulary size of the tokenizer
