@@ -35,6 +35,7 @@ The following environment variables are **optional** but recommended:
 - TODO: add citations to readme
 - TODO: improve SimCTG code for scattered padding + on device compute
 - TODO: deploy models to 🤗 and use shield.io for pretty links
+- TODO: fold `TOKENIZERS_PARALLELISM` envar into dockerfile
 
 ## Model Sizes
 | Name | $d_{model}$ | $n_{layers}$ | $n_{heads}$ | $d_{key}$ | Parameters |
