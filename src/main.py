@@ -17,14 +17,14 @@ if __name__ == '__main__':
     parser.add_argument( '--sweep-count', type=int, default=None )
     arguments = parser.parse_args()
 
-    torch._dynamo.config.cache_size_limit = 256 # type: ignore
+    torch._dynamo.config.cache_size_limit = 256 # type: ignore # pylint: disable=W0212
 
     if arguments.sweep_id is not None:
         # Disable warnings
         warnings.simplefilter( 'ignore' )
-        torch._logging.set_logs( dynamo=logging.FATAL ) # type: ignore
-        torch._logging.set_logs( inductor=logging.FATAL ) # type: ignore
-        torch._logging.set_logs( dynamic=logging.FATAL ) # type: ignore
+        torch._logging.set_logs( dynamo=logging.FATAL ) # type: ignore # pylint: disable=W0212
+        torch._logging.set_logs( inductor=logging.FATAL ) # type: ignore # pylint: disable=W0212
+        torch._logging.set_logs( dynamic=logging.FATAL ) # type: ignore # pylint: disable=W0212
 
         # Run agent
         wandb.agent(

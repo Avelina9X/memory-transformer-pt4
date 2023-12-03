@@ -1,5 +1,5 @@
 import torch
-from flash_attn import flash_attn_func # type: ignore
+from flash_attn import flash_attn_func # type: ignore # pylint: disable=E0401
 
 from .configuration import LSWTConfig
 
