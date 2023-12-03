@@ -49,11 +49,8 @@ class PileShardDataset( IterableDataset ):
                     try:
                         text = json.loads( line )[ 'text' ]
                         yield text
-                    except Exception as e:
-                        if isinstance( e, JSONDecodeError ):
-                            pass
-                        else:
-                            raise e
+                    except JSONDecodeError:
+                        pass
 
     @classmethod
     def line_token_generator( cls, path: str, tokenizer: PreTrainedTokenizerBase, shard_num: int, shard_id: int ):
