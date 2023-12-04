@@ -13,7 +13,7 @@ from torch.optim import AdamW
 from torcheval import metrics
 
 from constants import TORCH_COMPILE_OPTIONS
-from model.configuration import LSWTConfigTraining, LSWTConfig
+from model.configuration import LSWTConfigTraining
 from model.modeling import LSWTForCausalLM
 
 from .sophia import SophiaG
@@ -21,55 +21,13 @@ from .data import PileDataset
 from .losses import MLELoss, SimCTGLoss, AccuracyMetric
 
 
-def _bar_format( iter_n, iter_total, elapsed, epoch, loss, acc ) -> str:
-    return tqdm.tqdm.format_meter(
-        n=iter_n,
-        total=iter_total,
-        elapsed=elapsed,
-        ncols=80,
-        unit='it',
-        bar_format='{desc}: {percentage:.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}, {rate_fmt}{postfix}]',
-        postfix=f'loss={loss:.3f}, acc={acc:.3f}',
-        prefix=f'Epoch {epoch}',
-    )
-
-def _load_optimizer( train_config: LSWTConfigTraining, model: LSWTForCausalLM ) -> torch.optim.Optimizer:
-    if train_config.optimizer == 'SophiaG':
-        return SophiaG(
-            params=model.get_param_groups(),
-            lr=0.0,
-            betas=( train_config.opt_beta_1, train_config.opt_beta_2 ),
-            rho=( train_config.opt_rho ),
-            weight_decay=( train_config.opt_weight_decay )
-        )
-
-    if train_config.optimizer == 'AdamW':
-        return AdamW(
-            params=model.get_param_groups(),
-            lr=0.0,
-            betas=( train_config.opt_beta_1, train_config.opt_beta_2 ),
-            eps=train_config.opt_eps,
-            weight_decay=( train_config.opt_weight_decay ),
-        )
-
-    raise ValueError( 'Invalid optimizer' )
-
-def _load_loss_function( train_config: LSWTConfigTraining, model_config: LSWTConfig ) -> torch.nn.Module:
-    if train_config.loss_objective == 'MLE':
-        return MLELoss( model_config.vocab_size, model_config.pad_token_id )
-
-    if train_config.loss_objective == 'SimCTG':
-        return SimCTGLoss( train_config.loss_sim_margin, model_config.vocab_size, model_config.pad_token_id )
-
-    raise ValueError( 'Invalid loss function' )
-
 class Trainer():
     def __init__( self, train_config: LSWTConfigTraining, model: LSWTForCausalLM, tokenizer: PreTrainedTokenizerBase ):
         self.train_config = train_config
         self.model = model
         self.tokenizer = tokenizer
 
-        self.optimizer = _load_optimizer( train_config, model )
+        self.optimizer = self._load_optimizer()
         self.optimizer_scaler = torch.cuda.amp.GradScaler() # type: ignore
 
         self.batch_groups = train_config.batch_size // train_config.batch_size_step
@@ -82,7 +40,7 @@ class Trainer():
             batch_size=train_config.batch_size
         ).as_data_loader()
 
-        self.loss_function = _load_loss_function( train_config, model.config ) # type: ignore
+        self.loss_function = self._load_loss_function()
 
         self.acc_function = AccuracyMetric( model.config.vocab_size, model.config.pad_token_id )
 
@@ -92,6 +50,60 @@ class Trainer():
         }
 
         self.optimizer_step = 0
+
+
+    """ ========================================================================
+        Internal Utility functions
+        ======================================================================== """
+
+    def _bar_format( self, iter_n, iter_total, elapsed, epoch, loss, acc ) -> str:
+        return tqdm.tqdm.format_meter(
+            n=iter_n,
+            total=iter_total,
+            elapsed=elapsed,
+            ncols=80,
+            unit='it',
+            bar_format='{desc}: {percentage:.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}, {rate_fmt}{postfix}]',
+            postfix=f'loss={loss:.3f}, acc={acc:.3f}',
+            prefix=f'Epoch {epoch}',
+        )
+
+    def _load_optimizer( self ) -> torch.optim.Optimizer:
+        if self.train_config.optimizer == 'SophiaG':
+            return SophiaG(
+                params=self.model.get_param_groups(),
+                lr=0.0,
+                betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
+                rho=( self.train_config.opt_rho ),
+                weight_decay=( self.train_config.opt_weight_decay )
+            )
+
+        if self.train_config.optimizer == 'AdamW':
+            return AdamW(
+                params=self.model.get_param_groups(),
+                lr=0.0,
+                betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
+                eps=self.train_config.opt_eps,
+                weight_decay=( self.train_config.opt_weight_decay ),
+            )
+
+        raise ValueError( 'Invalid optimizer' )
+
+    def _load_loss_function( self ) -> torch.nn.Module:
+        if self.train_config.loss_objective == 'MLE':
+            return MLELoss(
+                self.model.config.vocab_size,
+                self.model.config.pad_token_id
+            )
+
+        if self.train_config.loss_objective == 'SimCTG':
+            return SimCTGLoss(
+                self.train_config.loss_sim_margin,
+                self.model.config.vocab_size,
+                self.model.config.pad_token_id
+            )
+
+        raise ValueError( 'Invalid loss function' )
 
 
     """ ========================================================================
@@ -212,7 +224,7 @@ class Trainer():
         for batch in range( self.train_config.batches_per_epoch ):
             self.train_batch_step( next( iterator ) )
 
-            bar = _bar_format(
+            bar = self._bar_format(
                 iter_n=batch + 1,
                 iter_total=self.train_config.batches_per_epoch,
                 elapsed=time.time() - start_time,
