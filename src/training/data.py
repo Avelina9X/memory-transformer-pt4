@@ -165,8 +165,8 @@ class PileDataset( IterableDataset ):
             self,
             num_workers=0,
             batch_size=None,
-            # pin_memory=True,
-            # pin_memory_device='cuda',
+            pin_memory=True,
+            pin_memory_device='cuda',
         )
 
     def __getitem__( self, index ):

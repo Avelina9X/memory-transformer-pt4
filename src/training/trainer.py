@@ -164,12 +164,11 @@ class Trainer():
 
     @torch.compile( **TORCH_COMPILE_OPTIONS )
     def train_sub_step( self, tokens_x, tokens_y, past_key_values ):
-        tokens_x = tokens_x.to( device='cuda', non_blocking=True )
         with torch.autocast( device_type='cuda', dtype=torch.float16 ): # type: ignore
             logits, past_key_values, hidden_states = self.forward_pass( tokens_x, past_key_values, self.train_config.length_cache )
 
             y_pred = logits
-            y_true = tokens_y.to( 'cuda', non_blocking=True )
+            y_true = tokens_y
 
             mle_loss, aux_loss = self.loss_function( hidden_states, y_pred, tokens_x, y_true )
             accu_loss = ( mle_loss + aux_loss ) / self.batch_groups
@@ -205,8 +204,8 @@ class Trainer():
 
         tokens_xs, tokens_ys = batch
 
-        tokens_xs = torch.split( tokens_xs, self.train_config.batch_size_step )
-        tokens_ys = torch.split( tokens_ys, self.train_config.batch_size_step )
+        tokens_xs = torch.split( tokens_xs.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
+        tokens_ys = torch.split( tokens_ys.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
 
         for idx in range( self.batch_groups ):
             loss, accuracy, past_key_values = self.train_sub_step( tokens_xs[idx], tokens_ys[idx], self.past_key_values_list[idx] )
