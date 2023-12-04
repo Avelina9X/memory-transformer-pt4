@@ -24,16 +24,16 @@ os.environ[ 'TOKENIZERS_PARALLELISM' ] = 'true'
 
 WANDB_MODE = 'online'
 
-def find_and_extract( source, prefix ):
+def _find_and_extract( source, prefix ):
     idx = source.find( prefix + '.' )
     if idx != 0:
         return None
     return source[ len( prefix ) + 1 : ]
 
-def modify_dicts( config: dict, model_config: LSWTConfig, train_config: LSWTConfigTraining ):
+def _modify_dicts( config: dict, model_config: LSWTConfig, train_config: LSWTConfigTraining ):
     for key, value in config.items():
-        model_key = find_and_extract( key, 'model' )
-        train_key = find_and_extract( key, 'train' )
+        model_key = _find_and_extract( key, 'model' )
+        train_key = _find_and_extract( key, 'train' )
 
         if model_key is not None:
             getattr( model_config, model_key )
@@ -43,7 +43,7 @@ def modify_dicts( config: dict, model_config: LSWTConfig, train_config: LSWTConf
             getattr( train_config, train_key )
             setattr( train_config, train_key, value )
 
-def get_checkpoint_path( name: str | None=None ):
+def _get_checkpoint_path( name: str | None=None ):
     name = name or wandb.run.name or wandb.run.id # type: ignore
 
     root_dir = pathlib.Path().cwd().joinpath( 'checkpoints', name )
@@ -51,8 +51,8 @@ def get_checkpoint_path( name: str | None=None ):
     model_dir = root_dir.joinpath( 'model.safetensors' )
     return root_dir, config_dir, model_dir
 
-def save_model( model: LSWTForCausalLM, log_wandb: bool=False ):
-    root_dir, config_dir, model_dir = get_checkpoint_path()
+def _save_model( model: LSWTForCausalLM, log_wandb: bool=False ):
+    root_dir, config_dir, model_dir = _get_checkpoint_path()
 
     model.half().save_pretrained( root_dir, safe_serialization=True )
 
@@ -72,7 +72,15 @@ def train(
     train_config: LSWTConfigTraining | None = None,
     wandb_mode: str | None = None
 ):
+    """ Pretraining function.
 
+    Args:
+        config (dict | None, optional): Optional WandB style config. Defaults to None.
+        model_config (LSWTConfig | None, optional): Optional model config. Defaults to None.
+        train_config (LSWTConfigTraining | None, optional): Optional training config. Defaults to None.
+        wandb_mode (str | None, optional): Optional wandb mode. Defaults to None.
+    """
+    
     wandb_mode = wandb_mode or WANDB_MODE
 
     with wandb.init(
@@ -89,7 +97,7 @@ def train(
         # Get and update model configs
         model_config = model_config or LSWTConfig()
         train_config = train_config or LSWTConfigTraining()
-        modify_dicts( wandb.config, model_config, train_config )
+        _modify_dicts( wandb.config, model_config, train_config )
 
         # Load model and embeddings
         parent_embeddings = embedding_loader( model_config, cache_dir=HF_CACHE_DIR )
@@ -168,4 +176,4 @@ def train(
             'test/pile-uncopyrighted/acc': test_metrics[ 'acc' ],
         } )
 
-        save_model( model, log_wandb=( wandb_mode == 'online' ) )
+        _save_model( model, log_wandb=( wandb_mode == 'online' ) )
