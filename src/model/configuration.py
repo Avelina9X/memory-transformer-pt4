@@ -9,7 +9,7 @@ Contains:
 """
 
 import json
-from typing import Dict, Any
+from typing import Any
 
 from transformers import PretrainedConfig
 
@@ -154,14 +154,14 @@ class LSWTConfig( PretrainedConfig ):
         # Assertions
         assert d_model % n_heads == 0, 'd_model must be divisible by n_heads'
 
-    def to_wandb_dict( self, prefix='model' ) -> Dict[str, Any]:
+    def to_wandb_dict( self, prefix='model' ) -> dict[str, Any]:
         """ Serializes this instance to WandB style dict.
 
         Args:
             prefix (str, optional): Prefix for all attributes. Defaults to 'model'.
 
         Returns:
-            Dict[str, Any]: Dict of all attributes that make up this configuration instance
+            dict[str, Any]: Dict of all attributes that make up this configuration instance
         """
         return { f'{prefix}.{key}': value for key, value in self.to_diff_dict().items() }
 
@@ -263,14 +263,14 @@ class LSWTConfigTraining():
         """
         return json.dumps( self.__dict__, indent=2 )
 
-    def to_wandb_dict( self, prefix='train' ) -> Dict[str, Any]:
+    def to_wandb_dict( self, prefix='train' ) -> dict[str, Any]:
         """ Serializes this instance to WandB style dict.
 
         Args:
             prefix (str, optional): Prefix for all attributes. Defaults to 'train'.
 
         Returns:
-            Dict[str, Any]: Dict of all attributes that make up this configuration instance
+            dict[str, Any]: Dict of all attributes that make up this configuration instance
         """
         return { f'{prefix}.{key}': value for key, value in self.__dict__.items() }
 

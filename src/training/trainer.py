@@ -4,7 +4,6 @@ Module containing the training loop components for training LSWTransformer model
 
 import gc
 import time
-from typing import Dict
 
 import tqdm
 import numpy as np
@@ -99,7 +98,7 @@ class Trainer():
         Utility functions
         ======================================================================== """
 
-    def reset_metrics( self ) -> Dict[ str, float ]:
+    def reset_metrics( self ) -> dict[ str, float ]:
         stats = {}
         for name, metric in self.metrics.items():
             stats[name] = float( metric.compute() )

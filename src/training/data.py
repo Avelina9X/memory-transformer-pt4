@@ -5,8 +5,6 @@ Module containing iterable datasets used to train and test LSWTransformer models
 import json
 from json import JSONDecodeError
 
-from typing import List, Optional
-
 import torch
 from torch.utils.data import IterableDataset, DataLoader
 
@@ -121,7 +119,7 @@ class PileDataset( IterableDataset ):
         tokenizer: PreTrainedTokenizerBase,
         seq_length: int,
         batch_size: int,
-        pile_shards: Optional[List[int]]=None
+        pile_shards: list[int] | None=None
     ):
         """
         Creates an iterable dataset for multiple shards over the pile.
@@ -152,12 +150,15 @@ class PileDataset( IterableDataset ):
             ) for i in self.pile_shards
         ]
 
-        while True:
-            test_next = [ next( i ) for i in gen ]
-            test_next_x = torch.cat( [ i[0] for i in test_next ] )
-            test_next_y = torch.cat( [ i[1] for i in test_next ] )
+        try:
+            while True:
+                test_next = [ next( i ) for i in gen ]
+                test_next_x = torch.cat( [ i[0] for i in test_next ] )
+                test_next_y = torch.cat( [ i[1] for i in test_next ] )
 
-            yield test_next_x, test_next_y
+                yield test_next_x, test_next_y
+        except StopIteration:
+            return
 
     def as_data_loader( self ):
         return DataLoader(

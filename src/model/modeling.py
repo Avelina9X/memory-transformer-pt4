@@ -7,8 +7,6 @@ Contains:
     - LSWTForCausalLM: causal head model containing an LSWTModel instance.
 """
 
-from typing import Dict, List, Optional
-
 from transformers import PreTrainedModel
 from transformers.modeling_outputs import BaseModelOutputWithPast, CausalLMOutputWithPast
 import torch
@@ -46,7 +44,7 @@ class LSWTPreTrainedModel( PreTrainedModel ):
             module.bias.data.zero_()
             module.weight.data.fill_( 1.0 )
 
-    def get_param_groups( self ) -> List[Dict]:
+    def get_param_groups( self ) -> list[dict]:
         """
         Returns optimizer parameter groups with weight decay disabled for certain params.
         Weight decay is disabled for:
@@ -76,17 +74,17 @@ class LSWTPreTrainedModel( PreTrainedModel ):
             { 'params': non_decay_params, 'weight_decay': 0.0 }
         ]
 
-    def cache_to( self, cache: Optional[List[List[torch.Tensor]]], device: str | torch.device, trim=0 ):
+    def cache_to( self, cache: list[list[torch.Tensor]] | None, device: str | torch.device, trim=0 ) -> list[list[torch.Tensor]] | None:
         """
         Moves KV cache between devices.
 
         Args:
-            cache (Optional[List[List[torch.Tensor]]]): Key value cache to move
+            cache (Optional[list[list[torch.Tensor]]]): Key value cache to move
             device (str | torch.device): the device to move to
             trim (int, optional): Desired trim size. Zero means no trim. Defaults to 0.
 
         Returns:
-            List[List[torch.Tensor]]: Moved key value cache
+            list[list[torch.Tensor]]: Moved key value cache
         """
 
         if cache is not None:
@@ -108,7 +106,7 @@ class LSWTModel( LSWTPreTrainedModel ):
     Contains the input embeddings and model backbone, but does not contain the model head.
     """
 
-    def __init__( self, config: LSWTConfig, parent_embeddings: Optional[torch.Tensor]=None ):
+    def __init__( self, config: LSWTConfig, parent_embeddings: torch.Tensor | None=None ):
         """
         Constructs a new LSWTModel.
 
@@ -165,9 +163,9 @@ class LSWTModel( LSWTPreTrainedModel ):
 
     def forward(
         self,
-        input_ids: Optional[torch.LongTensor] = None,
-        inputs_embeds: Optional[torch.Tensor] = None,
-        past_key_values: Optional[List[List[torch.Tensor]]] = None, # (n_layers)+(k_v)+(B, heads, seq_length, d_key)
+        input_ids: torch.LongTensor | None = None,
+        inputs_embeds: torch.Tensor | None = None,
+        past_key_values: list[list[torch.Tensor]] | None = None, # (n_layers)+(k_v)+(B, heads, seq_length, d_key)
     ) -> BaseModelOutputWithPast:
         """
         Forward pass function.
@@ -235,7 +233,7 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
     Contains an LSWTModel and a projection layer for the shared embedding LM head.
     """
 
-    def __init__( self, config: LSWTConfig, parent_embeddings: Optional[torch.Tensor]=None ):
+    def __init__( self, config: LSWTConfig, parent_embeddings: torch.Tensor | None=None ):
         """
         Constructs a new LSWTForCausalLM.
 
@@ -267,15 +265,15 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
 
     def forward(
         self,
-        input_ids: Optional[torch.LongTensor] = None,
-        inputs_embeds: Optional[torch.Tensor] = None,
-        past_key_values: Optional[List[List[torch.Tensor]]] = None,
+        input_ids: torch.LongTensor | None = None,
+        inputs_embeds: torch.Tensor | None = None,
+        past_key_values: list[list[torch.Tensor]] | None = None,
 
         use_cache=True,
         return_dict=True,
         output_attentions=False,
         output_hidden_states=True,
-    ):
+    ) -> CausalLMOutputWithPast:
         """
         Forward pass function.
 

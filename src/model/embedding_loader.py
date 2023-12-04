@@ -5,17 +5,15 @@ Contains:
     - embedding_loader: the loading method to retrieve embedding tensors.
 """
 
-from typing import Optional
-
 from transformers import AutoConfig, GPT2Model, OPTModel
 import torch
 
 from .configuration import LSWTConfig
 
-def _get_model_type( name: str, cache_dir: Optional[str]=None ):
+def _get_model_type( name: str, cache_dir: str | None=None ):
     return AutoConfig.from_pretrained( name, cache_dir=cache_dir ).model_type
 
-def _load_embeddings( name: str, cache_dir: Optional[str]=None ):
+def _load_embeddings( name: str, cache_dir: str | None=None ):
     model_type = _get_model_type( name, cache_dir )
 
     if model_type == 'gpt2':
@@ -36,7 +34,7 @@ def _load_embeddings( name: str, cache_dir: Optional[str]=None ):
     return embeddings
 
 
-def embedding_loader( config: LSWTConfig, cache_dir: Optional[str]=None ) -> torch.Tensor:
+def embedding_loader( config: LSWTConfig, cache_dir: str | None=None ) -> torch.Tensor:
     """
     Retrieves the weight tensor from a `torch.nn.Embedding` layer of a transformer from the HF hub
 

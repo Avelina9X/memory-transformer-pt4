@@ -2,7 +2,6 @@
 
 import os
 import pathlib
-from typing import Optional
 
 import rich
 import wandb
@@ -44,7 +43,7 @@ def modify_dicts( config: dict, model_config: LSWTConfig, train_config: LSWTConf
             getattr( train_config, train_key )
             setattr( train_config, train_key, value )
 
-def get_checkpoint_path( name: Optional[str]=None ):
+def get_checkpoint_path( name: str | None=None ):
     name = name or wandb.run.name or wandb.run.id # type: ignore
 
     root_dir = pathlib.Path().cwd().joinpath( 'checkpoints', name )
@@ -68,10 +67,10 @@ def save_model( model: LSWTForCausalLM, log_wandb: bool=False ):
 
 
 def train(
-    config: Optional[dict]=None,
-    model_config: Optional[LSWTConfig]=None,
-    train_config: Optional[LSWTConfigTraining]=None,
-    wandb_mode: Optional[str]=None
+    config: dict | None = None,
+    model_config: LSWTConfig | None = None,
+    train_config: LSWTConfigTraining | None = None,
+    wandb_mode: str | None = None
 ):
 
     wandb_mode = wandb_mode or WANDB_MODE

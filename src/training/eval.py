@@ -3,7 +3,6 @@ Module containing the evaluation loop components for training LSWTransformer mod
 """
 
 import gc
-from typing import Dict
 
 import torch
 from torcheval import metrics
@@ -33,7 +32,7 @@ class Eval():
         Utility functions
         ======================================================================== """
 
-    def reset_metrics( self ) -> Dict[ str, float ]:
+    def reset_metrics( self ) -> dict[ str, float ]:
         stats = {}
         for name, metric in self.metrics.items():
             stats[name] = float( metric.compute() )
