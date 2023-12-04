@@ -68,7 +68,7 @@ class Eval():
         Eval Functions
         ======================================================================== """
 
-    def eval_sub_step( self, tokens_x: torch.Tensor, tokens_y: torch.Tensor, chunk_size: int, chunk_compute: bool=True ):
+    def eval_sub_step( self, tokens_x: torch.Tensor, tokens_y: torch.Tensor, chunk_size: int ):
         loss = 0.0
         accuracy = 0.0
         total_num_true = 0
@@ -78,34 +78,24 @@ class Eval():
                 tokens_xs = torch.split( tokens_x, chunk_size, dim=1 )
                 tokens_ys = torch.split( tokens_y, chunk_size, dim=1 )
                 past_key_values = None
-                logits_list = []
 
-                for idx in range( len( tokens_xs ) ):
-                    logits, past_key_values = self.forward_pass( tokens_xs[idx], past_key_values )
+                for tx, ty in zip( tokens_xs, tokens_ys ):
+                    logits, past_key_values = self.forward_pass( tx, past_key_values )
                     past_key_values = self.model.cache_to( past_key_values, 'cuda', trim=chunk_size )
 
-                    if not chunk_compute:
-                        logits_list.append( logits )
-                    else:
-                        num_true = self.num_true( tokens_ys[idx] )
+                    num_true = self.num_true( ty )
 
-                        if num_true > 0:
-                            total_num_true += num_true
-                            loss += self.loss_function( None, logits, None, tokens_ys[idx] )[0] * num_true
-                            accuracy += self.acc_function( logits, tokens_ys[idx] ) * num_true
+                    if num_true > 0:
+                        total_num_true += num_true
+                        loss += self.loss_function( None, logits, None, ty )[0] * num_true
+                        accuracy += self.acc_function( logits, ty ) * num_true
 
-                if not chunk_compute:
-                    logits = torch.cat( logits_list, dim=1 )
-
-                    loss += self.loss_function( None, logits, None, tokens_y )[0]
-                    accuracy += self.acc_function( logits, tokens_y )
-                else:
-                    loss /= total_num_true
-                    accuracy /= total_num_true
+                loss /= total_num_true
+                accuracy /= total_num_true
 
             return loss, accuracy
 
-    def eval_step( self, sequence: str, chunk_size: int, chunk_compute: bool=True ):
+    def eval_step( self, sequence: str, chunk_size: int ):
         self.model.eval()
 
         tokens = self.tokenizer.encode( sequence, add_special_tokens=False )
@@ -120,14 +110,14 @@ class Eval():
         tokens_x = torch.LongTensor( [ tokens_x ] ).cuda()
         tokens_y = torch.LongTensor( [ tokens_y ] ).cuda()
 
-        loss, accuracy = self.eval_sub_step( tokens_x, tokens_y, chunk_size, chunk_compute )
+        loss, accuracy = self.eval_sub_step( tokens_x, tokens_y, chunk_size )
 
         self.metrics[ 'loss' ].update( loss ) # type: ignore
         self.metrics[ 'acc' ].update( accuracy ) # type: ignore
 
-    def eval_epoch( self, iterator, iterator_key: str, chunk_size: int, chunk_compute: bool=True ):
+    def eval_epoch( self, iterator, iterator_key: str, chunk_size: int ):
         for row in iterator:
-            self.eval_step( row[ iterator_key ], chunk_size, chunk_compute )
+            self.eval_step( row[ iterator_key ], chunk_size )
 
         torch.cuda.empty_cache()
         gc.collect()
