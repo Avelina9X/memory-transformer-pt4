@@ -74,7 +74,12 @@ class LSWTPreTrainedModel( PreTrainedModel ):
             { 'params': non_decay_params, 'weight_decay': 0.0 }
         ]
 
-    def cache_to( self, cache: list[list[torch.Tensor]] | None, device: str | torch.device, trim=0 ) -> list[list[torch.Tensor]] | None:
+    def cache_to(
+        self,
+        cache: list[list[torch.Tensor]] | None,
+        device: str | torch.device,
+        trim: int = 0,
+    ) -> list[list[torch.Tensor]] | None:
         """
         Moves KV cache between devices.
 
@@ -165,7 +170,7 @@ class LSWTModel( LSWTPreTrainedModel ):
         self,
         input_ids: torch.LongTensor | None = None,
         inputs_embeds: torch.Tensor | None = None,
-        past_key_values: list[list[torch.Tensor]] | None = None, # (n_layers)+(k_v)+(B, heads, seq_length, d_key)
+        past_key_values: list[list[torch.Tensor]] | None = None,
     ) -> BaseModelOutputWithPast:
         """
         Forward pass function.
