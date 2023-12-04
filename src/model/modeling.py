@@ -1,3 +1,12 @@
+"""
+Module containing the LSWT model implementations.
+
+Contains:
+    - LSWTPreTrainedModel: abstract base class for the LSWT.
+    - LSWTModel: backbone base class with no head.
+    - LSWTForCausalLM: causal head model containing an LSWTModel instance.
+"""
+
 from typing import Dict, List, Optional
 
 from transformers import PreTrainedModel

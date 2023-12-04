@@ -1,3 +1,7 @@
+"""
+Module containing the evaluation loop components for training LSWTransformer models.
+"""
+
 import gc
 from typing import Dict
 

@@ -1,3 +1,5 @@
+""" Main module """
+
 import argparse
 import warnings
 import logging

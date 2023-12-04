@@ -1,3 +1,7 @@
+"""
+Module containing iterable datasets used to train and test LSWTransformer models.
+"""
+
 import json
 from json import JSONDecodeError
 

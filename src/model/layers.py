@@ -1,3 +1,7 @@
+"""
+Module containing all the layers required for the LSWTransformer architecture.
+"""
+
 import torch
 from flash_attn import flash_attn_func # type: ignore # pylint: disable=E0401
 

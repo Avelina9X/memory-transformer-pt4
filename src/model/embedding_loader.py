@@ -1,3 +1,10 @@
+"""
+Embedding loader module to load embedding matrices from HF models.
+
+Contains:
+    - embedding_loader: the loading method to retrieve embedding tensors.
+"""
+
 from typing import Optional
 
 from transformers import AutoConfig, GPT2Model, OPTModel
@@ -42,6 +49,7 @@ def embedding_loader( config: LSWTConfig, cache_dir: Optional[str]=None ) -> tor
     """
     embeddings = _load_embeddings( config.parent_embeddings, cache_dir )
 
+    # TODO: swap assertions for exceptions
     assert embeddings.num_embeddings == config.vocab_size, 'Loaded embeddings vocab size =/= config.vocab_size'
     assert embeddings.embedding_dim == config.d_vocab, 'Loaded embeddings dim =/= config.d_model'
 

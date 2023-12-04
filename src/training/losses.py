@@ -1,3 +1,7 @@
+"""
+Module containing loss functions and metrics. 
+"""
+
 import torch
 from torch import nn
 from torch.nn import CrossEntropyLoss
