@@ -208,8 +208,9 @@ class Trainer():
         tokens_ys = torch.split( tokens_ys.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
 
         for idx in range( self.batch_groups ):
-            loss, accuracy, past_key_values = self.train_sub_step( tokens_xs[idx], tokens_ys[idx], self.past_key_values_list[idx] )
+            past_key_values = self.past_key_values_list[idx]
             self.past_key_values_list[idx] = None # type: ignore
+            loss, accuracy, past_key_values = self.train_sub_step( tokens_xs[idx], tokens_ys[idx], past_key_values )
             self.past_key_values_list[idx] = past_key_values # type: ignore
 
             self.metrics[ 'loss' ].update( loss )
