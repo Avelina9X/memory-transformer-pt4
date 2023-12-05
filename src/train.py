@@ -1,6 +1,5 @@
 """ Main pretraining pipeline module """
 
-import os
 import pathlib
 
 import rich
@@ -18,9 +17,6 @@ from model.modeling import LSWTForCausalLM
 from model.embedding_loader import embedding_loader
 
 from constants import HF_CACHE_DIR, WANDB_PROJECT_NAME
-
-
-os.environ[ 'TOKENIZERS_PARALLELISM' ] = 'true'
 
 WANDB_MODE = 'online'
 

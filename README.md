@@ -27,7 +27,8 @@ The following environment variables **must** be set:
 - `HF_CACHE_DIR` - The directory to store loaded models and datasets.
 
 The following environment variables are **optional** but recommended:
-- `KERAS_BACKEND="torch"` - Forces Keras to use the torch backend (for Keras NLP)
+- `KERAS_BACKEND=torch` - Forces Keras to use the torch backend (for Keras NLP)
+- `TOKENIZERS_PARALLELISM=true` - Forces HF tokenizers to support parallelism
 
 ## To Do List
 - TODO: docstrings for packages, classes and functions
@@ -35,7 +36,6 @@ The following environment variables are **optional** but recommended:
 - TODO: add citations to readme
 - TODO: improve SimCTG code for scattered padding + on device compute
 - TODO: deploy models to 🤗 and use shield.io for pretty links
-- TODO: fold `TOKENIZERS_PARALLELISM` envar into dockerfile
 
 ## Model Sizes
 | Name | $d_{model}$ | $n_{layers}$ | $n_{heads}$ | $d_{key}$ | Parameters |
