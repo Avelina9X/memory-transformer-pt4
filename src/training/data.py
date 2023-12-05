@@ -195,3 +195,17 @@ def load_proofpile2( cache_dir ):
         revision='25a8c858a775f8d8d4798061c21b8091393d5980',
         cache_dir=cache_dir,
     )
+
+def load_openorca( cache_dir ):
+    return load_dataset(
+        'Open-Orca/OpenOrca',
+        split='train',
+        cache_dir=cache_dir
+    )
+
+def load_slimorca( cache_dir ):
+    return load_dataset(
+        'Open-Orca/SlimOrca',
+        split='train',
+        cache_dir=cache_dir
+    )
