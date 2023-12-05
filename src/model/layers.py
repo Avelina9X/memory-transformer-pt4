@@ -65,7 +65,7 @@ class RotaryEmbedding( torch.nn.Module ):
         self.use_xpos = use_xpos
         self.scale_base = scale_base
         scale = (torch.arange(0, dim, 2) + 0.4 * dim) / (1.4 * dim)
-        self.register_buffer('scale', scale)
+        self.register_buffer('scale', scale) # TODO: should this be persistant? # pylint: disable=W0511
 
     def forward(self, seq_len, device):
         t = torch.arange(seq_len, device = device).type_as(self.inv_freq) # type: ignore
