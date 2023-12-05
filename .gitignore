@@ -17,4 +17,6 @@ run_pip.sh
 runj.sh
 todo.md
 
+secrets.env
+
 scratch.py
