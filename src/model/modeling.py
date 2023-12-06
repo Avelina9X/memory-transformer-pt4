@@ -278,6 +278,8 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
         return_dict=True,
         output_attentions=False,
         output_hidden_states=True,
+        
+        max_key_values: int | None = None,
     ) -> CausalLMOutputWithPast:
         """
         Forward pass function.
@@ -330,13 +332,9 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
         if past_key_values is not None:
             past_length = past_key_values[0][0].shape[2]
 
-            # # Some generation methods already pass only the last input ID
-            # if input_ids.shape[1] > past_length:
-            #     remove_prefix_length = past_length
-            # else:
-            #     # Default to old behavior: keep only final ID
-            #     remove_prefix_length = input_ids.shape[1] - 1
-
+            # Trim the past key values if a max_key_values model arg is passed            
+            max_key_values = kwargs.get( 'max_key_values', 0 ) or 0
+            past_key_values = self.cache_to( past_key_values, device=input_ids.device, trim=max_key_values )
             input_ids = input_ids[:, -1 : ]
 
         # if `inputs_embeds` are passed, we only want to use them in the 1st generation step

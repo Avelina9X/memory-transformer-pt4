@@ -38,9 +38,8 @@ if __name__ == '__main__':
 
     else:
         custom_config = {
-            'model.trainable_embeddings': True,
+            'model.trainable_embeddings': False,
             'train.loss_objective': 'SimCTG',
-            'train.batches_per_epoch': 32,
         }
 
-        train( config=custom_config, wandb_mode='offline' )
+        train( config=custom_config, wandb_mode='online' )
