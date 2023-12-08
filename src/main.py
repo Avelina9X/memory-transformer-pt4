@@ -9,7 +9,7 @@ import wandb
 
 from constants import WANDB_API_KEY, WANDB_PROJECT_NAME
 
-from train import train
+from pretrain import train
 
 if __name__ == '__main__':
     wandb.login( key=WANDB_API_KEY )
@@ -38,8 +38,9 @@ if __name__ == '__main__':
 
     else:
         custom_config = {
-            'model.trainable_embeddings': False,
+            'model.trainable_embeddings': True,
             'train.loss_objective': 'SimCTG',
+            'model.rope_reversed': False,
         }
 
         train( config=custom_config, wandb_mode='online' )

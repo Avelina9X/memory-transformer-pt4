@@ -1,4 +1,4 @@
-""" Main pretraining pipeline module """
+""" Main pretraining pipeline module. Pretrain's on The Pile """
 
 import pathlib
 
