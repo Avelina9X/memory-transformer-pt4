@@ -8,7 +8,7 @@ from json import JSONDecodeError
 import torch
 from torch.utils.data import IterableDataset, DataLoader
 
-from datasets import load_dataset
+from datasets import load_dataset, Dataset as HFDataset
 from transformers import PreTrainedTokenizerBase
 
 
@@ -171,6 +171,98 @@ class PileDataset( IterableDataset ):
 
     def __getitem__( self, index ):
         raise NotImplementedError( "This dataset does not support random access using __getitem__" )
+
+
+class OpenOrcaDataset( IterableDataset ):
+    def __init__(
+        self,
+        tokenizer: PreTrainedTokenizerBase,
+        seq_length: int,
+        batch_size: int,
+        cache_dir: str,
+    ):
+        self.tokenizer = tokenizer
+        self.seq_length = seq_length
+        self.batch_size = batch_size
+        self.cache_dir = cache_dir
+    
+    @classmethod
+    def tokenize_line( cls, prompt: str, question: str, response: str, tokenizer: PreTrainedTokenizerBase ):
+        p_tokens = [ tokenizer.sep_token_id ] + tokenizer.encode( 'Prompt:\n' + prompt, add_special_tokens=False ) + [ tokenizer.cls_token_id ]
+        q_tokens = [ tokenizer.sep_token_id ] + tokenizer.encode( 'Question:\n' + question, add_special_tokens=False ) + [ tokenizer.cls_token_id ]
+        r_tokens = [ tokenizer.sep_token_id ] + tokenizer.encode( 'Answer:\n' + response, add_special_tokens=False ) + [ tokenizer.cls_token_id ]
+        
+        if prompt == '':
+            tokens = q_tokens + r_tokens
+        else:
+            tokens = p_tokens + q_tokens + r_tokens
+        
+        tokens_x = [ tokenizer.bos_token_id ] + tokens
+        tokens_y = tokens + [ tokenizer.eos_token_id ]
+
+        for x, y in zip( tokens_x, tokens_y ):
+            yield ( x, y )
+    
+    @classmethod
+    def line_token_generator( cls, dataset: HFDataset, tokenizer: PreTrainedTokenizerBase, shard_num: int, shard_id: int ):
+        while True:
+            for line in dataset.shard( shard_num, shard_id ):
+                p_str = line[ 'system_prompt' ] # type: ignore
+                q_str = line[ 'question' ] # type: ignore
+                r_str = line[ 'response' ] # type: ignore
+                for x, y in cls.tokenize_line( p_str, q_str, r_str, tokenizer ):
+                    yield x, y
+    
+    @classmethod
+    def sequence_generator( cls, dataset: HFDataset, tokenizer: PreTrainedTokenizerBase, batch_size: int, seq_length: int ):
+        def reset():
+            count = 0
+            xs = []
+            ys = []
+            for _ in range( batch_size ):
+                xs.append( [] )
+                ys.append( [] )
+
+            return count, xs, ys
+
+        count, xs, ys = reset()
+
+        generators = [ iter( cls.line_token_generator( dataset, tokenizer, batch_size, i ) ) for i in range( batch_size ) ]
+
+        try:
+            while True:
+                for g_idx, generator in enumerate( generators ):
+                    x, y = next( generator )
+                    xs[ g_idx ].append( x )
+                    ys[ g_idx ].append( y )
+                count += 1
+
+                if count == seq_length:
+                    yield ( torch.LongTensor( xs ), torch.LongTensor( ys ) )
+
+                    count, xs, ys = reset()
+        except StopIteration:
+            return
+    
+    def __iter__( self ):
+        return iter( self.sequence_generator(
+            dataset=load_openorca( self.cache_dir ), # type: ignore
+            tokenizer=self.tokenizer,
+            batch_size=self.batch_size,
+            seq_length=self.seq_length,
+        ) )
+    
+    def as_data_loader( self ):
+        return DataLoader(
+            self,
+            num_workers=1,
+            batch_size=None,
+            prefetch_factor=2,
+        )
+    
+    def __getitem__( self, index ):
+        raise NotImplementedError( "This dataset does not support random access using __getitem__" )
+
 
 def load_wikitext( cache_dir ):
     return load_dataset(
