@@ -48,7 +48,7 @@ class SimCTGLoss( nn.Module ):
         self.vocab_size = vocab_size
         self.pad_token_id = pad_token_id
 
-        self.train_fct = CrossEntropyLoss()
+        self.train_fct = CrossEntropyLoss( ignore_index=pad_token_id )
 
         self.compute_device = compute_device
 

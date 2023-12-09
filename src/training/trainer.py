@@ -12,17 +12,18 @@ import torch
 from torch.optim import AdamW
 from torcheval import metrics
 
-from constants import TORCH_COMPILE_OPTIONS
+from constants import TORCH_COMPILE_OPTIONS, HF_CACHE_DIR
 from model.configuration import LSWTConfigTraining
 from model.modeling import LSWTForCausalLM
 
 from .sophia import SophiaG
-from .data import PileDataset
+from .sophia2 import SophiaG2
+from .data import PileDataset, OpenOrcaDataset
 from .losses import MLELoss, SimCTGLoss, AccuracyMetric
 
 
 class Trainer():
-    def __init__( self, train_config: LSWTConfigTraining, model: LSWTForCausalLM, tokenizer: PreTrainedTokenizerBase ):
+    def __init__( self, train_config: LSWTConfigTraining, model: LSWTForCausalLM, tokenizer: PreTrainedTokenizerBase, dataset: str ):
         self.train_config = train_config
         self.model = model
         self.tokenizer = tokenizer
@@ -34,11 +35,7 @@ class Trainer():
 
         self.past_key_values_list = [ None for _ in range( self.batch_groups ) ]
 
-        self.data_loader_train = PileDataset(
-            tokenizer=tokenizer,
-            seq_length=train_config.length_sequence,
-            batch_size=train_config.batch_size
-        ).as_data_loader()
+        self.data_loader_train = self._load_dataset( dataset )
 
         self.loss_function = self._load_loss_function()
 
@@ -77,6 +74,15 @@ class Trainer():
                 rho=( self.train_config.opt_rho ),
                 weight_decay=( self.train_config.opt_weight_decay )
             )
+        
+        if self.train_config.optimizer == 'SophiaG2':
+            return SophiaG2(
+                params=self.model.get_param_groups(),
+                lr=0.0,
+                betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
+                rho=( self.train_config.opt_rho ),
+                weight_decay=( self.train_config.opt_weight_decay )
+            )
 
         if self.train_config.optimizer == 'AdamW':
             return AdamW(
@@ -104,6 +110,24 @@ class Trainer():
             )
 
         raise ValueError( 'Invalid loss function' )
+    
+    def _load_dataset( self, dataset ):
+        if dataset == 'pile':
+            return PileDataset(
+                tokenizer=self.tokenizer,
+                seq_length=self.train_config.length_sequence,
+                batch_size=self.train_config.batch_size
+            ).as_data_loader()
+        
+        if dataset == 'openorca':
+            return OpenOrcaDataset(
+                tokenizer=self.tokenizer,
+                seq_length=self.train_config.length_sequence,
+                batch_size=self.train_config.batch_size,
+                cache_dir=HF_CACHE_DIR,
+            ).as_data_loader()
+        
+        raise ValueError( 'Invalid dataset choice' )
 
 
     """ ========================================================================

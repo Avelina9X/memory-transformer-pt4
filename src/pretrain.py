@@ -1,6 +1,7 @@
 """ Main pretraining pipeline module. Pretrain's on The Pile """
 
 import pathlib
+import typing
 
 import rich
 import wandb
@@ -61,6 +62,10 @@ def _save_model( model: LSWTForCausalLM, log_wandb: bool=False ):
 
         wandb.run.log_artifact( model_artifact ) # type: ignore
 
+def add_special_tokens( tokenizer ):
+    tokenizer.add_tokens( [ '<seg_start>', '<seg_end>' ], special_tokens=True )
+    tokenizer.sep_token = '<seg_start>'
+    tokenizer.cls_token = '<seg_end>'
 
 def train(
     config: dict | None = None,
@@ -103,7 +108,7 @@ def train(
         tokenizer = AutoTokenizer.from_pretrained( model_config.parent_embeddings, use_fast=True, cache_dir=HF_CACHE_DIR )
 
         # Instantiate trainer/evaluator
-        trainer = Trainer( train_config, model, tokenizer )
+        trainer = Trainer( train_config, model, tokenizer, 'pile' )
         evaluator = Eval( model, tokenizer )
 
         # Print data
@@ -173,3 +178,90 @@ def train(
         } )
 
         _save_model( model, log_wandb=( wandb_mode == 'online' ) )
+
+
+def _get_model_artifact( run_name: str ):
+    pretrain_run = wandb.Api().runs(
+        path=WANDB_PROJECT_NAME,
+        filters={ "display_name": run_name }
+    )[0]
+    
+    return [
+        artifact
+        for artifact in pretrain_run.logged_artifacts()
+        if artifact.type == 'model'
+    ][0]
+
+def _set_backbone_trainable( model: LSWTForCausalLM, trainable: bool ):
+    model.model.blocks.requires_grad_( trainable )
+    if not trainable:
+        model.model.blocks = model.model.blocks.half()
+
+def finetune(
+    config: dict | None = None,
+    wandb_mode: str | None = None
+):
+    wandb_mode = wandb_mode or WANDB_MODE
+
+    with wandb.init(
+        project=WANDB_PROJECT_NAME,
+        group='finetuning',
+        mode=wandb_mode,
+        config=config
+    ): # type: ignore
+        
+        # Get pretrained run name and checkpoint directory
+        pretrained_run_name = wandb.config[ 'finetune.pretrained_run_name' ]
+        pretrained_run_dir = f'./checkpoints/{pretrained_run_name}'
+        
+        # Get pretrained model artifact
+        pretrained_artifact = _get_model_artifact( pretrained_run_name )
+        wandb.run.use_artifact( pretrained_artifact ) # type: ignore
+        
+        # Get and update model configs
+        model_config = typing.cast( LSWTConfig, LSWTConfig.from_pretrained( pretrained_run_dir, torch_dtype=None ) )
+        train_config = LSWTConfigTraining()
+        _modify_dicts( wandb.config, model_config, train_config )
+        
+        # Load model and correct casting
+        model = typing.cast( LSWTForCausalLM, LSWTForCausalLM.from_pretrained( pretrained_run_dir, **model_config.to_dict() ) ).cuda()
+        _set_backbone_trainable( model, wandb.config[ 'finetune.trainable_backbone' ] )
+        
+        # Load tokenizer and add new segment tokens
+        tokenizer = AutoTokenizer.from_pretrained( model_config.parent_embeddings, use_fast=True, cache_dir=HF_CACHE_DIR )
+        add_special_tokens( tokenizer )
+        
+        # Instantiate trainer for finetuning
+        trainer = Trainer( train_config, model, tokenizer, wandb.config[ 'finetune.dataset' ] )
+
+        # Print data
+        rich.print( trainer.train_config )
+        rich.print( trainer.model.config )
+
+        # Compute params
+        params_total = sum( p.numel() for p in model.parameters() )
+        params_trainable = sum( p.numel() for p in model.parameters() if p.requires_grad )
+        params_non_trainable = sum( p.numel() for p in model.parameters() if not p.requires_grad )
+        
+        # Print parametes
+        print( '\nParameter Count:' )
+        rich.print( f'total         = {params_total}' )
+        rich.print( f'trainable     = {params_trainable}' )
+        rich.print( f'non trainable = {params_non_trainable}' )
+        print()
+        
+        # Update dict
+        wandb.config.update( {
+            **model_config.to_wandb_dict(),
+            **train_config.to_wandb_dict(),
+            'params.total': params_total,
+            'params.trainable': params_trainable,
+            'params.non_trainable': params_non_trainable,
+        } )
+        
+        # Create training iterator
+        iterator = iter( trainer.data_loader_train )
+
+        # Train loop
+        for i in range( trainer.get_total_epochs() ):
+            train_metrics = trainer.train_epoch( iterator, i + 1 )

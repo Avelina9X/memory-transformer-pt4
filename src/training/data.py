@@ -194,11 +194,15 @@ class OpenOrcaDataset( IterableDataset ):
         
         if prompt == '':
             tokens = q_tokens + r_tokens
+            mask_len = len( q_tokens )
         else:
             tokens = p_tokens + q_tokens + r_tokens
+            mask_len = len( p_tokens ) + len( q_tokens )
         
         tokens_x = [ tokenizer.bos_token_id ] + tokens
         tokens_y = tokens + [ tokenizer.eos_token_id ]
+        
+        tokens_y = [ tokenizer.pad_token_id if i < mask_len else token for i, token in enumerate( tokens_y ) ]
 
         for x, y in zip( tokens_x, tokens_y ):
             yield ( x, y )
