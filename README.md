@@ -44,4 +44,5 @@ The following environment variables are **optional** but recommended:
 | **Small** | 1024	| 18 | 16 | 64 | 343M |
 | **Medium**| 1536	| 24 | 24 | 64 | 949M |
 | **Large**	| 2048	| 36 | 32 | 64 | 2.5B |
-| **XL**	| 4096	| 48 | 64 | 64 | 13B  |
+| **XL**	| 3072	| 48 | 48 | 64 | 7.3B |
+| **XXL**	| 4096	| 48 | 64 | 64 | 13B  |
