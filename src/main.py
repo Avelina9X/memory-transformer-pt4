@@ -41,6 +41,7 @@ if __name__ == '__main__':
             'model.trainable_embeddings': True,
             'train.loss_objective': 'SimCTG',
             'model.rope_reversed': False,
+            'train.optimizer': 'SophiaG',
         }
 
         train( config=custom_config, wandb_mode='online' )

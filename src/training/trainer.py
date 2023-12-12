@@ -17,7 +17,6 @@ from model.configuration import LSWTConfigTraining
 from model.modeling import LSWTForCausalLM
 
 from .sophia import SophiaG
-from .sophia2 import SophiaG2
 from .data import PileDataset, OpenOrcaDataset
 from .losses import MLELoss, SimCTGLoss, AccuracyMetric
 
@@ -73,16 +72,6 @@ class Trainer():
                 betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
                 rho=( self.train_config.opt_rho ),
                 weight_decay=( self.train_config.opt_weight_decay )
-            )
-        
-        if self.train_config.optimizer == 'SophiaG2':
-            return SophiaG2(
-                params=self.model.get_param_groups(),
-                lr=0.0,
-                betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
-                rho=( self.train_config.opt_rho ),
-                weight_decay=( self.train_config.opt_weight_decay ),
-                bs=self.train_config.batch_size * self.train_config.length_sequence
             )
 
         if self.train_config.optimizer == 'AdamW':
