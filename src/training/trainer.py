@@ -81,7 +81,8 @@ class Trainer():
                 lr=0.0,
                 betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
                 rho=( self.train_config.opt_rho ),
-                weight_decay=( self.train_config.opt_weight_decay )
+                weight_decay=( self.train_config.opt_weight_decay ),
+                bs=self.train_config.batch_size * self.train_config.length_sequence
             )
 
         if self.train_config.optimizer == 'AdamW':
