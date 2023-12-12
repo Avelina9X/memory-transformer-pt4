@@ -13,7 +13,7 @@ class SophiaG2(Optimizer):
     SophiaG optimizer class.
     """
     def __init__(self, params, lr=1e-4, betas=(0.965, 0.99), rho = 0.04,
-         weight_decay=1e-1, *, maximize: bool = False,
+         weight_decay=1e-1, bs=5120, *, maximize: bool = False,
          capturable: bool = False, dynamic: bool = False):
         """
         Initialize the optimizer.
@@ -32,6 +32,7 @@ class SophiaG2(Optimizer):
                         weight_decay=weight_decay, 
                         maximize=maximize, capturable=capturable, dynamic=dynamic)
         super(SophiaG2, self).__init__(params, defaults)
+        self.bs = bs
 
     def __setstate__(self, state):
         """
@@ -85,17 +86,20 @@ class SophiaG2(Optimizer):
                 state['exp_avg'].mul_(beta1).add_(p.grad, alpha=1 - beta1)
 
     @torch.no_grad()
-    def step(self, closure=None, bs=5120):
+    def step(self, closure=None, bs=None): # TODO: set block size properly
         """
         Perform a step of the optimizer.
         """
+        if bs is None:
+            bs = self.bs
+            
         loss = None
         if closure is not None:
             with torch.enable_grad():
                 loss = closure()
 
         self.update_hessian()
-        self.update_exp_avg()
+        # self.update_exp_avg() # TODO: this should be commented out, right?
 
         for group in self.param_groups:
             params_with_grad = []
