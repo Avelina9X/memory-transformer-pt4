@@ -97,7 +97,7 @@ class LSWTPreTrainedModel( PreTrainedModel ):
                 [
                     kv.detach()[ :, :, -trim : , : ].to(
                         device=device,
-                        non_blocking=False
+                        non_blocking=True
                     ) for kv in layer
                 ] for layer in cache
             ]
