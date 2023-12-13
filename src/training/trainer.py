@@ -250,7 +250,7 @@ class Trainer():
             print( '\r' + bar, end='', flush=True )
         print()
 
-        torch.cuda.empty_cache()
-        gc.collect()
+        # torch.cuda.empty_cache()
+        # gc.collect()
 
         return self.reset_metrics()

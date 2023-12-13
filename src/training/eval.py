@@ -120,8 +120,8 @@ class Eval():
         for row in iterator:
             self.eval_step( row[ iterator_key ], chunk_size )
 
-        torch.cuda.empty_cache()
-        gc.collect()
+        # torch.cuda.empty_cache()
+        # gc.collect()
 
         return self.reset_metrics()
 
@@ -162,7 +162,7 @@ class EvalAlpaca( Eval ):
             if row[ 'input' ] == '':
                 self.eval_step( row, chunk_size )
 
-        torch.cuda.empty_cache()
-        gc.collect()
+        # torch.cuda.empty_cache()
+        # gc.collect()
 
         return self.reset_metrics()
