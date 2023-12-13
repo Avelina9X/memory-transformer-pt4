@@ -320,3 +320,10 @@ def load_slimorca( cache_dir ):
         split='train',
         cache_dir=cache_dir
     )
+
+def load_alpaca( cache_dir ):
+    return load_dataset(
+        'yahma/alpaca-cleaned',
+        split='train',
+        cache_dir=cache_dir
+    )

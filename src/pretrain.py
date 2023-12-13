@@ -10,8 +10,8 @@ from transformers import AutoTokenizer
 import numpy as np
 
 from training.trainer import Trainer
-from training.eval import Eval
-from training.data import load_pile_uncopyrighted, load_wikitext
+from training.eval import Eval, EvalAlpaca
+from training.data import load_pile_uncopyrighted, load_wikitext, load_alpaca
 
 from model.configuration import LSWTConfigTraining, LSWTConfig
 from model.modeling import LSWTForCausalLM
@@ -233,6 +233,7 @@ def finetune(
         
         # Instantiate trainer for finetuning
         trainer = Trainer( train_config, model, tokenizer, wandb.config[ 'finetune.dataset' ] )
+        evaluator = EvalAlpaca( model, tokenizer )
 
         # Print data
         rich.print( trainer.train_config )
@@ -261,7 +262,10 @@ def finetune(
         
         # Create training iterator
         iterator = iter( trainer.data_loader_train )
+        dataset_alpaca = load_alpaca( HF_CACHE_DIR ).shard( 10, 0 )
 
         # Train loop
         for i in range( trainer.get_total_epochs() ):
             train_metrics = trainer.train_epoch( iterator, i + 1 )
+            valid_metrics = evaluator.eval_epoch( dataset_alpaca, None, train_config.length_sequence // 2 )
+            rich.print( valid_metrics )

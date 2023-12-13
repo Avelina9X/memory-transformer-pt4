@@ -12,6 +12,7 @@ from model.modeling import LSWTForCausalLM
 from constants import TORCH_COMPILE_OPTIONS
 
 from .losses import MLELoss, AccuracyMetric
+from .data import OpenOrcaDataset
 
 
 class Eval():
@@ -118,6 +119,48 @@ class Eval():
     def eval_epoch( self, iterator, iterator_key: str, chunk_size: int ):
         for row in iterator:
             self.eval_step( row[ iterator_key ], chunk_size )
+
+        torch.cuda.empty_cache()
+        gc.collect()
+
+        return self.reset_metrics()
+
+class EvalAlpaca( Eval ):
+    
+    def eval_step( self, sequence: dict[str, str], chunk_size: int ):
+        self.model.eval()
+
+        results = OpenOrcaDataset.tokenize_line(
+            'Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.',
+            sequence[ 'instruction' ] + ( '\n### Input:\n' + sequence[ 'input' ] ) if sequence[ 'input' ] else '',
+            sequence[ 'output' ],
+            self.tokenizer
+        )
+        
+        tokens_x, tokens_y = list( zip( *results ) )
+        
+        tokens_x = list( tokens_x )
+        tokens_y = list( tokens_y )
+
+        pad_amt = chunk_size - ( len( tokens_x ) % chunk_size )
+
+        tokens_x = tokens_x + pad_amt * [ self.model.config.pad_token_id ]
+        tokens_y = tokens_y + pad_amt * [ -100 ]
+        
+        tokens_x = torch.LongTensor( [ tokens_x ] ).cuda()
+        tokens_y = torch.LongTensor( [ tokens_y ] ).cuda()
+        
+        tokens_y = torch.where( tokens_y == self.tokenizer.pad_token_id, -100, tokens_y )
+
+        loss, accuracy = self.eval_sub_step( tokens_x, tokens_y, chunk_size )
+
+        self.metrics[ 'loss' ].update( loss ) # type: ignore
+        self.metrics[ 'acc' ].update( accuracy ) # type: ignore
+    
+    def eval_epoch( self, iterator, iterator_key: str | None, chunk_size: int ):
+        for row in iterator:
+            if row[ 'input' ] == '':
+                self.eval_step( row, chunk_size )
 
         torch.cuda.empty_cache()
         gc.collect()
