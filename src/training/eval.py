@@ -131,7 +131,7 @@ class EvalAlpaca( Eval ):
         self.model.eval()
 
         results = OpenOrcaDataset.tokenize_line(
-            'Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.',
+            'You are an AI assistant. You will be given a task. You must generate a detailed and long answer.',
             sequence[ 'instruction' ] + ( '\n### Input:\n' + sequence[ 'input' ] ) if sequence[ 'input' ] else '',
             sequence[ 'output' ],
             self.tokenizer
