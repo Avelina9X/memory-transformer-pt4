@@ -81,6 +81,7 @@ class Trainer():
                 betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
                 eps=self.train_config.opt_eps,
                 weight_decay=( self.train_config.opt_weight_decay ),
+                fused=True,
             )
 
         raise ValueError( 'Invalid optimizer' )
