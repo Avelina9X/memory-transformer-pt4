@@ -174,6 +174,13 @@ class PileDataset( IterableDataset ):
 
 
 class OpenOrcaDataset( IterableDataset ):
+    
+    prompt_format: dict[str, str] = {
+        'prompt': '### System Prompt:\n{}',
+        'question': '### Instruction:\n{}',
+        'response': '### Response:\n{}',
+    }
+    
     def __init__(
         self,
         tokenizer: PreTrainedTokenizerBase,
@@ -187,10 +194,18 @@ class OpenOrcaDataset( IterableDataset ):
         self.cache_dir = cache_dir
     
     @classmethod
+    def tokenize_segment( cls, segment_type: str, segment_text: str, tokenizer: PreTrainedTokenizerBase ):
+        return [
+            tokenizer.sep_token_id,
+            *tokenizer.encode( cls.prompt_format[segment_type].format( segment_text ), add_special_tokens=False ),
+            tokenizer.cls_token_id,
+        ]
+    
+    @classmethod
     def tokenize_line( cls, prompt: str, question: str, response: str, tokenizer: PreTrainedTokenizerBase ):
-        p_tokens = [ tokenizer.sep_token_id ] + tokenizer.encode( 'Prompt:\n' + prompt, add_special_tokens=False ) + [ tokenizer.cls_token_id ]
-        q_tokens = [ tokenizer.sep_token_id ] + tokenizer.encode( 'Question:\n' + question, add_special_tokens=False ) + [ tokenizer.cls_token_id ]
-        r_tokens = [ tokenizer.sep_token_id ] + tokenizer.encode( 'Answer:\n' + response, add_special_tokens=False ) + [ tokenizer.cls_token_id ]
+        p_tokens = cls.tokenize_segment( 'prompt', prompt, tokenizer )
+        q_tokens = cls.tokenize_segment( 'question', question, tokenizer )
+        r_tokens = cls.tokenize_segment( 'response', response, tokenizer )
         
         if prompt == '':
             tokens = q_tokens + r_tokens
