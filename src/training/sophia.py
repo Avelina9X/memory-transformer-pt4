@@ -275,6 +275,8 @@ class SophiaH(Optimizer):
         if closure is not None:
             with torch.enable_grad():
                 loss = closure()
+        
+        self.update_hessian()
 
         for group in self.param_groups:
             params_with_grad = []
