@@ -47,14 +47,19 @@ if __name__ == '__main__':
             'train.length_sequence': 2048,
             'train.length_cache': 2048,
             
-            'train.loss_objective': 'MLE',
+            'train.loss_objective': 'SimCTG',
             
-            'train.optimizer': 'AdamW',
-            'train.opt_weight_decay': 0.1,
+            'train.optimizer': 'Minato',
+            'train.opt_weight_decay': 0.2,
             'train.opt_max_grad_norm': 1.0,
-            'train.opt_eps': 1e-5,
             'train.opt_beta_1': 0.9,
-            'train.opt_beta_2': 0.95,
+            
+            # 'train.optimizer': 'AdamW',
+            # 'train.opt_weight_decay': 0.1,
+            # 'train.opt_max_grad_norm': 1.0,
+            # 'train.opt_eps': 1e-5,
+            # 'train.opt_beta_1': 0.9,
+            # 'train.opt_beta_2': 0.95,
             
         }
 

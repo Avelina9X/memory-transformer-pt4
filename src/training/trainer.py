@@ -17,6 +17,7 @@ from model.configuration import LSWTConfigTraining
 from model.modeling import LSWTForCausalLM
 
 from .sophia import SophiaG
+from .minato import Minato
 from .data import PileDataset, OpenOrcaDataset
 from .losses import MLELoss, SimCTGLoss, AccuracyMetric
 
@@ -71,6 +72,14 @@ class Trainer():
                 lr=0.0,
                 betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
                 rho=( self.train_config.opt_rho ),
+                weight_decay=( self.train_config.opt_weight_decay )
+            )
+        
+        if self.train_config.optimizer == 'Minato':
+            return Minato(
+                params=self.model.get_param_groups(),
+                lr=0.0,
+                beta=self.train_config.opt_beta_1,
                 weight_decay=( self.train_config.opt_weight_decay )
             )
 
