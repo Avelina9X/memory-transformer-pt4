@@ -16,7 +16,7 @@ from constants import TORCH_COMPILE_OPTIONS, HF_CACHE_DIR
 from model.configuration import LSWTConfigTraining
 from model.modeling import LSWTForCausalLM
 
-from .sophia import SophiaG
+from .sophia import SophiaG, SophiaH
 from .minato import Minato
 from .data import PileDataset, OpenOrcaDataset
 from .losses import MLELoss, SimCTGLoss, AccuracyMetric
@@ -68,6 +68,15 @@ class Trainer():
     def _load_optimizer( self ) -> torch.optim.Optimizer:
         if self.train_config.optimizer == 'SophiaG':
             return SophiaG(
+                params=self.model.get_param_groups(),
+                lr=0.0,
+                betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
+                rho=( self.train_config.opt_rho ),
+                weight_decay=( self.train_config.opt_weight_decay )
+            )
+        
+        if self.train_config.optimizer == 'SophiaH':
+            return SophiaH(
                 params=self.model.get_param_groups(),
                 lr=0.0,
                 betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
