@@ -1,21 +1,40 @@
+"""Minato Module, contains optimizer class.
+"""
+
+from collections.abc import Iterable
+from typing import Any
+
 import torch
 from torch import Tensor
 from torch.optim.optimizer import Optimizer
 
 from constants import TORCH_COMPILE_OPTIONS
 
+ParamsT = Iterable[torch.Tensor] | Iterable[dict[str, Any]]
+
 
 class Minato(Optimizer):
     def __init__(
         self,
-        params,
-        lr=1e-4,
-        beta=0.9,
-        weight_decay=2e-1,
+        params: ParamsT,
+        lr: float = 1e-4,
+        beta: float = 0.9,
+        weight_decay: float = 2e-1,
         *,
         maximize: bool = False,
         capturable: bool = False
     ):
+        """Implements the Minato algorithm.
+
+        Args:
+            params (Iterable): iterable of parameters to optimize or dicts defining parameter groups.
+            lr (float, optional): learning rate. Defaults to 1e-4.
+            beta (float, optional): ema coefficient. Defaults to 0.9.
+            weight_decay (float, optional): weight decay coefficient, coupled to learning rate. Defaults to 2e-1.
+            maximize (bool, optional): maximize the objective with respect to the params, instead of minimizing. Defaults to False.
+            capturable (bool, optional): whether this instance is safe to capture in a CUDA graph. Passing True can impair ungraphed performance, so if you don't intend to graph capture this instance, leave it False. Defaults to False.
+        """
+        
         if lr < 0.0:
             raise ValueError( f"Invalid learning rate: {lr}" )
 
