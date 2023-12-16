@@ -16,7 +16,6 @@ from constants import TORCH_COMPILE_OPTIONS, HF_CACHE_DIR
 from model.configuration import LSWTConfigTraining
 from model.modeling import LSWTForCausalLM
 
-from .sophia import SophiaG, SophiaH
 from .minato import Minato
 from .data import PileDataset, OpenOrcaDataset
 from .losses import MLELoss, SimCTGLoss, AccuracyMetric
