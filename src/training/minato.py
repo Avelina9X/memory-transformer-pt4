@@ -34,7 +34,7 @@ class Minato(Optimizer):
             maximize (bool, optional): maximize the objective with respect to the params, instead of minimizing. Defaults to False.
             capturable (bool, optional): whether this instance is safe to capture in a CUDA graph. Passing True can impair ungraphed performance, so if you don't intend to graph capture this instance, leave it False. Defaults to False.
         """
-        
+
         if lr < 0.0:
             raise ValueError( f"Invalid learning rate: {lr}" )
 
@@ -89,7 +89,7 @@ class Minato(Optimizer):
                     raise RuntimeError( 'Hero does not support sparse gradients' )
                 grads.append( p.grad )
                 state = self.state[p]
-                
+
                 # State initialization
                 if len(state) == 0:
                     state['step'] = torch.zeros( ( 1, ), dtype=torch.float, device=p.device ) if self.defaults['capturable'] else torch.tensor( 0.0 )
