@@ -14,6 +14,12 @@ ParamsT = Iterable[torch.Tensor] | Iterable[dict[str, Any]]
 
 
 class Minato(Optimizer):
+    """Minato optimizer.
+    
+    Works just like Sophia without a hessian estimator,
+    or Lion where beta_1 and beta_2 are shared.
+    """
+    
     def __init__(
         self,
         params: ParamsT,
