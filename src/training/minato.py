@@ -183,11 +183,9 @@ def _single_tensor_minato(
             step_size = lr
             step_size_neg = step_size.neg() # type: ignore
 
-            ratio = ( exp_avg.abs() / 1e-15 ).clamp( max=1.0 )
-            param.addcmul_( exp_avg.sign(), ratio, value=step_size_neg )
+            param.add_( exp_avg.sign(), alpha=step_size_neg )
         else:
             step = step_t.item()
             step_size_neg = - lr
 
-            ratio = ( exp_avg.abs() / 1e-15 ).clamp( max=1.0 )
-            param.addcmul_( exp_avg.sign(), ratio, value=step_size_neg )
+            param.add_( exp_avg.sign(), alpha=step_size_neg )
