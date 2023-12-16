@@ -35,16 +35,16 @@ class Minato(Optimizer):
 
         super().__init__( params, defaults )
 
-    def __setstate__(self, state):
-        super().__setstate__(state)
+    def __setstate__( self, state ):
+        super().__setstate__( state )
         for group in self.param_groups:
-            group.setdefault('maximize', False)
-            group.setdefault('capturable', False)
-        state_values = list(self.state.values())
-        step_is_tensor = (len(state_values) != 0) and torch.is_tensor(state_values[0]['step'])
+            group.setdefault( 'maximize', False )
+            group.setdefault( 'capturable', False )
+        state_values = list( self.state.values() )
+        step_is_tensor = ( len( state_values ) != 0 ) and torch.is_tensor( state_values[0]['step'] )
         if not step_is_tensor:
             for s in state_values:
-                s['step'] = torch.tensor(float(s['step']))
+                s['step'] = torch.tensor( float( s['step'] ) )
 
 
     @torch.no_grad()
