@@ -44,7 +44,7 @@ if __name__ == '__main__':
         
         custom_config = {
             'model.trainable_embeddings': True,
-            'model.rope_reversed': True,
+            'model.rope_reversed': False,
             
             'train.batch_size': 480,
             'train.batch_size_step': 6,
@@ -52,7 +52,7 @@ if __name__ == '__main__':
             'train.length_sequence': 2048,
             'train.length_cache': 2048,
             
-            'train.loss_objective': 'SimCTG',
+            'train.loss_objective': 'MLE',
             
             'train.optimizer': 'Minato',
             'train.opt_weight_decay': 0.2,
@@ -68,4 +68,4 @@ if __name__ == '__main__':
             
         }
 
-        train( config=custom_config, wandb_mode='offline' )
+        train( config=custom_config, wandb_mode='online', tags=[ 'rerope_tests' ] )

@@ -71,7 +71,8 @@ def train(
     config: dict | None = None,
     model_config: LSWTConfig | None = None,
     train_config: LSWTConfigTraining | None = None,
-    wandb_mode: str | None = None
+    wandb_mode: str | None = None,
+    tags: list[str] | None = None
 ):
     """ Pretraining function.
 
@@ -88,7 +89,8 @@ def train(
         project=WANDB_PROJECT_NAME,
         group='pretraining',
         mode=wandb_mode,
-        config=config
+        config=config,
+        tags=tags,
     ): # type: ignore
 
         # Get validation and test datasets

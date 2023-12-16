@@ -33,7 +33,7 @@ TORCH_COMPILE_OPTIONS = {
         'epilogue_fusion': True,
     },
     'fullgraph': False,
-    'disable': True,
+    'disable': False,
 }
 
 OPTIMIZER_KWARGS = { # pylint: disable=R6101
