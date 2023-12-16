@@ -65,25 +65,7 @@ class Trainer():
             prefix=f'Epoch {epoch}',
         )
 
-    def _load_optimizer( self ) -> torch.optim.Optimizer:
-        if self.train_config.optimizer == 'SophiaG':
-            return SophiaG(
-                params=self.model.get_param_groups(),
-                lr=0.0,
-                betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
-                rho=( self.train_config.opt_rho ),
-                weight_decay=( self.train_config.opt_weight_decay )
-            )
-        
-        if self.train_config.optimizer == 'SophiaH':
-            return SophiaH(
-                params=self.model.get_param_groups(),
-                lr=0.0,
-                betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
-                rho=( self.train_config.opt_rho ),
-                weight_decay=( self.train_config.opt_weight_decay )
-            )
-        
+    def _load_optimizer( self ) -> torch.optim.Optimizer:        
         if self.train_config.optimizer == 'Minato':
             return Minato(
                 params=self.model.get_param_groups(),

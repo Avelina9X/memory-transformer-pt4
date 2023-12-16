@@ -244,7 +244,7 @@ class SophiaH(Optimizer):
             for s in state_values:
                 s['step'] = torch.tensor(float(s['step']))
 
-    @torch.no_grad()
+    # @torch.no_grad()
     def update_hessian(self):
         for group in self.param_groups:
             beta1, beta2 = group['betas']
@@ -254,7 +254,7 @@ class SophiaH(Optimizer):
                 state = self.state[p]
 
                 if len(state) == 0:
-                    state['step'] = torch.zeros((1,), dtype=torch.float, device=p.device) \
+                    state['step'] = torch.zeros((1,), dtype=torch.float, device=p.device ) \
                         if self.defaults['capturable'] else torch.tensor(0.)
                     state['exp_avg'] = torch.zeros_like(p, memory_format=torch.preserve_format)
                     state['hessian'] = torch.zeros_like(p, memory_format=torch.preserve_format)
@@ -262,14 +262,20 @@ class SophiaH(Optimizer):
                 if 'hessian' not in state.keys():
                     state['hessian'] = torch.zeros_like(p, memory_format=torch.preserve_format)
                 
-                if state['step'] % group['k'] == group['k'] - 1:
-                    u = torch.randn_like( p.grad )
-                    hvp = torch.autograd.grad( p.grad.dot( u ), p, retain_graph=True )[0]
+                if state['step'] % group['k'] == 0:
+                    with torch.enable_grad():
+                        u = torch.randn_like( p.grad, requires_grad=True )
+                        hvp = torch.autograd.grad( torch.sum( p.grad * u ), p, create_graph=True )[0]
                     h_new = u * hvp
                     state['hessian'].mul_(beta2).add_( h_new, alpha=1 - beta2)
+                    print( hvp )
+                    u.detach()
+                    hvp.detach()
+                    
+        exit()
 
 
-    @torch.no_grad()
+    # @torch.no_grad()
     def step(self, closure=None, bs=1):
         loss = None
         if closure is not None:
@@ -363,6 +369,7 @@ def sophiah(params: List[Tensor],
          maximize=maximize,
          capturable=capturable)
 
+@torch.no_grad()
 def _single_tensor_sophiah(params: List[Tensor],
                          grads: List[Tensor],
                          exp_avgs: List[Tensor],

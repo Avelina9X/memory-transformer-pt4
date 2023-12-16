@@ -33,6 +33,7 @@ TORCH_COMPILE_OPTIONS = {
         'epilogue_fusion': True,
     },
     'fullgraph': False,
+    'disable': True,
 }
 
 OPTIMIZER_KWARGS = { # pylint: disable=R6101
@@ -53,13 +54,4 @@ OPTIMIZER_KWARGS = { # pylint: disable=R6101
         'train.opt_beta_2': -1,
         'train.opt_rho': 0.05,
     },
-    
-    'SophiaH' : {
-        'train.optimizer': 'SophiaH',
-        'train.opt_weight_decay': 0.2,
-        'train.opt_eps': -1,
-        'train.opt_beta_1': 0.9,
-        'train.opt_beta_2': 0.95,
-        'train.opt_rho': 0.05,
-    }
 }

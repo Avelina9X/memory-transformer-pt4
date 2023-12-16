@@ -37,6 +37,11 @@ if __name__ == '__main__':
         )
 
     else:
+        
+        torch._logging.set_logs( dynamo=logging.ERROR ) # type: ignore # pylint: disable=W0212
+        torch._logging.set_logs( inductor=logging.ERROR ) # type: ignore # pylint: disable=W0212
+        torch._logging.set_logs( dynamic=logging.ERROR ) # type: ignore # pylint: disable=W0212
+        
         custom_config = {
             'model.trainable_embeddings': True,
             'model.rope_reversed': True,
@@ -63,4 +68,4 @@ if __name__ == '__main__':
             
         }
 
-        train( config=custom_config, wandb_mode='online' )
+        train( config=custom_config, wandb_mode='offline' )
