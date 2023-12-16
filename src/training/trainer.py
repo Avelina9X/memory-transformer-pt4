@@ -2,7 +2,6 @@
 Module containing the training loop components for training LSWTransformer models.
 """
 
-import gc
 import time
 
 import tqdm
