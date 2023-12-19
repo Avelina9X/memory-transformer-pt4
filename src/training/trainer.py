@@ -16,6 +16,7 @@ from model.configuration import LSWTConfigTraining
 from model.modeling import LSWTForCausalLM
 
 from optimizer.minato import Minato
+from optimizer.laprop import LaProp
 from .data import PileDataset, OpenOrcaDataset
 from .losses import MLELoss, SimCTGLoss, AccuracyMetric
 
@@ -80,6 +81,15 @@ class Trainer():
                 eps=self.train_config.opt_eps,
                 weight_decay=( self.train_config.opt_weight_decay ),
                 fused=True,
+            )
+        
+        if self.train_config.optimizer == 'LaProp':
+            return LaProp(
+                params=self.model.get_param_groups(),
+                lr=0.0,
+                betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
+                eps=self.train_config.opt_eps,
+                weight_decay=( self.train_config.opt_weight_decay ),
             )
 
         raise ValueError( 'Invalid optimizer' )
