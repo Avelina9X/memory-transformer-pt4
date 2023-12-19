@@ -81,6 +81,7 @@ def train(
         model_config (LSWTConfig | None, optional): Optional model config. Defaults to None.
         train_config (LSWTConfigTraining | None, optional): Optional training config. Defaults to None.
         wandb_mode (str | None, optional): Optional wandb mode. Defaults to None.
+        tags (list[str] | None, optional): Tags to add to wandb run. Defaults to None.
     """
     
     wandb_mode = wandb_mode or WANDB_MODE
