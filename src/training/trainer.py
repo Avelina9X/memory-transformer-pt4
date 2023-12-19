@@ -15,7 +15,7 @@ from constants import TORCH_COMPILE_OPTIONS, HF_CACHE_DIR
 from model.configuration import LSWTConfigTraining
 from model.modeling import LSWTForCausalLM
 
-from .minato import Minato
+from optimizer.minato import Minato
 from .data import PileDataset, OpenOrcaDataset
 from .losses import MLELoss, SimCTGLoss, AccuracyMetric
 
