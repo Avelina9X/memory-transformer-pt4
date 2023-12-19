@@ -265,7 +265,7 @@ def finetune(
         
         # Create training iterator
         iterator = iter( trainer.data_loader_train )
-        dataset_alpaca = load_alpaca( HF_CACHE_DIR ).shard( 10, 0 )
+        dataset_alpaca = load_alpaca( HF_CACHE_DIR ).shard( 10, 0 ) # type: ignore # pylint: disable=W0212
 
         # Train loop
         for i in range( trainer.get_total_epochs() ):
