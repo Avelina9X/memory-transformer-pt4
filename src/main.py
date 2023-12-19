@@ -42,15 +42,17 @@ if __name__ == '__main__':
         torch._logging.set_logs( inductor=logging.ERROR ) # type: ignore # pylint: disable=W0212
         torch._logging.set_logs( dynamic=logging.ERROR ) # type: ignore # pylint: disable=W0212
         
+        REROPE_SCALE = 2
+        
         custom_config = {
             'model.trainable_embeddings': True,
-            'model.rope_reversed': False,
+            'model.rope_reversed': True,
             
-            'train.batch_size': 480,
-            'train.batch_size_step': 6,
+            'train.batch_size': 480 * REROPE_SCALE,
+            'train.batch_size_step': 6 * REROPE_SCALE,
             
-            'train.length_sequence': 2048,
-            'train.length_cache': 2048,
+            'train.length_sequence': 2048 // REROPE_SCALE,
+            'train.length_cache': 2048 // REROPE_SCALE,
             
             'train.loss_objective': 'MLE',
             
