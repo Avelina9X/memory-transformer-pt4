@@ -153,6 +153,8 @@ class LSWTAttention( torch.nn.Module ):
         q = self.split_heads( self.proj_q( embeddings ) ).permute( 0, 2, 1, 3 )
         k = self.split_heads( self.proj_k( embeddings ) ).permute( 0, 2, 1, 3 )
         v = self.split_heads( self.proj_v( embeddings ) ).permute( 0, 2, 1, 3 )
+        
+        # TODO: RMS norm?
 
         # Append past keys and values
         if past_key_values:
@@ -172,6 +174,8 @@ class LSWTAttention( torch.nn.Module ):
 
             r_k = self.registers_k.to( dtype=k.dtype ).repeat( batch_size, 1, 1, 1 )
             r_v = self.registers_v.to( dtype=v.dtype ).repeat( batch_size, 1, 1, 1 )
+            
+            # TODO: RMS norm?
 
             k = torch.cat( [ r_k, k ], dim=-2 )
             v = torch.cat( [ r_v, v ], dim=-2 )
