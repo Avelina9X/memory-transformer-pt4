@@ -34,6 +34,7 @@ TORCH_COMPILE_OPTIONS = {
     },
     'fullgraph': False,
     'disable': False,
+    'dynamic': False,
 }
 
 OPTIMIZER_KWARGS = { # pylint: disable=R6101
