@@ -162,9 +162,8 @@ class Trainer():
         ======================================================================== """
 
     def forward_pass( self, tokens, past_key_values, cache_length ):
-        past_key_values = self.model.cache_to( past_key_values, 'cuda' )
 
-        # torch._inductor.cudagraph_mark_step_begin()
+        torch._inductor.cudagraph_mark_step_begin()
 
         outputs = self.model(
             input_ids=tokens,
@@ -172,7 +171,7 @@ class Trainer():
             use_cache=cache_length > 0
         )
 
-        past_key_values = self.model.cache_to( outputs.past_key_values, 'cpu', trim=cache_length )
+        past_key_values = outputs.past_key_values
         logits = outputs.logits
         last_hidden_state = outputs.hidden_states[-1]
 
@@ -231,9 +230,12 @@ class Trainer():
         tokens_ys = torch.split( tokens_ys.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
 
         for idx in range( self.batch_groups ):
-            past_key_values = self.past_key_values_list[idx]
+            past_key_values = self.model.cache_to( self.past_key_values_list[idx], 'cuda' )
             self.past_key_values_list[idx] = None # type: ignore
+            
             loss, accuracy, past_key_values = self.train_sub_step( tokens_xs[idx], tokens_ys[idx], past_key_values )
+            
+            past_key_values = self.model.cache_to( past_key_values, 'cpu', trim=self.train_config.length_cache )
             self.past_key_values_list[idx] = past_key_values # type: ignore
 
             self.metrics[ 'loss' ].update( loss )
