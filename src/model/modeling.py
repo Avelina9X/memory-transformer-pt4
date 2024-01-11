@@ -79,6 +79,7 @@ class LSWTPreTrainedModel( PreTrainedModel ):
         cache: list[list[torch.Tensor]] | None,
         device: str | torch.device,
         trim: int = 0,
+        blocking: bool = False,
     ) -> list[list[torch.Tensor]] | None:
         """
         Moves KV cache between devices.
@@ -97,7 +98,7 @@ class LSWTPreTrainedModel( PreTrainedModel ):
                 [
                     kv.detach()[ :, :, -trim : , : ].to(
                         device=device,
-                        non_blocking=False
+                        non_blocking=blocking
                     ) for kv in layer
                 ] for layer in cache
             ]
