@@ -7,6 +7,10 @@ from flash_attn import flash_attn_func # type: ignore # pylint: disable=E0401
 
 from .configuration import LSWTConfig
 
+@torch._dynamo.disable
+def flash_attention( query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, dropout: float ):
+    return flash_attn_func( query, key, value, dropout_p=dropout, causal=True )
+
 class DropPath( torch.nn.Module ):
     def __init__( self, drop_prob: float, scale=True ):
         super().__init__()
@@ -186,7 +190,7 @@ class LSWTAttention( torch.nn.Module ):
         v = v.permute( 0, 2, 1, 3 )
 
         # Do attention
-        a = flash_attn_func( q, k, v, dropout_p=self.att_dropout_p, causal=True )
+        a = flash_attention( q, k, v, self.att_dropout_p )
         a = self.merge_heads( a )
 
         # Apply dropout
