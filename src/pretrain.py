@@ -68,6 +68,8 @@ def add_special_tokens( tokenizer ):
     tokenizer.cls_token = '<seg_end>'
 
 def train(
+    rank: int = 0,
+    world_size: int = 1,
     config: dict | None = None,
     model_config: LSWTConfig | None = None,
     train_config: LSWTConfigTraining | None = None,
@@ -86,34 +88,38 @@ def train(
     
     wandb_mode = wandb_mode or WANDB_MODE
 
-    with wandb.init(
-        project=WANDB_PROJECT_NAME,
-        group='pretraining',
-        mode=wandb_mode,
-        config=config,
-        tags=tags,
-    ): # type: ignore
+    # If on first machine init wandb
+    if rank == 0:
+        wandb.init(
+            project=WANDB_PROJECT_NAME,
+            group='pretraining',
+            mode=wandb_mode,
+            config=config,
+            tags=tags,
+        ) # type: ignore
 
-        # Get validation and test datasets
-        dataset_wikitext = load_wikitext( HF_CACHE_DIR )
-        dataset_pile_uncopyrighted = load_pile_uncopyrighted( HF_CACHE_DIR )
+    # Get validation and test datasets
+    dataset_wikitext = load_wikitext( HF_CACHE_DIR )
+    dataset_pile_uncopyrighted = load_pile_uncopyrighted( HF_CACHE_DIR )
 
-        # Get and update model configs
-        model_config = model_config or LSWTConfig()
-        train_config = train_config or LSWTConfigTraining()
-        _modify_dicts( wandb.config, model_config, train_config )
+    # Get and update model configs
+    model_config = model_config or LSWTConfig()
+    train_config = train_config or LSWTConfigTraining()
+    _modify_dicts( wandb.config, model_config, train_config )
 
-        # Load model and embeddings
-        parent_embeddings = embedding_loader( model_config, cache_dir=HF_CACHE_DIR )
-        model = LSWTForCausalLM( model_config, parent_embeddings ).cuda()
+    # Load model and embeddings
+    parent_embeddings = embedding_loader( model_config, cache_dir=HF_CACHE_DIR )
+    model = LSWTForCausalLM( model_config, parent_embeddings ).cuda()
 
-        # Load tokenizer
-        tokenizer = AutoTokenizer.from_pretrained( model_config.parent_embeddings, use_fast=True, cache_dir=HF_CACHE_DIR )
+    # Load tokenizer
+    tokenizer = AutoTokenizer.from_pretrained( model_config.parent_embeddings, use_fast=True, cache_dir=HF_CACHE_DIR )
 
-        # Instantiate trainer/evaluator
-        trainer = Trainer( train_config, model, tokenizer, 'pile' )
-        evaluator = Eval( model, tokenizer )
+    # Instantiate trainer/evaluator
+    trainer = Trainer( train_config, model, tokenizer, 'pile' )
+    evaluator = Eval( model, tokenizer )
 
+    # If on first machine print model and update wandb
+    if rank == 0:
         # Print data
         rich.print( trainer.train_config )
         rich.print( trainer.model.config )
@@ -139,12 +145,15 @@ def train(
             'params.non_trainable': params_non_trainable,
         } )
 
-        # Create training iterator
-        iterator = iter( trainer.data_loader_train )
+    # Create training iterator
+    iterator = iter( trainer.data_loader_train )
 
-        # Train loop
-        for i in range( trainer.get_total_epochs() ):
-            train_metrics = trainer.train_epoch( iterator, i + 1 )
+    # Train loop
+    for i in range( trainer.get_total_epochs() ):
+        train_metrics = trainer.train_epoch( iterator, i + 1 )
+        
+        # If on first machine, do validation loop and log metrics
+        if rank == 0:
             valid_metrics_wikitext = evaluator.eval_epoch( dataset_wikitext, 'page', train_config.length_sequence )
 
             train_log = {
@@ -172,6 +181,8 @@ def train(
                 **stats_log,
             } )
 
+    # If on first machine, run testing, save model and log
+    if rank == 0:
         test_metrics = evaluator.eval_epoch( dataset_pile_uncopyrighted, 'text', train_config.length_sequence )
 
         wandb.log( {
@@ -181,6 +192,8 @@ def train(
         } )
 
         _save_model( model, log_wandb=( wandb_mode == 'online' ) )
+        
+        wandb.finish()
 
 
 def _get_model_artifact( run_name: str ):
