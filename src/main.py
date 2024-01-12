@@ -19,7 +19,8 @@ if __name__ == '__main__':
     parser.add_argument( '--sweep-count', type=int, default=None )
     arguments = parser.parse_args()
 
-    torch._dynamo.config.cache_size_limit = 256 # type: ignore # pylint: disable=W0212
+    torch._dynamo.config.cache_size_limit = 1024 * 1024 # type: ignore # pylint: disable=W0212
+    # torch._dynamo.config.accumulated_cache_size_limit = 1024 * 1024 # type: ignore # pylint: disable=W0212
 
     if arguments.sweep_id is not None:
         # Disable warnings
@@ -38,15 +39,17 @@ if __name__ == '__main__':
 
     else:
         
-        torch._logging.set_logs( dynamo=logging.ERROR ) # type: ignore # pylint: disable=W0212
-        torch._logging.set_logs( inductor=logging.ERROR ) # type: ignore # pylint: disable=W0212
-        torch._logging.set_logs( dynamic=logging.ERROR ) # type: ignore # pylint: disable=W0212
+        # torch._logging.set_logs( dynamo=logging.ERROR ) # type: ignore # pylint: disable=W0212
+        # torch._logging.set_logs( inductor=logging.ERROR ) # type: ignore # pylint: disable=W0212
+        # torch._logging.set_logs( dynamic=logging.ERROR ) # type: ignore # pylint: disable=W0212
         
-        REROPE_SCALE = 2
+        REROPE_SCALE = 1
         
         custom_config = {
             'model.trainable_embeddings': True,
-            'model.rope_reversed': True,
+            'model.rope_reversed': False,
+            
+            # 'train.batches_per_epoch': 6,
             
             'train.batch_size': 480 * REROPE_SCALE,
             'train.batch_size_step': 6 * REROPE_SCALE,
@@ -68,6 +71,13 @@ if __name__ == '__main__':
             # 'train.opt_beta_1': 0.9,
             # 'train.opt_beta_2': 0.95,
             
+            # 'train.optimizer': 'LaProp',
+            # 'train.opt_weight_decay': 0.1,
+            # 'train.opt_max_grad_norm': 1.0,
+            # 'train.opt_eps': 1e-8,
+            # 'train.opt_beta_1': 0.9,
+            # 'train.opt_beta_2': 0.999,
+            
         }
 
-        train( config=custom_config, wandb_mode='online', tags=[ 'rerope_tests' ] )
+        train( config=custom_config, wandb_mode='disabled', tags=[ 'rerope_tests' ] )
