@@ -1,10 +1,14 @@
 """ Main pretraining pipeline module. Pretrain's on The Pile """
 
+import datetime
+import os
 import pathlib
 import typing
 
 import rich
 import wandb
+import torch
+import torch.distributed as dist
 
 from transformers import AutoTokenizer
 import numpy as np
@@ -67,6 +71,15 @@ def add_special_tokens( tokenizer ):
     tokenizer.sep_token = '<seg_start>'
     tokenizer.cls_token = '<seg_end>'
 
+def ddp_setup( rank, world_size ):
+    os.environ[ 'MASTER_ADDR' ] = 'localhost'
+    os.environ[ 'MASTER_PORT' ] = '5980'
+    
+    dist.init_process_group( 'gloo', rank=rank, world_size=world_size, timeout=datetime.timedelta( hours=6 ) )
+
+def ddp_cleanup():
+    dist.destroy_process_group()
+
 def train(
     rank: int = 0,
     world_size: int = 1,
@@ -85,6 +98,13 @@ def train(
         wandb_mode (str | None, optional): Optional wandb mode. Defaults to None.
         tags (list[str] | None, optional): Tags to add to wandb run. Defaults to None.
     """
+    
+    # Setup ddp if world size is greater than 1
+    if world_size > 1:
+        ddp_setup( rank, world_size )
+    
+    # Set cuda device to rank
+    torch.cuda.set_device( rank )
     
     wandb_mode = wandb_mode or WANDB_MODE
 
@@ -194,6 +214,10 @@ def train(
         _save_model( model, log_wandb=( wandb_mode == 'online' ) )
         
         wandb.finish()
+    
+    # Cleanup ddp if world size is greater than 1
+    if world_size > 1:
+        ddp_cleanup()
 
 
 def _get_model_artifact( run_name: str ):
