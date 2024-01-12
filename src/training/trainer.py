@@ -8,8 +8,10 @@ import tqdm
 import numpy as np
 from transformers import PreTrainedTokenizerBase
 import torch
+import torch.distributed as dist
 from torch.optim import AdamW
 from torcheval import metrics
+from torcheval.metrics.toolkit import sync_and_compute
 
 from constants import TORCH_COMPILE_OPTIONS, HF_CACHE_DIR
 from model.configuration import LSWTConfigTraining
@@ -31,6 +33,7 @@ class Trainer():
         self.optimizer_scaler = torch.cuda.amp.GradScaler() # type: ignore
 
         self.batch_groups = train_config.batch_size // train_config.batch_size_step
+        self.accum_groups = train_config.batch_size // train_config.batch_size_step
 
         self.past_key_values_list = [ None for _ in range( self.batch_groups ) ]
 
@@ -136,7 +139,7 @@ class Trainer():
     def reset_metrics( self ) -> dict[ str, float ]:
         stats = {}
         for name, metric in self.metrics.items():
-            stats[name] = float( metric.compute() )
+            stats[name] = float( metric.compute() ) # TODO: torcheval.metrics.toolkit.sync_and_compute
             metric.reset()
         return stats
 
@@ -193,7 +196,7 @@ class Trainer():
             y_true = tokens_y
 
             mle_loss, aux_loss = self.loss_function( hidden_states, y_pred, tokens_x, y_true )
-            accu_loss = ( mle_loss + aux_loss ) / self.batch_groups
+            accu_loss = ( mle_loss + aux_loss ) / self.accum_groups
         self.optimizer_scaler.scale( accu_loss ).backward() # type: ignore
 
         logits.detach()
@@ -260,6 +263,91 @@ class Trainer():
 
             print( '\r' + bar, end='', flush=True )
         print()
+
+        # torch.cuda.empty_cache()
+        # gc.collect()
+
+        return self.reset_metrics()
+
+class TrainerDDP( Trainer ):
+    def __init__(
+        self,
+        train_config: LSWTConfigTraining,
+        model: LSWTForCausalLM,
+        tokenizer: PreTrainedTokenizerBase,
+        dataset: str,
+        ddp_rank: int,
+        ddp_world_size: int
+    ):
+        self.ddp_rank = ddp_rank
+        self.ddp_world_size = ddp_world_size
+        
+        self.train_config = train_config
+        self.model = model
+        self.tokenizer = tokenizer
+
+        self.optimizer = self._load_optimizer()
+        self.optimizer_scaler = torch.cuda.amp.GradScaler() # type: ignore
+
+        self.batch_groups = train_config.batch_size // ( train_config.batch_size_step * self.ddp_world_size )
+        self.accum_groups = train_config.batch_size // train_config.batch_size_step
+
+        self.past_key_values_list = [ None for _ in range( self.batch_groups ) ]
+
+        self.data_loader_train = self._load_dataset( dataset )
+
+        self.loss_function = self._load_loss_function()
+
+        self.acc_function = AccuracyMetric( model.config.vocab_size, model.config.pad_token_id )
+
+        self.metrics = {
+            'loss': metrics.Mean().to( 'cuda' ),
+            'acc': metrics.Mean().to( 'cuda' ),
+        }
+
+        self.optimizer_step = 0
+    
+    def _load_dataset( self, dataset ):
+        if dataset == 'pile':
+            return PileDataset(
+                tokenizer=self.tokenizer,
+                seq_length=self.train_config.length_sequence,
+                batch_size=self.train_config.batch_size,
+                pile_shards=list( range( self.ddp_rank, 30, self.ddp_world_size ) )
+            ).as_data_loader()
+        
+        raise ValueError( 'Invalid dataset choice' )
+    
+    def reset_metrics( self ) -> dict[ str, float ]:
+        stats = {}
+        for name, metric in self.metrics.items():
+            # Syncronise and compute metrics from all devices
+            stats[name] = sync_and_compute( metric )
+            
+            # Ensure all devices wait for barrier before resetting
+            dist.barrier()
+            metric.reset()
+        return stats
+    
+    def train_epoch( self, iterator, epoch ):
+        start_time = time.time()
+
+        for batch in range( self.train_config.batches_per_epoch ):
+            self.train_batch_step( next( iterator ) )
+
+            if self.ddp_rank == 0:
+                bar = self._bar_format(
+                    iter_n=batch + 1,
+                    iter_total=self.train_config.batches_per_epoch,
+                    elapsed=time.time() - start_time,
+                    epoch=epoch,
+                    loss=self.metrics[ 'loss' ].compute(),
+                    acc=self.metrics[ 'acc' ].compute(),
+                )
+
+                print( '\r' + bar, end='', flush=True )
+        if self.ddp_rank == 0:
+            print()
 
         # torch.cuda.empty_cache()
         # gc.collect()
