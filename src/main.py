@@ -21,9 +21,6 @@ if __name__ == '__main__':
     parser.add_argument( '--sweep-count', type=int, default=None )
     arguments = parser.parse_args()
 
-    torch._dynamo.config.cache_size_limit = 1024 * 1024 # type: ignore # pylint: disable=W0212
-    # torch._dynamo.config.accumulated_cache_size_limit = 1024 * 1024 # type: ignore # pylint: disable=W0212
-
     if arguments.sweep_id is not None:
         # Disable warnings
         warnings.simplefilter( 'ignore' )
@@ -49,9 +46,9 @@ if __name__ == '__main__':
         
         custom_config = {
             'model.trainable_embeddings': True,
-            'model.rope_reversed': False,
+            'model.rope_reversed': True,
             
-            'train.batches_per_epoch': 6,
+            # 'train.batches_per_epoch': 6,
             
             'train.batch_size': 480 * REROPE_SCALE,
             'train.batch_size_step': 6 * REROPE_SCALE,
@@ -91,8 +88,8 @@ if __name__ == '__main__':
                     custom_config,
                     None,
                     None,
-                    'disabled',
-                    [ 'rerope_tests' ]
+                    'online',
+                    [ 'rerope_tests', 'ddp' ]
                 ),
                 nprocs=torch.cuda.device_count(),
                 join=True,

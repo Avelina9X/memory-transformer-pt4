@@ -322,7 +322,7 @@ class TrainerDDP( Trainer ):
         stats = {}
         for name, metric in self.metrics.items():
             # Syncronise and compute metrics from all devices
-            stats[name] = sync_and_compute( metric )
+            stats[name] = float( sync_and_compute( metric ) )
             
             # Ensure all devices wait for barrier before resetting
             dist.barrier()
@@ -335,16 +335,16 @@ class TrainerDDP( Trainer ):
         for batch in range( self.train_config.batches_per_epoch ):
             self.train_batch_step( next( iterator ) )
 
-            if self.ddp_rank == 0:
-                bar = self._bar_format(
-                    iter_n=batch + 1,
-                    iter_total=self.train_config.batches_per_epoch,
-                    elapsed=time.time() - start_time,
-                    epoch=epoch,
-                    loss=self.metrics[ 'loss' ].compute(),
-                    acc=self.metrics[ 'acc' ].compute(),
-                )
+            bar = self._bar_format(
+                iter_n=batch + 1,
+                iter_total=self.train_config.batches_per_epoch,
+                elapsed=time.time() - start_time,
+                epoch=epoch,
+                loss=float( sync_and_compute( self.metrics[ 'loss' ] ) ),
+                acc=float( sync_and_compute( self.metrics[ 'acc' ] ) ),
+            )
 
+            if self.ddp_rank == 0:
                 print( '\r' + bar, end='', flush=True )
         if self.ddp_rank == 0:
             print()

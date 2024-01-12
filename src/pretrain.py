@@ -106,6 +106,9 @@ def train(
         tags (list[str] | None, optional): Tags to add to wandb run. Defaults to None.
     """
     
+    torch._dynamo.config.cache_size_limit = 1024 * 1024 # type: ignore # pylint: disable=W0212
+    # torch._dynamo.config.accumulated_cache_size_limit = 1024 * 1024 # type: ignore # pylint: disable=W0212
+    
     # Setup ddp if world size is greater than 1
     if world_size > 1:
         ddp_setup( rank, world_size )
