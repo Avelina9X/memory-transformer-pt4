@@ -73,12 +73,19 @@ def add_special_tokens( tokenizer ):
 
 def ddp_setup( rank, world_size ):
     os.environ[ 'MASTER_ADDR' ] = 'localhost'
-    os.environ[ 'MASTER_PORT' ] = '5980'
+    os.environ[ 'MASTER_PORT' ] = '12355'
     
     dist.init_process_group( 'nccl', rank=rank, world_size=world_size, timeout=datetime.timedelta( hours=6 ) )
 
 def ddp_cleanup():
     dist.destroy_process_group()
+    
+class MyDDP( torch.nn.parallel.DistributedDataParallel ):
+    def __getattr__(self, name):
+        try:
+            return super().__getattr__(name)
+        except AttributeError:
+            return getattr(self.module, name)
 
 def train(
     rank: int = 0,
@@ -125,19 +132,23 @@ def train(
     # Get and update model configs
     model_config = model_config or LSWTConfig()
     train_config = train_config or LSWTConfigTraining()
-    _modify_dicts( wandb.config, model_config, train_config )
+    if rank == 0:
+        _modify_dicts( wandb.config, model_config, train_config )
+    else:
+        _modify_dicts( config, model_config, train_config )
 
     # Load model and embeddings
     parent_embeddings = embedding_loader( model_config, cache_dir=HF_CACHE_DIR )
-    model = LSWTForCausalLM( model_config, parent_embeddings ).cuda()
+    model = LSWTForCausalLM( model_config, parent_embeddings ).cuda()        
 
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained( model_config.parent_embeddings, use_fast=True, cache_dir=HF_CACHE_DIR )
 
     # Instantiate trainer/evaluator
-    if world_size == 0:
+    if world_size == 1:
         trainer = Trainer( train_config, model, tokenizer, 'pile' )
     else:
+        model = MyDDP( model, device_ids=[ rank ] )
         trainer = TrainerDDP( train_config, model, tokenizer, 'pile', rank, world_size )
     evaluator = Eval( model, tokenizer )
 

@@ -7,6 +7,8 @@ import logging
 import torch
 import wandb
 
+import torch.multiprocessing as mp
+
 from constants import WANDB_API_KEY, WANDB_PROJECT_NAME
 
 from pretrain import train
@@ -49,7 +51,7 @@ if __name__ == '__main__':
             'model.trainable_embeddings': True,
             'model.rope_reversed': False,
             
-            # 'train.batches_per_epoch': 6,
+            'train.batches_per_epoch': 6,
             
             'train.batch_size': 480 * REROPE_SCALE,
             'train.batch_size_step': 6 * REROPE_SCALE,
@@ -79,5 +81,19 @@ if __name__ == '__main__':
             # 'train.opt_beta_2': 0.999,
             
         }
-
-        train( config=custom_config, wandb_mode='disabled', tags=[ 'rerope_tests' ] )
+        if torch.cuda.device_count() == 1:
+            train( config=custom_config, wandb_mode='disabled', tags=[ 'rerope_tests' ] )
+        else:
+            mp.spawn(
+                fn=train,
+                args=(
+                    torch.cuda.device_count(),
+                    custom_config,
+                    None,
+                    None,
+                    'disabled',
+                    [ 'rerope_tests' ]
+                ),
+                nprocs=torch.cuda.device_count(),
+                join=True,
+            )
