@@ -75,7 +75,7 @@ def ddp_setup( rank, world_size ):
     os.environ[ 'MASTER_ADDR' ] = 'localhost'
     os.environ[ 'MASTER_PORT' ] = '5980'
     
-    dist.init_process_group( 'gloo', rank=rank, world_size=world_size, timeout=datetime.timedelta( hours=6 ) )
+    dist.init_process_group( 'nccl', rank=rank, world_size=world_size, timeout=datetime.timedelta( hours=6 ) )
 
 def ddp_cleanup():
     dist.destroy_process_group()
