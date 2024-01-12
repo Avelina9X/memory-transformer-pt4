@@ -13,7 +13,7 @@ import torch.distributed as dist
 from transformers import AutoTokenizer
 import numpy as np
 
-from training.trainer import Trainer
+from training.trainer import Trainer, TrainerDDP
 from training.eval import Eval, EvalAlpaca
 from training.data import load_pile_uncopyrighted, load_wikitext, load_alpaca
 
@@ -135,7 +135,10 @@ def train(
     tokenizer = AutoTokenizer.from_pretrained( model_config.parent_embeddings, use_fast=True, cache_dir=HF_CACHE_DIR )
 
     # Instantiate trainer/evaluator
-    trainer = Trainer( train_config, model, tokenizer, 'pile' )
+    if world_size == 0:
+        trainer = Trainer( train_config, model, tokenizer, 'pile' )
+    else:
+        trainer = TrainerDDP( train_config, model, tokenizer, 'pile', rank, world_size )
     evaluator = Eval( model, tokenizer )
 
     # If on first machine print model and update wandb
