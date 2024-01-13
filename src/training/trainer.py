@@ -312,7 +312,7 @@ class TrainerDDP( Trainer ):
             return PileDataset(
                 tokenizer=self.tokenizer,
                 seq_length=self.train_config.length_sequence,
-                batch_size=self.train_config.batch_size,
+                batch_size=self.train_config.batch_size // self.ddp_world_size,
                 pile_shards=list( range( self.ddp_rank, 30, self.ddp_world_size ) )
             ).as_data_loader()
         

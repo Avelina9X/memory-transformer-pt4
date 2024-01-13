@@ -46,7 +46,7 @@ if __name__ == '__main__':
         
         custom_config = {
             'model.trainable_embeddings': True,
-            'model.rope_reversed': True,
+            'model.rope_reversed': False,
             
             # 'train.batches_per_epoch': 6,
             
@@ -58,10 +58,10 @@ if __name__ == '__main__':
             
             'train.loss_objective': 'MLE',
             
-            'train.optimizer': 'Minato',
-            'train.opt_weight_decay': 0.2,
-            'train.opt_max_grad_norm': 1.0,
-            'train.opt_beta_1': 0.9,
+            # 'train.optimizer': 'Minato',
+            # 'train.opt_weight_decay': 0.2,
+            # 'train.opt_max_grad_norm': 1.0,
+            # 'train.opt_beta_1': 0.9,
             
             # 'train.optimizer': 'AdamW',
             # 'train.opt_weight_decay': 0.1,
@@ -70,12 +70,12 @@ if __name__ == '__main__':
             # 'train.opt_beta_1': 0.9,
             # 'train.opt_beta_2': 0.95,
             
-            # 'train.optimizer': 'LaProp',
-            # 'train.opt_weight_decay': 0.1,
-            # 'train.opt_max_grad_norm': 1.0,
-            # 'train.opt_eps': 1e-8,
-            # 'train.opt_beta_1': 0.9,
-            # 'train.opt_beta_2': 0.999,
+            'train.optimizer': 'LaProp',
+            'train.opt_weight_decay': 0.1,
+            'train.opt_max_grad_norm': 1.0,
+            'train.opt_eps': 1e-8,
+            'train.opt_beta_1': 0.9,
+            'train.opt_beta_2': 0.999,
             
         }
         if torch.cuda.device_count() == 1:
