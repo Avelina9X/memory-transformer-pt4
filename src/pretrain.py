@@ -78,6 +78,7 @@ def ddp_setup( rank, world_size ):
     dist.init_process_group( 'nccl', rank=rank, world_size=world_size, timeout=datetime.timedelta( hours=6 ) )
 
 def ddp_cleanup():
+    dist.barrier()
     dist.destroy_process_group()
     
 class MyDDP( torch.nn.parallel.DistributedDataParallel ):
