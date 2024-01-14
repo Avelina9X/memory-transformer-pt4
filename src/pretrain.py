@@ -26,6 +26,8 @@ from constants import HF_CACHE_DIR, WANDB_PROJECT_NAME
 WANDB_MODE = 'online'
 
 def ddp_setup( rank, world_size ):
+    torch.cuda.set_device( rank )
+    
     os.environ[ 'MASTER_ADDR' ] = 'localhost'
     os.environ[ 'MASTER_PORT' ] = '12355'
     
@@ -69,9 +71,6 @@ def train(
     # Setup ddp if world size is greater than 1
     if world_size > 1:
         ddp_setup( rank, world_size )
-    
-    # Set cuda device to rank
-    torch.cuda.set_device( rank )
     
     wandb_mode = wandb_mode or WANDB_MODE
 
