@@ -2,8 +2,8 @@
 
 import datetime
 import os
-import pathlib
 import typing
+import train_utils
 
 import rich
 import wandb
@@ -24,52 +24,6 @@ from model.embedding_loader import embedding_loader
 from constants import HF_CACHE_DIR, WANDB_PROJECT_NAME
 
 WANDB_MODE = 'online'
-
-def _find_and_extract( source, prefix ):
-    idx = source.find( prefix + '.' )
-    if idx != 0:
-        return None
-    return source[ len( prefix ) + 1 : ]
-
-def _modify_dicts( config: dict, model_config: LSWTConfig, train_config: LSWTConfigTraining ):
-    for key, value in config.items():
-        model_key = _find_and_extract( key, 'model' )
-        train_key = _find_and_extract( key, 'train' )
-
-        if model_key is not None:
-            getattr( model_config, model_key )
-            setattr( model_config, model_key, value )
-
-        if train_key is not None:
-            getattr( train_config, train_key )
-            setattr( train_config, train_key, value )
-
-def _get_checkpoint_path( name: str | None=None ):
-    name = name or wandb.run.name or wandb.run.id # type: ignore
-
-    root_dir = pathlib.Path().cwd().joinpath( 'checkpoints', name )
-    config_dir = root_dir.joinpath( 'config.json' )
-    model_dir = root_dir.joinpath( 'model.safetensors' )
-    return root_dir, config_dir, model_dir
-
-def _save_model( model: LSWTForCausalLM, log_wandb: bool=False ):
-    root_dir, config_dir, model_dir = _get_checkpoint_path()
-
-    model.half().save_pretrained( root_dir, safe_serialization=True )
-
-    if log_wandb:
-        model_name = model.config.model_type
-
-        model_artifact = wandb.Artifact( name=model_name, type="model" )
-        model_artifact.add_file( model_dir ) # type: ignore
-        model_artifact.add_file( config_dir ) # type: ignore
-
-        wandb.run.log_artifact( model_artifact ) # type: ignore
-
-def add_special_tokens( tokenizer ):
-    tokenizer.add_tokens( [ '<seg_start>', '<seg_end>' ], special_tokens=True )
-    tokenizer.sep_token = '<seg_start>'
-    tokenizer.cls_token = '<seg_end>'
 
 def ddp_setup( rank, world_size ):
     os.environ[ 'MASTER_ADDR' ] = 'localhost'
@@ -139,9 +93,9 @@ def train(
     model_config = model_config or LSWTConfig()
     train_config = train_config or LSWTConfigTraining()
     if rank == 0:
-        _modify_dicts( wandb.config, model_config, train_config )
+        train_utils.modify_dicts( wandb.config, model_config, train_config )
     else:
-        _modify_dicts( config, model_config, train_config ) # type: ignore
+        train_utils.modify_dicts( config, model_config, train_config ) # type: ignore
 
     # Load model and embeddings
     parent_embeddings = embedding_loader( model_config, cache_dir=HF_CACHE_DIR )
@@ -231,31 +185,13 @@ def train(
             'test/pile-uncopyrighted/acc': test_metrics[ 'acc' ],
         } )
 
-        _save_model( model, log_wandb=( wandb_mode == 'online' ) ) # type: ignore
+        train_utils.save_model( model, log_wandb=( wandb_mode == 'online' ) ) # type: ignore
         
         wandb.finish()
     
     # Cleanup ddp if world size is greater than 1
     if world_size > 1:
         ddp_cleanup()
-
-
-def _get_model_artifact( run_name: str ):
-    pretrain_run = wandb.Api().runs(
-        path=WANDB_PROJECT_NAME,
-        filters={ "display_name": run_name }
-    )[0]
-    
-    return [
-        artifact
-        for artifact in pretrain_run.logged_artifacts()
-        if artifact.type == 'model'
-    ][0]
-
-def _set_backbone_trainable( model: LSWTForCausalLM, trainable: bool ):
-    model.model.blocks.requires_grad_( trainable )
-    if not trainable:
-        model.model.blocks = model.model.blocks.half()
 
 def finetune(
     config: dict | None = None,
@@ -275,21 +211,21 @@ def finetune(
         pretrained_run_dir = f'./checkpoints/{pretrained_run_name}'
         
         # Get pretrained model artifact
-        pretrained_artifact = _get_model_artifact( pretrained_run_name )
+        pretrained_artifact = train_utils.get_model_artifact( pretrained_run_name )
         wandb.run.use_artifact( pretrained_artifact ) # type: ignore
         
         # Get and update model configs
         model_config = typing.cast( LSWTConfig, LSWTConfig.from_pretrained( pretrained_run_dir, torch_dtype=None ) )
         train_config = LSWTConfigTraining()
-        _modify_dicts( wandb.config, model_config, train_config )
+        train_utils.modify_dicts( wandb.config, model_config, train_config )
         
         # Load model and correct casting
         model = typing.cast( LSWTForCausalLM, LSWTForCausalLM.from_pretrained( pretrained_run_dir, **model_config.to_dict() ) ).cuda()
-        _set_backbone_trainable( model, wandb.config[ 'finetune.trainable_backbone' ] )
+        train_utils.set_backbone_trainable( model, wandb.config[ 'finetune.trainable_backbone' ] )
         
         # Load tokenizer and add new segment tokens
         tokenizer = AutoTokenizer.from_pretrained( model_config.parent_embeddings, use_fast=True, cache_dir=HF_CACHE_DIR )
-        add_special_tokens( tokenizer )
+        train_utils.add_special_tokens( tokenizer )
         
         # Instantiate trainer for finetuning
         trainer = Trainer( train_config, model, tokenizer, wandb.config[ 'finetune.dataset' ] )
