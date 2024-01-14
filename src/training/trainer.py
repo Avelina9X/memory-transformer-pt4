@@ -277,10 +277,12 @@ class TrainerDDP( Trainer ):
         tokenizer: PreTrainedTokenizerBase,
         dataset: str,
         ddp_rank: int,
-        ddp_world_size: int
+        ddp_world_size: int,
+        dataset_shards: int = 30,
     ):
         self.ddp_rank = ddp_rank
         self.ddp_world_size = ddp_world_size
+        self.dataset_shards = dataset_shards
         
         self.train_config = train_config
         self.model = model
@@ -290,7 +292,7 @@ class TrainerDDP( Trainer ):
         self.optimizer_scaler = torch.cuda.amp.GradScaler() # type: ignore
 
         self.batch_groups = train_config.batch_size // ( train_config.batch_size_step * self.ddp_world_size )
-        self.accum_groups = train_config.batch_size // train_config.batch_size_step
+        self.accum_groups = train_config.batch_size // ( train_config.batch_size_step * self.ddp_world_size )
 
         self.past_key_values_list = [ None for _ in range( self.batch_groups ) ]
 
@@ -313,7 +315,7 @@ class TrainerDDP( Trainer ):
                 tokenizer=self.tokenizer,
                 seq_length=self.train_config.length_sequence,
                 batch_size=self.train_config.batch_size // self.ddp_world_size,
-                pile_shards=list( range( self.ddp_rank, 30, self.ddp_world_size ) )
+                pile_shards=list( range( self.ddp_rank, self.dataset_shards, self.ddp_world_size ) )
             ).as_data_loader()
         
         raise ValueError( 'Invalid dataset choice' )
@@ -328,6 +330,30 @@ class TrainerDDP( Trainer ):
             dist.barrier()
             metric.reset()
         return stats
+    
+    def train_batch_step( self, batch ):
+        self.model.train()
+
+        tokens_xs, tokens_ys = batch
+
+        tokens_xs = torch.split( tokens_xs.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
+        tokens_ys = torch.split( tokens_ys.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
+
+        for idx in range( self.batch_groups ):
+            self.model.require_backward_grad_sync = ( idx == self.accum_groups - 1 )
+            
+            past_key_values = self.model.cache_to( self.past_key_values_list[idx], 'cuda' )
+            self.past_key_values_list[idx] = None # type: ignore
+            
+            loss, accuracy, past_key_values = self.train_sub_step( tokens_xs[idx], tokens_ys[idx], past_key_values )
+            
+            past_key_values = self.model.cache_to( past_key_values, 'cpu', trim=self.train_config.length_cache )
+            self.past_key_values_list[idx] = past_key_values # type: ignore
+
+            self.metrics[ 'loss' ].update( loss )
+            self.metrics[ 'acc' ].update( accuracy )
+
+        self.train_optim_step()
     
     def train_epoch( self, iterator, epoch ):
         start_time = time.time()

@@ -155,7 +155,7 @@ def train(
         trainer = Trainer( train_config, model, tokenizer, 'pile' )
     else:
         model = MyDDP( model, device_ids=[ rank ] )
-        trainer = TrainerDDP( train_config, model, tokenizer, 'pile', rank, world_size )
+        trainer = TrainerDDP( train_config, model, tokenizer, 'pile', rank, world_size, 24 )
     evaluator = Eval( model, tokenizer )
 
     # If on first machine print model and update wandb
