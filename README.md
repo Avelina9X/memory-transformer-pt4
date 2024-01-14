@@ -34,9 +34,9 @@ The following environment variables are **optional** but recommended:
 - TODO: docstrings for packages, classes and functions
 - TODO: improved commenting within functions
 - TODO: add citations to readme
-- TODO: improve SimCTG code for scattered padding + on device compute
 - TODO: deploy models to 🤗 and use shield.io for pretty links
-- TODO: use DDP compatible metrics
+- TODO: move hanging functions out of pretrain.py
+- TODO: move private functions out of classes when relevant
 
 ## Model Sizes
 | Name | $d_{model}$ | $n_{layers}$ | $n_{heads}$ | $d_{key}$ | Parameters |
