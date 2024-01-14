@@ -7,7 +7,7 @@ from flash_attn import flash_attn_func # type: ignore # pylint: disable=E0401
 
 from .configuration import LSWTConfig
 
-@torch._dynamo.disable
+@torch._dynamo.disable # type: ignore # pylint: disable=W0212
 def flash_attention( query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, dropout: float ):
     return flash_attn_func( query, key, value, dropout_p=dropout, causal=True )
 

@@ -166,7 +166,7 @@ class Trainer():
 
     def forward_pass( self, tokens, past_key_values, cache_length ):
 
-        torch._inductor.cudagraph_mark_step_begin()
+        torch._inductor.cudagraph_mark_step_begin() # type: ignore # pylint: disable=W0212
 
         outputs = self.model(
             input_ids=tokens,
@@ -340,7 +340,7 @@ class TrainerDDP( Trainer ):
         tokens_ys = torch.split( tokens_ys.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
 
         for idx in range( self.batch_groups ):
-            self.model.require_backward_grad_sync = ( idx == self.accum_groups - 1 )
+            self.model.require_backward_grad_sync = ( idx == self.accum_groups - 1 ) # type: ignore
             
             past_key_values = self.model.cache_to( self.past_key_values_list[idx], 'cuda' )
             self.past_key_values_list[idx] = None # type: ignore

@@ -141,7 +141,7 @@ def train(
     if rank == 0:
         _modify_dicts( wandb.config, model_config, train_config )
     else:
-        _modify_dicts( config, model_config, train_config )
+        _modify_dicts( config, model_config, train_config ) # type: ignore
 
     # Load model and embeddings
     parent_embeddings = embedding_loader( model_config, cache_dir=HF_CACHE_DIR )
@@ -155,8 +155,8 @@ def train(
         trainer = Trainer( train_config, model, tokenizer, 'pile' )
     else:
         model = MyDDP( model, device_ids=[ rank ] )
-        trainer = TrainerDDP( train_config, model, tokenizer, 'pile', rank, world_size, 24 )
-    evaluator = Eval( model, tokenizer )
+        trainer = TrainerDDP( train_config, model, tokenizer, 'pile', rank, world_size, 24 ) # type: ignore
+    evaluator = Eval( model, tokenizer ) # type: ignore
 
     # If on first machine print model and update wandb
     if rank == 0:
@@ -231,7 +231,7 @@ def train(
             'test/pile-uncopyrighted/acc': test_metrics[ 'acc' ],
         } )
 
-        _save_model( model, log_wandb=( wandb_mode == 'online' ) )
+        _save_model( model, log_wandb=( wandb_mode == 'online' ) ) # type: ignore
         
         wandb.finish()
     
