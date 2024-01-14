@@ -185,13 +185,13 @@ def _single_tensor_minato(
         exp_avg.mul_( beta ).add_( grad, alpha=1 - beta )
 
         if capturable:
-            step = step_t
+            # step = step_t
             step_size = lr
             step_size_neg = step_size.neg() # type: ignore
 
             param.add_( exp_avg.sign(), alpha=step_size_neg )
         else:
-            step = step_t.item()
+            # step = step_t.item()
             step_size_neg = - lr
 
             param.add_( exp_avg.sign(), alpha=step_size_neg )

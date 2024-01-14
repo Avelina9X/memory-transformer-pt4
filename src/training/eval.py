@@ -2,8 +2,6 @@
 Module containing the evaluation loop components for training LSWTransformer models.
 """
 
-import gc
-
 import torch
 from torcheval import metrics
 from transformers import PreTrainedTokenizerBase

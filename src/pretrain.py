@@ -56,6 +56,8 @@ def train(
     """ Pretraining function.
 
     Args:
+        rank (int, optional): The DDP process rank. Defaults to 0.
+        world_size (int, optional): The DDP world size. When 1 DDP is disabled. Defulats to 1.
         config (dict | None, optional): Optional WandB style config. Defaults to None.
         model_config (LSWTConfig | None, optional): Optional model config. Defaults to None.
         train_config (LSWTConfigTraining | None, optional): Optional training config. Defaults to None.

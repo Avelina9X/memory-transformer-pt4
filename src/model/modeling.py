@@ -88,6 +88,7 @@ class LSWTPreTrainedModel( PreTrainedModel ):
             cache (Optional[list[list[torch.Tensor]]]): Key value cache to move
             device (str | torch.device): the device to move to
             trim (int, optional): Desired trim size. Zero means no trim. Defaults to 0.
+            blocking (bool): Determines if the transfer should be `non_blocking`. Defaults to False.
 
         Returns:
             list[list[torch.Tensor]]: Moved key value cache
@@ -280,7 +281,7 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
         output_attentions=False,
         output_hidden_states=True,
         
-        max_key_values: int | None = None,
+        max_key_values: int | None = None, # pylint: disable=unused-argument
     ) -> CausalLMOutputWithPast:
         """
         Forward pass function.
@@ -294,6 +295,8 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
             return_dict (bool, optional): Whether or not to return a CausalLMOutputWithPast. Must be True.
             output_attentions (bool, optional): Returns attentions for all layers. Must be False.
             output_hidden_states (bool, optional): Whether or not to return the hidden states of all layers. Defaults to True.
+            
+            max_key_values (int, optional): The max number of past states to keep during generation. Unused outside of generation. Defaults to None.
 
         Returns:
             CausalLMOutputWithPast: Model outputs
