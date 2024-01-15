@@ -33,12 +33,9 @@ class Trainer():
         self.optimizer_scaler = torch.cuda.amp.GradScaler() # type: ignore
 
         self.batch_groups = train_config.batch_size // train_config.batch_size_step
-        self.accum_groups = train_config.batch_size // train_config.batch_size_step
 
-        self.past_key_values_list = [ None for _ in range( self.batch_groups ) ]
-
+        self.past_key_values_list = self._load_cache()
         self.data_loader_train = self._load_dataset( dataset )
-
         self.loss_function = self._load_loss_function()
 
         self.acc_function = AccuracyMetric( model.config.vocab_size, model.config.pad_token_id )
@@ -66,6 +63,10 @@ class Trainer():
             postfix=f'loss={loss:.3f}, acc={acc:.3f}',
             prefix=f'Epoch {epoch}',
         )
+    
+    def _load_cache( self ):
+        batch_groups = self.train_config.batch_size // self.train_config.batch_size_step
+        return [ None for _ in range( batch_groups ) ]
 
     def _load_optimizer( self ) -> torch.optim.Optimizer:        
         if self.train_config.optimizer == 'Minato':
@@ -139,7 +140,7 @@ class Trainer():
     def reset_metrics( self ) -> dict[ str, float ]:
         stats = {}
         for name, metric in self.metrics.items():
-            stats[name] = float( metric.compute() ) # TODO: torcheval.metrics.toolkit.sync_and_compute
+            stats[name] = float( metric.compute() )
             metric.reset()
         return stats
 
@@ -196,7 +197,7 @@ class Trainer():
             y_true = tokens_y
 
             mle_loss, aux_loss = self.loss_function( hidden_states, y_pred, tokens_x, y_true )
-            accu_loss = ( mle_loss + aux_loss ) / self.accum_groups
+            accu_loss = ( mle_loss + aux_loss ) / self.batch_groups
         self.optimizer_scaler.scale( accu_loss ).backward() # type: ignore
 
         logits.detach()
@@ -284,30 +285,19 @@ class TrainerDDP( Trainer ):
         self.ddp_world_size = ddp_world_size
         self.dataset_shards = dataset_shards
         
-        self.train_config = train_config
-        self.model = model
-        self.tokenizer = tokenizer
+        super().__init__( train_config, model, tokenizer, dataset )
 
-        self.optimizer = self._load_optimizer()
-        self.optimizer_scaler = torch.cuda.amp.GradScaler() # type: ignore
-
+        # Modify batch_groups for DDP
         self.batch_groups = train_config.batch_size // ( train_config.batch_size_step * self.ddp_world_size )
-        self.accum_groups = train_config.batch_size // ( train_config.batch_size_step * self.ddp_world_size )
-
-        self.past_key_values_list = [ None for _ in range( self.batch_groups ) ]
-
-        self.data_loader_train = self._load_dataset( dataset )
-
-        self.loss_function = self._load_loss_function()
-
-        self.acc_function = AccuracyMetric( model.config.vocab_size, model.config.pad_token_id )
-
-        self.metrics = {
-            'loss': metrics.Mean().to( 'cuda' ),
-            'acc': metrics.Mean().to( 'cuda' ),
-        }
-
-        self.optimizer_step = 0
+    
+    
+    """ ========================================================================
+        Overridden Internal Utility functions
+        ======================================================================== """
+    
+    def _load_cache( self ):
+        batch_groups = self.train_config.batch_size // ( self.train_config.batch_size_step * self.ddp_world_size )
+        return [ None for _ in range( batch_groups ) ]
     
     def _load_dataset( self, dataset ):
         if dataset == 'pile':
@@ -319,6 +309,11 @@ class TrainerDDP( Trainer ):
             ).as_data_loader()
         
         raise ValueError( 'Invalid dataset choice' )
+
+
+    """ ========================================================================
+        Overridden Utility functions
+        ======================================================================== """
     
     def reset_metrics( self ) -> dict[ str, float ]:
         stats = {}
@@ -330,6 +325,11 @@ class TrainerDDP( Trainer ):
             dist.barrier()
             metric.reset()
         return stats
+
+    
+    """ ========================================================================
+        Overridden Training Functions
+        ======================================================================== """
     
     def train_batch_step( self, batch ):
         self.model.train()
@@ -340,7 +340,7 @@ class TrainerDDP( Trainer ):
         tokens_ys = torch.split( tokens_ys.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
 
         for idx in range( self.batch_groups ):
-            self.model.require_backward_grad_sync = ( idx == self.accum_groups - 1 ) # type: ignore
+            self.model.require_backward_grad_sync = ( idx == self.batch_groups - 1 ) # type: ignore
             
             past_key_values = self.model.cache_to( self.past_key_values_list[idx], 'cuda' )
             self.past_key_values_list[idx] = None # type: ignore
@@ -356,6 +356,8 @@ class TrainerDDP( Trainer ):
         self.train_optim_step()
     
     def train_epoch( self, iterator, epoch ):
+        dist.barrier()
+        
         start_time = time.time()
 
         for batch in range( self.train_config.batches_per_epoch ):
