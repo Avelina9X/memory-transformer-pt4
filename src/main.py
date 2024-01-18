@@ -46,7 +46,7 @@ if __name__ == '__main__':
         
         custom_config = {
             'model.trainable_embeddings': True,
-            'model.rope_reversed': False,
+            'model.rope_reversed': True,
             
             # 'train.batches_per_epoch': 6,
             
@@ -56,7 +56,8 @@ if __name__ == '__main__':
             'train.length_sequence': 2048 // REROPE_SCALE,
             'train.length_cache': 2048 // REROPE_SCALE,
             
-            'train.loss_objective': 'MLE',
+            # 'train.loss_objective': 'MLE',
+            'train.loss_objective': 'SimCTG',
             
             # 'train.optimizer': 'Minato',
             # 'train.opt_weight_decay': 0.2,
@@ -79,9 +80,9 @@ if __name__ == '__main__':
             
         }
         if torch.cuda.device_count() == 1:
-            train( config=custom_config, wandb_mode='disabled', tags=[ 'rerope_tests' ] )
+            train( config=custom_config, wandb_mode='online', tags=[ 'rerope_tests' ] )
         else:
-            mp.spawn(
+            mp.spawn( # type: ignore
                 fn=train,
                 args=(
                     torch.cuda.device_count(),

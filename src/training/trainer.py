@@ -9,6 +9,7 @@ import numpy as np
 from transformers import PreTrainedTokenizerBase
 import torch
 import torch.distributed as dist
+from torch.distributed.optim import ZeroRedundancyOptimizer
 from torch.optim import AdamW
 from torcheval import metrics
 from torcheval.metrics.toolkit import sync_and_compute
@@ -295,6 +296,19 @@ class TrainerDDP( Trainer ):
         Overridden Internal Utility functions
         ======================================================================== """
     
+    def _load_optimizer( self ) -> torch.optim.Optimizer:       
+        if self.train_config.optimizer == 'LaProp':
+            return ZeroRedundancyOptimizer(
+                params=self.model.get_param_groups(),
+                optimizer_class=LaProp,
+                lr=0.0,
+                betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
+                eps=self.train_config.opt_eps,
+                weight_decay=( self.train_config.opt_weight_decay ),
+            )
+
+        raise ValueError( 'Invalid optimizer' )
+    
     def _load_cache( self ):
         batch_groups = self.train_config.batch_size // ( self.train_config.batch_size_step * self.ddp_world_size )
         return [ None for _ in range( batch_groups ) ]
@@ -354,9 +368,12 @@ class TrainerDDP( Trainer ):
             self.metrics[ 'acc' ].update( accuracy )
 
         self.train_optim_step()
+                
+        if self.optimizer_step <= 2:
+            torch.cuda.empty_cache()
     
     def train_epoch( self, iterator, epoch ):
-        dist.barrier()
+        # dist.barrier()
         
         start_time = time.time()
 
