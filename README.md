@@ -13,8 +13,8 @@ A private repo for the LSWTransformer, codename `memory-transformer-pt4`.
 - **HuggingFace Model Format** for integration with the 🤗 ecosystem.
 - **Warmstart Word Embeddings** taken from `facebook/opt-125m` to accelerate convergence.
 - **Input/Output Projections** to decouple embedding matrix dimension from model dimension.
-- **SimCTG Loss** to encourage embedding diversity.
-- **Sophia Optimizer** for faster convergence.
+- **SimCTG Loss (optional)** to encourage embedding diversity.
+- **LaProp Optimizer** for faster convergence.
 
 ## Usage
 ### Environment
@@ -23,20 +23,21 @@ We recommend using the official PyTorch docker container and installing all of `
 ### Envars
 The following environment variables **must** be set:
 - `WANDB_API_KEY` - Your WandB API key to track training/evaluation.
+- `WANDB_PROJECT_NAME` - The WandB project destination for all runs.
 - `HF_API_KEY` - Your Hugging Face API key to access protected datasets.
 - `HF_CACHE_DIR` - The directory to store loaded models and datasets.
 
 The following environment variables are **optional** but recommended:
-- `KERAS_BACKEND=torch` - Forces Keras to use the torch backend (for Keras NLP)
-- `TOKENIZERS_PARALLELISM=true` - Forces HF tokenizers to support parallelism
+- `TOKENIZERS_PARALLELISM=true` - Forces HF tokenizers to support parallelism.
+- `KERAS_BACKEND=torch` - Forces Keras to use the torch backend (for Keras NLP).
+- `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` - Helps reduce fragmentation of the PyTorch allocator.
 
 ## To Do List
-- TODO: docstrings for packages, classes and functions
+- TODO: add missing docstrings for packages, classes and functions
 - TODO: improved commenting within functions
 - TODO: add citations to readme
 - TODO: deploy models to 🤗 and use shield.io for pretty links
-- TODO: move hanging functions out of pretrain.py
-- TODO: move private functions out of classes when relevant
+- TODO: move private functions out of classes when relevant or make public
 
 ## Model Sizes
 | Name | $d_{model}$ | $n_{layers}$ | $n_{heads}$ | $d_{key}$ | Parameters |
