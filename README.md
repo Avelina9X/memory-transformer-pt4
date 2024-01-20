@@ -16,6 +16,13 @@ A public repo for the LSWTransformer, codename `memory-transformer-pt4`.
 - **SimCTG Loss (optional)** to encourage embedding diversity.
 - **LaProp Optimizer** for faster convergence.
 
+### Planned Features
+- **QK RMSNorm** grouped per head, suggested in multiple works to improve performance.
+- **Partial RoPE** applying positional information to only a fraction of each head, suggested in GPT-Neo and GPT-J to improve performance.
+- **Long Term Memory** as an additional `past_key_values` argument.
+- **Segment Embeddings** utilising whitening to facilitate segment retrieval into long term memory.
+- **Spectral Normalisation** of QK projections using the 'Spectra' post-optimizer.
+
 ## Training and Evaluation Data
 LSWT is currently being trained on the original distribution of The Pile dataset. Runs without DDP use all 30 shards (0-29 inclusive), while runs using DDP are trained using the first 24 shards (0-23 inclusive) for easier distribution of data for typical world sizes.
 
