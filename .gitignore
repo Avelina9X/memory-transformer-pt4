@@ -6,7 +6,6 @@ checkpoints/
 wandb/
 .vscode/
 
-Dockerfile
 docker_build.sh
 run.sh
 run1.sh
