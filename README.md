@@ -19,7 +19,7 @@ A private repo for the LSWTransformer, codename `memory-transformer-pt4`.
 ## Training and Evaluation Data
 LSWT is currently being trained on the original distribution of The Pile dataset. Runs without DDP use all 30 shards (0-29 inclusive), while runs using DDP are trained using the first 24 shards (0-23 inclusive) for easier distribution of data for typical world sizes.
 
-We evaluate our models between 'epochs' using a non-chunked version of Wikitext. At the end of training we make use of the full validation split of The Pile Uncopyrighted to gauge model performance, we specifically use this new publically available version of The Pile as the original version is now defunct and only available through non official sources. 
+We evaluate our models between 'epochs' using a non-chunked version of Wikitext. At the end of training we make use of the full validation split of The Pile Uncopyrighted to gauge model performance, we specifically use this new publicly available version of The Pile as the original version is now defunct and only available through non official sources. 
 
 ## Usage
 ### Environment
