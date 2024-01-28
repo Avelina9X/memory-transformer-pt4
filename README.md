@@ -44,6 +44,11 @@ The following environment variables are **optional** but recommended:
 - `KERAS_BACKEND=torch` - Forces Keras to use the torch backend (for Keras NLP).
 - `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` - Helps reduce fragmentation of the PyTorch allocator.
 
+The following envars should be used for debugging `torch.compile` related issues:
+- `TORCH_LOGS="+dynamo"` to enable dynamo logging
+- `TORCHDYNAMO_VERBOSE=1` to force verbose dynamo logging
+- `TORCH_LOGS=recompiles` to enable dynamo logging on recompiles
+
 ## To Do List
 - TODO: add missing docstrings for packages, classes and functions
 - TODO: improved commenting within functions
