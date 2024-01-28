@@ -46,3 +46,4 @@ RUN pip install einops
 RUN pip uninstall tensorflow -y
 
 RUN pip install pydantic --upgrade
+RUN pip install wcmatch
