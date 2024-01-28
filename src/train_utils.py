@@ -1,7 +1,7 @@
 """ Utilities and helper functions for training and pretraining """
 
-import wandb
 import pathlib
+import wandb
 
 from model.configuration import LSWTConfigTraining, LSWTConfig
 from model.modeling import LSWTForCausalLM
@@ -58,7 +58,7 @@ def get_model_artifact( run_name: str ):
         path=WANDB_PROJECT_NAME,
         filters={ "display_name": run_name }
     )[0]
-    
+
     return [
         artifact
         for artifact in pretrain_run.logged_artifacts()
