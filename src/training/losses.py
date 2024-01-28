@@ -1,5 +1,8 @@
 """
-Module containing loss functions and metrics. 
+Module containing loss functions and metrics.
+
+TODO: create base loss (and metrics?) class.
+TODO: move to different package?
 """
 
 import torch
@@ -11,6 +14,11 @@ from torch.nn import CrossEntropyLoss
     ======================================================================== """
 
 class MLELoss( nn.Module ):
+    """ Wrapper for sparse cross entropy loss with logits.
+    
+    TODO: create base loss class that MLELoss inherts from.
+    """
+    
     def __init__( self, vocab_size, pad_token_id ):
         super().__init__()
 
@@ -26,7 +34,10 @@ class MLELoss( nn.Module ):
         return mle_loss, mle_loss * 0.0
 
 class SimCTGLoss( nn.Module ):
-    """
+    """ Wrapper for SimCTG, i.e. contrastive loss + MLE loss.
+    
+    TODO: create base loss class that MLELoss inherts from
+    
     @inproceedings{su2022a,
         title={A Contrastive Framework for Neural Text Generation},
         author={Yixuan Su and Tian Lan and Yan Wang and Dani Yogatama and Lingpeng Kong and Nigel Collier},
@@ -132,6 +143,12 @@ class SimCTGLoss( nn.Module ):
     ======================================================================== """
 
 class AccuracyMetric( nn.Module ):
+    """ Wrapper for sparse multi-class accuracy.
+    
+    TODO: inhert from a base class. Decide if should be base 'loss' or base 'metric'.
+    TODO: move to seperate metrics module?
+    """
+    
     def __init__( self, vocab_size, pad_token_id ):
         super().__init__()
 

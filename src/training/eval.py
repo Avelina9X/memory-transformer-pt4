@@ -14,6 +14,9 @@ from .data import OpenOrcaDataset
 
 
 class Eval():
+    """ Evaluator class for cached causal transformers.
+    """
+    
     def __init__( self, model: LSWTForCausalLM, tokenizer: PreTrainedTokenizerBase ):
         self.model = model
         self.tokenizer = tokenizer

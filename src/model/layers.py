@@ -12,6 +12,14 @@ def flash_attention( query: torch.Tensor, key: torch.Tensor, value: torch.Tensor
     return flash_attn_func( query, key, value, dropout_p=dropout, causal=True )
 
 class DropPath( torch.nn.Module ):
+    """ DropPath layer.
+    
+    Stochastically drops a residual block during training.
+    
+    Note: during training output gain is increased when dropout is greater than zero,
+    this mimics typical dropout behaviour.
+    """
+    
     def __init__( self, drop_prob: float, scale=True ):
         super().__init__()
 
@@ -29,6 +37,11 @@ class DropPath( torch.nn.Module ):
         return skip + residual / keep_prob
 
 class SharedEmbeddings( torch.nn.Module ):
+    """ Shared embedding layer.
+    
+    This implements tied embeddings using one layer instead of sharing params with a linear layer.
+    """
+    
     def __init__( self, vocab_size: int, d_vocab: int ):
         super().__init__()
 
@@ -59,6 +72,11 @@ class SharedEmbeddings( torch.nn.Module ):
         return self.modes[ mode ]( x )
 
 class RotaryEmbedding( torch.nn.Module ):
+    """ Rotary Embedding layer.
+    
+    Creates the RoPE embeddings with support for ABF, XPos (experimental), and ReRoPE (reversal).
+    """
+    
     def __init__(self, dim, scale_base = 512, use_xpos = True, base_freq=10000, reverse=False ):
         super().__init__()
         self.reverse = reverse
@@ -113,6 +131,9 @@ def apply_rope( query, key, rope_pos, rope_scale, reverse ):
 
 
 class LSWTAttention( torch.nn.Module ):
+    """ Multi Head Attention layer with all the features of the LSWT.
+    """
+    
     def __init__( self, config: LSWTConfig ):
         super().__init__()
 
@@ -199,11 +220,17 @@ class LSWTAttention( torch.nn.Module ):
         return o, ( past_keys, past_values )
 
 class SwiGLU( torch.nn.Module ):
+    """ SwiGLU activation
+    """
+    
     def forward( self, x ):
         x, g = x.chunk( 2, dim=-1 )
         return x * torch.nn.functional.silu( g )
 
 class LSWTFeedForward( torch.nn.Module ):
+    """ Feedforward MLP with SwiGLU support
+    """
+    
     def __init__( self, config: LSWTConfig ):
         super().__init__()
 
@@ -226,6 +253,9 @@ class LSWTFeedForward( torch.nn.Module ):
         return x
 
 class LSWTBlock( torch.nn.Module ):
+    """ Transformer block for the LSWT.
+    """
+    
     def __init__( self, config: LSWTConfig ):
         super().__init__()
 

@@ -9,7 +9,7 @@ import numpy as np
 from transformers import PreTrainedTokenizerBase
 import torch
 import torch.distributed as dist
-from torch.distributed.optim import ZeroRedundancyOptimizer
+from torch.distributed.optim import ZeroRedundancyOptimizer # type: ignore
 from torch.optim import AdamW
 from torcheval import metrics
 from torcheval.metrics.toolkit import sync_and_compute
@@ -24,8 +24,35 @@ from .data import PileDataset, OpenOrcaDataset
 from .losses import MLELoss, SimCTGLoss, AccuracyMetric
 
 
-class Trainer():
-    def __init__( self, train_config: LSWTConfigTraining, model: LSWTForCausalLM, tokenizer: PreTrainedTokenizerBase, dataset: str ):
+class Trainer(): # pylint: disable=R0902
+    """ Base class for continuous cached online pre-training.
+    """
+
+    def __init__(
+        self,
+        train_config: LSWTConfigTraining,
+        model: LSWTForCausalLM,
+        tokenizer: PreTrainedTokenizerBase,
+        dataset: str
+    ):
+        """ Creates a Trainer instance for the entire pretraining pipeline.
+        
+        The constructor takes care of the following setup steps:
+        - instantiating the optimizer specified in `train_config`
+        - loading the pretraining dataset specified in the `dataset` argument
+        - instantiating the loss function specified in `train_config`
+        - instantiating the accuracy metric
+        - setting up FP16 gradient scaling
+        - setting up running mean accumulators for loss and accuracy
+        - creating the KV cache for CPU offloading
+
+        Args:
+            train_config (LSWTConfigTraining): configuration object for the training pipeline.
+            model (LSWTForCausalLM): the initialised model
+            tokenizer (PreTrainedTokenizerBase): the initialised tokenizer
+            dataset (str): dataset for pretraining
+        """
+        
         self.train_config = train_config
         self.model = model
         self.tokenizer = tokenizer
@@ -139,6 +166,12 @@ class Trainer():
         ======================================================================== """
 
     def reset_metrics( self ) -> dict[ str, float ]:
+        """ Computes the end of epoch metrics and resets them for the next epoch.
+
+        Returns:
+            dict[ str, float ]: dictionary of { metric_name : computed_mean }
+        """
+        
         stats = {}
         for name, metric in self.metrics.items():
             stats[name] = float( metric.compute() )
@@ -146,6 +179,14 @@ class Trainer():
         return stats
 
     def get_schedule( self ) -> float:
+        """ Returns the learning rate percentage based on the Chinchilla schedule.
+        
+        Note, you must manually scale by the max learning rate.
+
+        Returns:
+            float: LR ratio in range [0.0, 1.0]
+        """
+        
         warmup_ratio = min( self.optimizer_step / self.train_config.lr_warmup_steps, 1.0 )
 
         tokens_seen = self.optimizer_step * self.train_config.batch_size * self.train_config.length_sequence
@@ -158,6 +199,12 @@ class Trainer():
         return min( warmup_ratio, cooldown_ratio )
 
     def get_total_epochs( self ) -> int:
+        """ Compute the total number of epochs based on the number of total tokens.
+        
+        Returns:
+            int: total epochs
+        """
+        
         tokens_per_epoch = self.train_config.batch_size * self.train_config.length_sequence * self.train_config.batches_per_epoch
         return int( np.ceil( self.train_config.lr_cooldown_tokens / tokens_per_epoch ) )
 
@@ -272,6 +319,9 @@ class Trainer():
         return self.reset_metrics()
 
 class TrainerDDP( Trainer ):
+    """ Distributed training class for continuous cached online pre-training.
+    """
+    
     def __init__(
         self,
         train_config: LSWTConfigTraining,
@@ -282,6 +332,27 @@ class TrainerDDP( Trainer ):
         ddp_world_size: int,
         dataset_shards: int = 30,
     ):
+        """ Creates a Distributed Trainer instance for the entire pretraining pipeline.
+        
+        The constructor takes care of the following setup steps:
+        - instantiating the optimizer specified in `train_config` with the Zero policy
+        - loading the pretraining dataset specified in the `dataset` argument with DDP sharding
+        - instantiating the loss function specified in `train_config`
+        - instantiating the accuracy metric
+        - setting up FP16 gradient scaling
+        - setting up running mean accumulators for loss and accuracy
+        - creating the KV cache for CPU offloading
+
+        Args:
+            train_config (LSWTConfigTraining): configuration object for the training pipeline.
+            model (LSWTForCausalLM): the initialised model
+            tokenizer (PreTrainedTokenizerBase): the initialised tokenizer
+            dataset (str): dataset for pretraining
+            ddp_rank (int): the rank of the current process
+            ddp_world_size (int): the total number of processes in the group
+            dataset_shards (int): the number of dataset shards, defaults to 30, but 24 recommended
+        """
+        
         self.ddp_rank = ddp_rank
         self.ddp_world_size = ddp_world_size
         self.dataset_shards = dataset_shards

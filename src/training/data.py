@@ -16,6 +16,9 @@ _PILE_DIR_JSONL = '/data/lhk3/the_pile/{:02d}.jsonl'
 
 
 class PileShardDataset( IterableDataset ):
+    """ Iterable Dataset for a single Pile shard.
+    """
+    
     def __init__(
         self,
         tokenizer: PreTrainedTokenizerBase,
@@ -114,6 +117,9 @@ class PileShardDataset( IterableDataset ):
         raise NotImplementedError( "This dataset does not support random access using __getitem__" )
 
 class PileDataset( IterableDataset ):
+    """ Iterable Dataset for a multiple Pile shards.
+    """
+    
     def __init__(
         self,
         tokenizer: PreTrainedTokenizerBase,
