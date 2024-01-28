@@ -73,6 +73,27 @@ class LSWTPreTrainedModel( PreTrainedModel ):
             { 'params': decay_params },
             { 'params': non_decay_params, 'weight_decay': 0.0 }
         ]
+    
+    def trim_cache(
+        self,
+        cache: list[torch.Tensor],
+        trim: int | None = 0,
+    ) -> list[torch.Tensor]:
+        """ Trims the key and value tuple to a max length.
+        
+        Should be applied per layer, rather than to the list of all past key values.
+        
+        Args:
+            cache (list[torch.Tensor]): The key value cache to trim.
+            trim (int, optional): Desired trim size. Zero means no trim. Defaults to 0.
+        
+        Returns:
+            list[torch.Tensor]: Trimmed cache
+        """
+        
+        if trim is not None:
+            return [ kv[ :, :, -trim :, : ].contiguous() for kv in cache ]
+        return cache
 
     def cache_to(
         self,
@@ -83,6 +104,8 @@ class LSWTPreTrainedModel( PreTrainedModel ):
     ) -> list[list[torch.Tensor]] | None:
         """
         Moves KV cache between devices.
+        
+        TODO: deprecate trim != 0
 
         Args:
             cache (Optional[list[list[torch.Tensor]]]): Key value cache to move
@@ -173,6 +196,7 @@ class LSWTModel( LSWTPreTrainedModel ):
         input_ids: torch.LongTensor | None = None,
         inputs_embeds: torch.Tensor | None = None,
         past_key_values: list[list[torch.Tensor]] | None = None,
+        max_key_values: int | None = None,
     ) -> BaseModelOutputWithPast:
         """
         Forward pass function.
@@ -181,6 +205,7 @@ class LSWTModel( LSWTPreTrainedModel ):
             input_ids (Optional[torch.LongTensor], optional): input ids of size [Batch x Seq_Length]
             inputs_embeds (Optional[torch.Tensor], optional): input embeddings of size [Batch x Seq_Length x D_Model]
             past_key_values (Optional[List[List[torch.Tensor]]], optional): Previous KV cache for fast decoding or memory.
+            max_key_values (int, optional): The max number of past states to keep during generation. Defaults to None.
 
         Raises:
             ValueError: when both input_ids and inputs_embeds are passed.
@@ -219,7 +244,7 @@ class LSWTModel( LSWTPreTrainedModel ):
             embeddings, new_key_values = self.blocks[i]( embeddings, curr_key_values, rope_pos, rope_scale )
 
             hidden_state_list.append( embeddings )
-            past_key_value_list.append( new_key_values )
+            past_key_value_list.append( self.trim_cache( new_key_values, max_key_values ) )
 
         # Final normalisation
         embeddings = self.output_norm( embeddings )
@@ -281,7 +306,7 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
         output_attentions=False,
         output_hidden_states=True,
         
-        max_key_values: int | None = None, # pylint: disable=unused-argument
+        max_key_values: int | None = None,
     ) -> CausalLMOutputWithPast:
         """
         Forward pass function.
@@ -296,7 +321,7 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
             output_attentions (bool, optional): Returns attentions for all layers. Must be False.
             output_hidden_states (bool, optional): Whether or not to return the hidden states of all layers. Defaults to True.
             
-            max_key_values (int, optional): The max number of past states to keep during generation. Unused outside of generation. Defaults to None.
+            max_key_values (int, optional): The max number of past states to keep during generation. Defaults to None.
 
         Returns:
             CausalLMOutputWithPast: Model outputs
@@ -309,6 +334,7 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
             input_ids=input_ids,
             inputs_embeds=inputs_embeds,
             past_key_values=past_key_values,
+            max_key_values=max_key_values,
         )
 
         embeddings = self.head_proj( base_outputs.last_hidden_state )

@@ -220,7 +220,8 @@ class Trainer(): # pylint: disable=R0902
         outputs = self.model(
             input_ids=tokens,
             past_key_values=past_key_values,
-            use_cache=cache_length > 0
+            use_cache=cache_length > 0,
+            max_key_values=cache_length,
         )
 
         past_key_values = outputs.past_key_values
@@ -284,10 +285,10 @@ class Trainer(): # pylint: disable=R0902
         for idx in range( self.batch_groups ):
             past_key_values = self.model.cache_to( self.past_key_values_list[idx], 'cuda' )
             self.past_key_values_list[idx] = None # type: ignore
-            
+
             loss, accuracy, past_key_values = self.train_sub_step( tokens_xs[idx], tokens_ys[idx], past_key_values )
-            
-            past_key_values = self.model.cache_to( past_key_values, 'cpu', trim=self.train_config.length_cache )
+
+            past_key_values = self.model.cache_to( past_key_values, 'cpu' )
             self.past_key_values_list[idx] = past_key_values # type: ignore
 
             self.metrics[ 'loss' ].update( loss )

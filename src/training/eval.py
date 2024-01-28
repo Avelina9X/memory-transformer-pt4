@@ -51,11 +51,12 @@ class Eval():
         ======================================================================== """
 
     @torch.compile( **TORCH_COMPILE_OPTIONS )
-    def forward_pass( self, tokens, past_key_values ):
+    def forward_pass( self, tokens, past_key_values, cache_length ):
         outputs = self.model(
             input_ids=tokens,
             past_key_values=past_key_values,
             use_cache=True,
+            max_key_values=cache_length,
         )
 
         past_key_values = outputs.past_key_values
@@ -82,8 +83,8 @@ class Eval():
                 past_key_values = None
 
                 for tx, ty in zip( tokens_xs, tokens_ys ):
-                    logits, past_key_values = self.forward_pass( tx, past_key_values )
-                    past_key_values = self.model.cache_to( past_key_values, 'cuda', trim=chunk_size )
+                    logits, past_key_values = self.forward_pass( tx, past_key_values, chunk_size )
+                    past_key_values = self.model.cache_to( past_key_values, 'cuda' )
 
                     num_true = self.num_true( ty )
 
