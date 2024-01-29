@@ -3,6 +3,7 @@ Module containing the training loop components for training LSWTransformer model
 """
 
 import time
+import gc
 
 import tqdm
 import numpy as np
@@ -314,8 +315,8 @@ class Trainer(): # pylint: disable=R0902
             print( '\r' + bar, end='', flush=True )
         print()
 
-        # torch.cuda.empty_cache()
-        # gc.collect()
+        torch.cuda.empty_cache()
+        gc.collect()
 
         return self.reset_metrics()
 
@@ -428,12 +429,12 @@ class TrainerDDP( Trainer ):
         for idx in range( self.batch_groups ):
             self.model.require_backward_grad_sync = ( idx == self.batch_groups - 1 ) # type: ignore
             
-            past_key_values = self.model.cache_to( self.past_key_values_list[idx], 'cuda' )
+            past_key_values = self.model.cache_to( self.past_key_values_list[idx], 'cuda', non_blocking=True )
             self.past_key_values_list[idx] = None # type: ignore
             
             loss, accuracy, past_key_values = self.train_sub_step( tokens_xs[idx], tokens_ys[idx], past_key_values )
             
-            past_key_values = self.model.cache_to( past_key_values, 'cpu', trim=self.train_config.length_cache )
+            past_key_values = self.model.cache_to( past_key_values, 'cpu' )
             self.past_key_values_list[idx] = past_key_values # type: ignore
 
             self.metrics[ 'loss' ].update( loss )
@@ -441,7 +442,7 @@ class TrainerDDP( Trainer ):
 
         self.train_optim_step()
                 
-        if self.optimizer_step <= 2:
+        if self.optimizer_step <= 3:
             torch.cuda.empty_cache()
     
     def train_epoch( self, iterator, epoch ):
@@ -466,7 +467,7 @@ class TrainerDDP( Trainer ):
         if self.ddp_rank == 0:
             print()
 
-        # torch.cuda.empty_cache()
-        # gc.collect()
+        torch.cuda.empty_cache()
+        gc.collect()
 
         return self.reset_metrics()
