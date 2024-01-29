@@ -24,7 +24,6 @@ RUN apt install ninja-build
 # COPY requirements.txt ./
 
 RUN pip install --upgrade pip
-RUN pip install --upgrade pip
 
 RUN pip install transformers
 RUN pip install datasets
