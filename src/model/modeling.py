@@ -100,7 +100,7 @@ class LSWTPreTrainedModel( PreTrainedModel ):
         cache: list[list[torch.Tensor]] | None,
         device: str | torch.device,
         trim: int = 0,
-        blocking: bool = False,
+        non_blocking: bool = False,
     ) -> list[list[torch.Tensor]] | None:
         """
         Moves KV cache between devices.
@@ -111,7 +111,7 @@ class LSWTPreTrainedModel( PreTrainedModel ):
             cache (Optional[list[list[torch.Tensor]]]): Key value cache to move
             device (str | torch.device): the device to move to
             trim (int, optional): Desired trim size. Zero means no trim. Defaults to 0.
-            blocking (bool): Determines if the transfer should be `non_blocking`. Defaults to False.
+            non_blocking (bool): Determines if the transfer should be `non_blocking`. Defaults to False.
 
         Returns:
             list[list[torch.Tensor]]: Moved key value cache
@@ -122,7 +122,7 @@ class LSWTPreTrainedModel( PreTrainedModel ):
                 [
                     kv.detach()[ :, :, -trim : , : ].to(
                         device=device,
-                        non_blocking=blocking
+                        non_blocking=non_blocking
                     ) for kv in layer
                 ] for layer in cache
             ]
