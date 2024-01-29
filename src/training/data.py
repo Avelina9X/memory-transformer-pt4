@@ -333,3 +333,10 @@ def load_alpaca( cache_dir ):
         split='train',
         cache_dir=cache_dir
     )
+
+def load_falcon_100k( cache_dir ):
+    return load_dataset(
+        'BEE-spoke-data/falcon-refinedweb-100k_en-long',
+        split='train',
+        cache_dir=cache_dir
+    )
