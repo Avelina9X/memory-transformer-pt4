@@ -41,7 +41,6 @@ The following environment variables **must** be set:
 
 The following environment variables are **optional** but recommended:
 - `TOKENIZERS_PARALLELISM=true` - Forces HF tokenizers to support parallelism.
-- `KERAS_BACKEND=torch` - Forces Keras to use the torch backend (for Keras NLP).
 - `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` - Helps reduce fragmentation of the PyTorch allocator.
 
 The following envars should be used for debugging `torch.compile` related issues:
