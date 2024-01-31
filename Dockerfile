@@ -1,6 +1,6 @@
 # FROM nvcr.io/nvidia/tensorflow:23.03-tf2-py3
 # FROM nvcr.io/nvidia/tensorflow:23.04-tf2-py3
-FROM nvcr.io/nvidia/pytorch:23.10-py3
+FROM nvcr.io/nvidia/pytorch:24.01-py3
  
 ARG local_uid
 ARG local_user
@@ -25,24 +25,16 @@ RUN apt install ninja-build
 
 RUN pip install --upgrade pip
 
+RUN pip install wcmatch
+
+RUN pip install wandb
+RUN pip install zstandard
+RUN pip install rich
+
 RUN pip install transformers
 RUN pip install datasets
 RUN pip install diffusers
-RUN pip install wandb
-RUN pip install zstandard
-RUN pip install keras-nlp
-RUN pip install langchain
-RUN pip install torchinfo
-RUN pip install torchmetrics
-RUN pip install rich
-
-RUN pip install flash-attn --no-build-isolation --upgrade
 
 RUN pip install torcheval
-RUN pip install faiss-gpu
 RUN pip install einops
-
-RUN pip uninstall tensorflow -y
-
-RUN pip install pydantic --upgrade
-RUN pip install wcmatch
+RUN pip install flash-attn --no-build-isolation --upgrade
