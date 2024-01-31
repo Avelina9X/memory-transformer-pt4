@@ -340,3 +340,10 @@ def load_falcon_100k( cache_dir ):
         split='train',
         cache_dir=cache_dir
     )
+
+def load_pg19( cache_dir, split ):
+    return load_dataset(
+        'pg19',
+        split=split,
+        cache_dir=cache_dir
+    )
