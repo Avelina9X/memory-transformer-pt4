@@ -347,3 +347,11 @@ def load_pg19( cache_dir, split ):
         split=split,
         cache_dir=cache_dir
     )
+
+def load_gov_reports( cache_dir, split ):
+    return load_dataset(
+        'tau/scrolls',
+        'gov_report',
+        split=split,
+        cache_dir=cache_dir
+    )
