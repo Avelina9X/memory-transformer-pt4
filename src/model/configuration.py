@@ -47,6 +47,7 @@ class LSWTConfig( PretrainedConfig ):
         rope_reversed=True,
         rope_xpos_scale=512,
         rope_xpos_enabled=False,
+        rope_ntk_scale=1.0,
 
         dropout_att_mat=0.0,
         dropout_att_out=0.0,
@@ -88,6 +89,7 @@ class LSWTConfig( PretrainedConfig ):
             rope_reversed (bool): Reverses RoPE order (i.e. ReRoPE). Defaults to True.
             rope_xpos_scale (int): XPOS decay factor for RoPE. Defaults to 512.
             rope_xpos_enabled (bool): Enables XPOS decay for RoPE. Defaults to False.
+            rope_ntk_scale (float): NTK-Aware Scaling factor. Defaults to 1.0.
 
             dropout_att_mat (float): Attention matrix dropout. Defaults to 0.0.
             dropout_att_out (float): Attention layer output dropout. Defaults to 0.0.
@@ -137,6 +139,7 @@ class LSWTConfig( PretrainedConfig ):
         self.rope_reversed = rope_reversed
         self.rope_xpos_scale = rope_xpos_scale
         self.rope_xpos_enabled = rope_xpos_enabled
+        self.rope_ntk_scale = rope_ntk_scale
 
         # Dropout settings
         self.dropout_att_mat = dropout_att_mat

@@ -77,9 +77,11 @@ class RotaryEmbedding( torch.nn.Module ):
     Creates the RoPE embeddings with support for ABF, XPos (experimental), and ReRoPE (reversal).
     """
     
-    def __init__(self, dim, scale_base = 512, use_xpos = True, base_freq=10000, reverse=False ):
+    def __init__(self, dim, scale_base = 512, use_xpos = True, base_freq=10000, reverse=False, ntk_scale=1.0 ):
         super().__init__()
         self.reverse = reverse
+        
+        base_freq = base_freq * ntk_scale ** ( dim / ( dim - 2 ) )
 
         inv_freq = 1.0 / (base_freq ** (torch.arange(0, dim, 2).float() / dim))
         self.register_buffer("inv_freq", inv_freq, persistent=False )

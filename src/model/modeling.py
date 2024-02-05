@@ -157,6 +157,7 @@ class LSWTModel( LSWTPreTrainedModel ):
             config.rope_xpos_enabled,
             config.rope_base_freq,
             config.rope_reversed,
+            config.rope_ntk_scale,
         )
 
         self.blocks = torch.nn.ModuleList( [ LSWTBlock( config ) for _ in range( config.n_layers ) ] )
