@@ -48,6 +48,9 @@ class LSWTConfig( PretrainedConfig ):
         rope_xpos_scale=512,
         rope_xpos_enabled=False,
         rope_ntk_scale=1.0,
+        rope_yarn_a=0.0,
+        rope_yarn_b=1.0,
+        rope_yarn_scale=1.0,
 
         dropout_att_mat=0.0,
         dropout_att_out=0.0,
@@ -90,6 +93,9 @@ class LSWTConfig( PretrainedConfig ):
             rope_xpos_scale (int): XPOS decay factor for RoPE. Defaults to 512.
             rope_xpos_enabled (bool): Enables XPOS decay for RoPE. Defaults to False.
             rope_ntk_scale (float): NTK-Aware Scaling factor. Defaults to 1.0.
+            rope_yarn_a (float): YaRN temperature a scale. Zero disables YaRN. Defaults to 0.0.
+            rope_yarn_b (float): YaRN temperature b scale. Defaults to 1.0.
+            rope_ntk_scale (float): Yarn length scaling factor. Defaults to 1.0.
 
             dropout_att_mat (float): Attention matrix dropout. Defaults to 0.0.
             dropout_att_out (float): Attention layer output dropout. Defaults to 0.0.
@@ -140,6 +146,9 @@ class LSWTConfig( PretrainedConfig ):
         self.rope_xpos_scale = rope_xpos_scale
         self.rope_xpos_enabled = rope_xpos_enabled
         self.rope_ntk_scale = rope_ntk_scale
+        self.rope_yarn_a = rope_yarn_a
+        self.rope_yarn_b = rope_yarn_b
+        self.rope_yarn_scale = rope_yarn_scale
 
         # Dropout settings
         self.dropout_att_mat = dropout_att_mat

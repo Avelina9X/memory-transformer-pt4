@@ -214,6 +214,15 @@ class LSWTAttention( torch.nn.Module ):
         q = q.permute( 0, 2, 1, 3 )
         k = k.permute( 0, 2, 1, 3 )
         v = v.permute( 0, 2, 1, 3 )
+        
+        if self.config.rope_yarn_a > 0:
+            a = self.config.rope_yarn_a
+            b = self.config.rope_yarn_b
+            s = self.config.rope_yarn_scale
+            rsqrt_t = a * torch.math.log( s ) + b
+            
+            q *= rsqrt_t
+            k *= rsqrt_t
 
         # Do attention
         a = flash_attention( q, k, v, self.att_dropout_p )
