@@ -77,44 +77,47 @@ class RotaryEmbedding( torch.nn.Module ):
     Creates the RoPE embeddings with support for ABF, XPos (experimental), and ReRoPE (reversal).
     """
     
-    def __init__(self, dim, scale_base = 512, use_xpos = True, base_freq=10000, reverse=False, ntk_scale=1.0 ):
+    def __init__( self, dim, scale_base=512, use_xpos=True, base_freq=10000, reverse=False, ntk_scale=1.0 ):
         super().__init__()
         self.reverse = reverse
         
         base_freq = base_freq * ntk_scale ** ( dim / ( dim - 2 ) )
 
-        inv_freq = 1.0 / (base_freq ** (torch.arange(0, dim, 2).float() / dim))
-        self.register_buffer("inv_freq", inv_freq, persistent=False )
+        inv_freq = 1.0 / ( base_freq ** ( torch.arange( 0, dim, 2 ).float() / dim ) )
+        self.register_buffer( 'inv_freq', inv_freq, persistent=False )
 
         self.use_xpos = use_xpos
         self.scale_base = scale_base
-        scale = (torch.arange(0, dim, 2) + 0.4 * dim) / (1.4 * dim)
-        self.register_buffer('scale', scale, persistent=False )
+        scale = ( torch.arange( 0, dim, 2 ) + 0.4 * dim ) / ( 1.4 * dim )
+        self.register_buffer( 'scale', scale, persistent=False )
 
-    def forward(self, seq_len, device):
-        t = torch.arange(seq_len, device = device).type_as(self.inv_freq) # type: ignore
-        if self.reverse: t = t.flip( dims=[ 0 ] )
+    def forward( self, seq_len, device ):
+        t = torch.arange( seq_len, device=device ).type_as( self.inv_freq ) # type: ignore
+        
+        if self.reverse:
+            t = t.flip( dims=[ 0 ] )
 
-        freqs = torch.einsum('i , j -> i j', t, self.inv_freq)
-        freqs = torch.cat((freqs, freqs), dim = -1)
+        freqs = torch.einsum( 'i , j -> i j', t, self.inv_freq )
+        freqs = torch.cat( ( freqs, freqs ), dim=-1 )
 
         if not self.use_xpos:
-            return freqs, torch.ones(1, device = device)
+            return freqs, torch.ones( 1, device=device )
 
-        power = (t - (seq_len // 2)) / self.scale_base
+        power = ( t - ( seq_len // 2 ) ) / self.scale_base
         scale = self.scale ** power[ :, None ]
-        scale = torch.cat((scale, scale), dim = -1)
+        scale = torch.cat( ( scale, scale ), dim=-1 )
 
-        if self.reverse: scale = scale ** -1.0
+        if self.reverse:
+            scale = scale ** -1.0
 
         return freqs, scale
 
-def _rotate_half(x):
-    x1, x2 = x.chunk(2, dim=-1)
-    return torch.cat((-x2, x1), dim=-1)
+def _rotate_half( x ):
+    x1, x2 = x.chunk( 2, dim=-1 )
+    return torch.cat( ( -x2, x1 ), dim=-1 )
 
-def _apply_rotary_pos_emb( pos, t, scale = 1.):
-    return (t * pos.cos() * scale).type( t.dtype ) + ( _rotate_half(t) * pos.sin() * scale).type( t.dtype )
+def _apply_rotary_pos_emb( pos, t, scale = 1. ):
+    return ( t * pos.cos() * scale ).type( t.dtype ) + ( _rotate_half( t ) * pos.sin() * scale ).type( t.dtype )
 
 def apply_rope( query, key, rope_pos, rope_scale, reverse ):
     q_length = query.shape[-2]
