@@ -1,13 +1,19 @@
 """ Main module """
 
+import os
+# os.environ[ 'TORCH_LOGS' ] = '+dynamo'
+# os.environ[ 'TORCHDYNAMO_VERBOSE' ] = '1'
+# os.environ[ 'TORCH_LOGS' ] = 'recompiles'
+# os.environ[ 'TORCHDYNAMO_REPORT_GUARD_FAILURES' ] = '1'
+
 import argparse
 import warnings
 import logging
 
 import torch
-import wandb
-
 import torch.multiprocessing as mp
+
+import wandb
 
 from constants import WANDB_API_KEY, WANDB_PROJECT_NAME
 
@@ -44,20 +50,23 @@ if __name__ == '__main__':
         
         REROPE_SCALE = 1
         
+        wandb_mode = 'online'
         custom_config = {
             'model.trainable_embeddings': True,
             'model.rope_reversed': True,
-            
-            # 'train.batches_per_epoch': 6,
+            'model.d_model': 1536,
+            'model.d_ffn': 4096,
+            'model.n_heads': 24,
+            'model.n_layers': 18,
             
             'train.batch_size': 480 * REROPE_SCALE,
-            'train.batch_size_step': 6 * REROPE_SCALE,
+            'train.batch_size_step': 2 * REROPE_SCALE,
             
             'train.length_sequence': 2048 // REROPE_SCALE,
             'train.length_cache': 2048 // REROPE_SCALE,
             
-            # 'train.loss_objective': 'MLE',
-            'train.loss_objective': 'SimCTG',
+            'train.loss_objective': 'MLE',
+            # 'train.loss_objective': 'SimCTG',
             
             # 'train.optimizer': 'Minato',
             # 'train.opt_weight_decay': 0.2,
@@ -76,11 +85,11 @@ if __name__ == '__main__':
             'train.opt_max_grad_norm': 1.0,
             'train.opt_eps': 1e-8,
             'train.opt_beta_1': 0.9,
-            'train.opt_beta_2': 0.999,
+            'train.opt_beta_2': 0.95,
             
         }
         if torch.cuda.device_count() == 1:
-            train( config=custom_config, wandb_mode='online', tags=[ 'rerope_tests' ] )
+            train( config=custom_config, wandb_mode=wandb_mode, tags=[ 'rerope_tests' ] )
         else:
             mp.spawn( # type: ignore
                 fn=train,
@@ -89,7 +98,7 @@ if __name__ == '__main__':
                     custom_config,
                     None,
                     None,
-                    'online',
+                    wandb_mode,
                     [ 'rerope_tests', 'ddp' ]
                 ),
                 nprocs=torch.cuda.device_count(),
