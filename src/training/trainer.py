@@ -4,6 +4,7 @@ Module containing the training loop components for training LSWTransformer model
 
 import time
 import gc
+import os
 
 import tqdm
 import numpy as np
@@ -23,6 +24,9 @@ from optimizer.minato import Minato
 from optimizer.laprop import LaProp
 from .data import PileDataset, OpenOrcaDataset
 from .losses import MLELoss, SimCTGLoss, AccuracyMetric
+
+PILE_PATH_PATTERN = os.environ[ 'PILE_PATH_PATTERN' ]
+PILE_SHARDS = int( os.environ[ 'PILE_SHARDS' ] )
 
 
 class Trainer(): # pylint: disable=R0902
@@ -148,7 +152,9 @@ class Trainer(): # pylint: disable=R0902
             return PileDataset(
                 tokenizer=self.tokenizer,
                 seq_length=self.train_config.length_sequence,
-                batch_size=self.train_config.batch_size
+                batch_size=self.train_config.batch_size,
+                dir_pattern=PILE_PATH_PATTERN,
+                pile_shards=list( range( PILE_SHARDS ) )
             ).as_data_loader()
         
         if dataset == 'openorca':
@@ -284,12 +290,12 @@ class Trainer(): # pylint: disable=R0902
         tokens_ys = torch.split( tokens_ys.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
 
         for idx in range( self.batch_groups ):
-            past_key_values = self.model.cache_to( self.past_key_values_list[idx], 'cuda' )
+            past_key_values = self.model.cache_to( self.past_key_values_list[idx], 'cuda', non_blocking=True )
             self.past_key_values_list[idx] = None # type: ignore
 
             loss, accuracy, past_key_values = self.train_sub_step( tokens_xs[idx], tokens_ys[idx], past_key_values )
 
-            past_key_values = self.model.cache_to( past_key_values, 'cpu' )
+            past_key_values = self.model.cache_to( past_key_values, 'cpu', non_blocking=True )
             self.past_key_values_list[idx] = past_key_values # type: ignore
 
             self.metrics[ 'loss' ].update( loss )
@@ -392,6 +398,7 @@ class TrainerDDP( Trainer ):
                 tokenizer=self.tokenizer,
                 seq_length=self.train_config.length_sequence,
                 batch_size=self.train_config.batch_size // self.ddp_world_size,
+                dir_pattern=PILE_PATH_PATTERN,
                 pile_shards=list( range( self.ddp_rank, self.dataset_shards, self.ddp_world_size ) )
             ).as_data_loader()
         
@@ -434,7 +441,7 @@ class TrainerDDP( Trainer ):
             
             loss, accuracy, past_key_values = self.train_sub_step( tokens_xs[idx], tokens_ys[idx], past_key_values )
             
-            past_key_values = self.model.cache_to( past_key_values, 'cpu' )
+            past_key_values = self.model.cache_to( past_key_values, 'cpu', non_blocking=True )
             self.past_key_values_list[idx] = past_key_values # type: ignore
 
             self.metrics[ 'loss' ].update( loss )

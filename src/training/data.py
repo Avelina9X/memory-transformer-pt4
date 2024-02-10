@@ -12,7 +12,7 @@ from datasets import load_dataset, Dataset as HFDataset
 from transformers import PreTrainedTokenizerBase
 
 
-_PILE_DIR_JSONL = '/data/lhk3/the_pile/{:02d}.jsonl'
+# _PILE_DIR_JSONL = '/data/lhk3/the_pile/{:02d}.jsonl'
 
 
 class PileShardDataset( IterableDataset ):
@@ -25,6 +25,7 @@ class PileShardDataset( IterableDataset ):
         seq_length: int,
         shards_per_file: int,
         file_idx: int,
+        dir_pattern: str,
     ):
         """
         Creates an iterable dataset for a single shard of the pile.
@@ -34,11 +35,13 @@ class PileShardDataset( IterableDataset ):
             seq_length (int): desired sequence length.
             shards_per_file (int): number of shards to split iteration over.
             file_idx (int): id of the pile shard.
+            dir_pattern (str): python format string for pile directory
         """
         self.tokenizer = tokenizer
         self.seq_length = seq_length
         self.shards_per_file = shards_per_file
         self.file_idx = file_idx
+        self.dir_pattern = dir_pattern
 
     @classmethod
     def tokenize_line( cls, line: str, tokenizer: PreTrainedTokenizerBase ):
@@ -99,7 +102,7 @@ class PileShardDataset( IterableDataset ):
 
     def __iter__( self ):
         return iter( self.sequence_generator(
-            path=_PILE_DIR_JSONL.format( self.file_idx ),
+            path=self.dir_pattern.format( self.file_idx ),
             tokenizer=self.tokenizer,
             shard_num=self.shards_per_file,
             seq_length=self.seq_length,
@@ -125,6 +128,7 @@ class PileDataset( IterableDataset ):
         tokenizer: PreTrainedTokenizerBase,
         seq_length: int,
         batch_size: int,
+        dir_pattern: str,
         pile_shards: list[int] | None=None
     ):
         """
@@ -135,10 +139,12 @@ class PileDataset( IterableDataset ):
             seq_length (int): desired sequence length.
             batch_size (int): desired local batch size.
             pile_shards (Optional[List[int]], optional): List of shard IDs to use, when None uses all 30.
+            dir_pattern (str): python format string for pile directory.
         """
         self.tokenizer = tokenizer
         self.seq_length = seq_length
         self.batch_size = batch_size
+        self.dir_pattern = dir_pattern
         self.pile_shards = pile_shards or list( range( 30 ) )
 
         assert batch_size % len( self.pile_shards ) == 0, 'batch size must be divisible by pile shard count'
@@ -151,7 +157,8 @@ class PileDataset( IterableDataset ):
                     self.tokenizer,
                     self.seq_length,
                     self.shards_per_file,
-                    i
+                    i,
+                    self.dir_pattern
                 ).as_data_loader()
             ) for i in self.pile_shards
         ]
