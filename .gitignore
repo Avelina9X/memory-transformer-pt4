@@ -21,3 +21,4 @@ secrets.env
 scratch.py
 
 .ipynb_checkpoints/
+Dockerfile
