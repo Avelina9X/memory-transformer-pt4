@@ -106,7 +106,8 @@ class Trainer(): # pylint: disable=R0902
             return Minato(
                 params=self.model.get_param_groups(),
                 lr=0.0,
-                beta=self.train_config.opt_beta_1,
+                betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
+                eps=self.train_config.opt_eps,
                 weight_decay=( self.train_config.opt_weight_decay )
             )
 
@@ -380,6 +381,16 @@ class TrainerDDP( Trainer ):
             return ZeroRedundancyOptimizer(
                 params=self.model.get_param_groups(),
                 optimizer_class=LaProp,
+                lr=0.0,
+                betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
+                eps=self.train_config.opt_eps,
+                weight_decay=( self.train_config.opt_weight_decay ),
+            )
+        
+        if self.train_config.optimizer == 'Minato':
+            return ZeroRedundancyOptimizer(
+                params=self.model.get_param_groups(),
+                optimizer_class=Minato,
                 lr=0.0,
                 betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
                 eps=self.train_config.opt_eps,

@@ -12,9 +12,121 @@ from constants import TORCH_COMPILE_OPTIONS
 
 ParamsT = Iterable[torch.Tensor] | Iterable[dict[str, Any]]
 
+class Minato( Optimizer ):
+    """ Minato optimizer.
+
+    Grafts Adam's learning rate onto Lion's step direction without the extra memory!
+    """
+
+    def __init__(
+        self,
+        params: ParamsT,
+        lr: float = 1e-4,
+        betas: tuple[float, float] = ( 0.9, 0.95 ),
+        eps: float = 1e-8,
+        weight_decay: float = 0.0,
+        maximize: bool = False,
+    ):
+        
+        if lr < 0.0:
+            raise ValueError( f'Invalid learning rate: {lr}' )
+
+        if not 0.0 <= eps:
+            raise ValueError( f'Invalid epsilon value: {eps}' )
+        
+        if not 0.0 <= betas[0] < 1.0:
+            raise ValueError( f'Invalid beta parameter at index 0: {betas[0]}' )
+        
+        if not 0.0 <= betas[1] < 1.0:
+            raise ValueError( f'Invalid beta parameter at index 1: {betas[1]}' )
+        
+        if not 0.0 <= weight_decay:
+            raise ValueError( f'Invalid weight_decay value: {weight_decay}' )
+        
+        defaults = dict(
+            lr=lr,
+            betas=betas,
+            eps=eps,
+            weight_decay=weight_decay,
+            maximize=maximize
+        )
+        super().__init__( params, defaults )
+
+
+    @torch.no_grad()
+    def step( self, closure=None ):
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
+        
+        # Iterate over all param groups
+        for group in self.param_groups:
+
+            # Iterate over all parameters in group
+            for p in group[ 'params' ]:
+
+                # If parameter does not have a gradient, skip
+                if p.grad is None:
+                    continue
+
+                # If gradient is sparse, throw error
+                if p.grad.is_sparse:
+                    raise RuntimeError( 'Minato does not support sparse gradients.' )
+                
+                # Grab hyperparameters
+                lr = group[ 'lr' ]
+                beta1, beta2 = group[ 'betas' ]
+                eps = group[ 'eps' ]
+                weight_decay = group[ 'weight_decay' ]
+                maximize = group[ 'maximize' ]
+
+                # Grab state and grad
+                state = self.state[p]
+                grad = p.grad
+
+                # State initialization
+                if len( state ) == 0:
+                    state[ 'step' ] = 0
+                    state[ 'exp_avg' ] = torch.zeros_like( p, memory_format=torch.preserve_format )
+                    state[ 'exp_avg_sq' ] = torch.zeros_like( p, memory_format=torch.preserve_format )
+                
+                # Increment step
+                state[ 'step' ] += 1
+
+                # Calculate m & v
+                state[ 'exp_avg' ].mul_( beta1 ).add_( grad, alpha=1.0 - beta1 )
+                state[ 'exp_avg_sq' ].mul_( beta2 ).addcmul_( grad, grad, value=1.0 - beta2 )
+
+                # Calculate m_hat and v_hat
+                mhat = state[ 'exp_avg' ].div( 1 - beta1 ** state[ 'step' ] )
+                vhat = state[ 'exp_avg_sq' ].div( 1 - beta2 ** state[ 'step' ] )
+
+                # Compute adam update and lion update
+                adam_update = mhat / ( vhat.sqrt() + eps )
+                lion_update = state[ 'exp_avg' ].sign()
+
+                # Compute grafted step and global step size
+                step_dir = lion_update
+                step_scale = torch.norm( adam_update ) / torch.norm( lion_update )
+                step_size = ( lr if maximize else -lr ) * step_scale
+
+                # Perform lr coupled weight decay
+                if weight_decay > 0:
+                    p.data.mul_( 1.0 - lr * weight_decay )
+
+                # Perform grafted update
+                p.data.add_( step_dir, alpha=step_size )
+        
+        return loss
+
+
+
+
+
 
 class _Minato(Optimizer):
-    """Minato optimizer.
+    """Old Minato optimizer. Ignore.
     
     Works just like Sophia without a hessian estimator,
     or Lion where beta_1 and beta_2 are shared.
