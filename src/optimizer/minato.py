@@ -13,7 +13,7 @@ from constants import TORCH_COMPILE_OPTIONS
 ParamsT = Iterable[torch.Tensor] | Iterable[dict[str, Any]]
 
 
-class Minato(Optimizer):
+class _Minato(Optimizer):
     """Minato optimizer.
     
     Works just like Sophia without a hessian estimator,
