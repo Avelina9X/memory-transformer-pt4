@@ -203,7 +203,7 @@ class LSWTConfigTraining():
         opt_eps=1e-9,
         opt_weight_decay=0.2,
         opt_max_grad_norm=1.0,
-        opt_rho=0.05,
+        opt_rho=0.1,
 
         loss_objective='SimCTG',
         loss_sim_margin=0.5,

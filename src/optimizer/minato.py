@@ -24,6 +24,7 @@ class Minato( Optimizer ):
         lr: float = 1e-4,
         betas: tuple[float, float] = ( 0.9, 0.95 ),
         eps: float = 1e-8,
+        rho: float = 0.1,
         weight_decay: float = 0.0,
         maximize: bool = False,
     ):
@@ -47,6 +48,7 @@ class Minato( Optimizer ):
             lr=lr,
             betas=betas,
             eps=eps,
+            rho=rho,
             weight_decay=weight_decay,
             maximize=maximize
         )
@@ -78,6 +80,7 @@ class Minato( Optimizer ):
                 lr = group[ 'lr' ]
                 beta1, beta2 = group[ 'betas' ]
                 eps = group[ 'eps' ]
+                rho = group[ 'rho' ]
                 weight_decay = group[ 'weight_decay' ]
                 maximize = group[ 'maximize' ]
 
@@ -109,7 +112,7 @@ class Minato( Optimizer ):
                 # Compute grafted step and global step size
                 step_dir = lion_update
                 step_scale = torch.norm( adam_update ) / torch.norm( lion_update )
-                step_size = ( lr if maximize else -lr ) * step_scale
+                step_size = ( lr if maximize else -lr ) * step_scale.mul( 1.0 - rho ).add( rho )
 
                 # Perform lr coupled weight decay
                 if weight_decay > 0:
