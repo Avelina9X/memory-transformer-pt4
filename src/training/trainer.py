@@ -108,6 +108,7 @@ class Trainer(): # pylint: disable=R0902
                 lr=0.0,
                 betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
                 eps=self.train_config.opt_eps,
+                rho=self.train_config.opt_rho,
                 weight_decay=( self.train_config.opt_weight_decay )
             )
 
@@ -393,6 +394,7 @@ class TrainerDDP( Trainer ):
                 optimizer_class=Minato,
                 lr=0.0,
                 betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
+                rho=self.train_config.opt_rho,
                 eps=self.train_config.opt_eps,
                 weight_decay=( self.train_config.opt_weight_decay ),
             )
