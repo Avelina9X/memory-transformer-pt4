@@ -5,6 +5,8 @@ Module containing iterable datasets used to train and test LSWTransformer models
 import json
 from json import JSONDecodeError
 
+from dataclasses import dataclass
+
 import torch
 from torch.utils.data import IterableDataset, DataLoader
 
@@ -161,6 +163,155 @@ class PileDataset( IterableDataset ):
                     self.dir_pattern
                 ).as_data_loader()
             ) for i in self.pile_shards
+        ]
+
+        try:
+            while True:
+                test_next = [ next( i ) for i in gen ]
+                test_next_x = torch.cat( [ i[0] for i in test_next ] )
+                test_next_y = torch.cat( [ i[1] for i in test_next ] )
+
+                yield test_next_x, test_next_y
+        except StopIteration:
+            return
+
+    def as_data_loader( self ):
+        return DataLoader(
+            self,
+            num_workers=0,
+            batch_size=None,
+            pin_memory=True,
+            pin_memory_device='cuda',
+        )
+
+    def __getitem__( self, index ):
+        raise NotImplementedError( "This dataset does not support random access using __getitem__" )
+
+@dataclass
+class HFDatasetConfig:
+    dataset_name: str
+    dataset_split: str
+    dataset_key: str
+    cache_dir: str
+
+class HFShardDataset( IterableDataset ):
+    """ Iterable dataset for one or more shards of a HF dataset.
+    """
+
+    def __init__(
+        self,
+        tokenizer: PreTrainedTokenizerBase,
+        seq_length: int,
+        shard_idx: list[int],
+        shard_max: int,
+        dataset_config: HFDatasetConfig,
+    ):
+        self.tokenizer = tokenizer
+        self.seq_length = seq_length
+        self.shard_idx = shard_idx
+        self.shard_max = shard_max
+        self.dataset_config = dataset_config
+    
+    @classmethod
+    def tokenize_line( cls, line: str, tokenizer: PreTrainedTokenizerBase ):
+        tokens = tokenizer.encode( line, add_special_tokens=False )
+        tokens_x = [ tokenizer.bos_token_id ] + tokens
+        tokens_y = tokens + [ tokenizer.eos_token_id ]
+
+        for x, y in zip( tokens_x, tokens_y ):
+            yield ( x, y )
+
+    @classmethod
+    def line_parser( cls, df_conf: HFDatasetConfig, shard_idx: int, shard_max: int ):
+        dataset = load_dataset( df_conf.dataset_name, split=df_conf.dataset_split, cache_dir=df_conf.cache_dir, trust_remote_code=True ).shard( shard_max, shard_idx )
+        for line in iter( dataset ):
+            yield line[ df_conf.dataset_key ]
+    
+    @classmethod
+    def line_token_generator( cls, df_conf: HFDatasetConfig, shard_idx: int, shard_max: int, tokenizer: PreTrainedTokenizerBase ):
+        for line in cls.line_parser( df_conf, shard_idx, shard_max ):
+            for x, y in cls.tokenize_line( line, tokenizer ):
+                yield x, y
+    
+    @classmethod
+    def sequence_generator( cls, df_conf: HFDatasetConfig, tokenizer: PreTrainedTokenizerBase, shard_idxs: list[int], shard_max: int, seq_length: int ):
+        def reset():
+            count = 0
+            xs = []
+            ys = []
+            for _ in shard_idxs:
+                xs.append( [] )
+                ys.append( [] )
+
+            return count, xs, ys
+
+        count, xs, ys = reset()
+
+        generators = [ iter( cls.line_token_generator( df_conf, i, shard_max, tokenizer ) ) for i in shard_idxs ]
+
+        try:
+            while True:
+                for g_idx, generator in enumerate( generators ):
+                    x, y = next( generator )
+                    xs[ g_idx ].append( x )
+                    ys[ g_idx ].append( y )
+                count += 1
+
+                if count == seq_length:
+                    yield ( torch.LongTensor( xs ), torch.LongTensor( ys ) )
+
+                    count, xs, ys = reset()
+        except StopIteration:
+            return
+    
+    def __iter__( self ):
+        return iter( self.sequence_generator(
+            df_conf=self.dataset_config,
+            tokenizer=self.tokenizer,
+            shard_idxs=self.shard_idx,
+            shard_max=self.shard_max,
+            seq_length=self.seq_length,
+        ) )
+
+    def as_data_loader( self ):
+        return DataLoader(
+            self,
+            num_workers=1,
+            batch_size=None,
+            prefetch_factor=4,
+        )
+
+    def __getitem__( self, index ):
+        raise NotImplementedError( "This dataset does not support random access using __getitem__" )
+
+class HFBatchDataset( IterableDataset ):
+    def __init__(
+        self,
+        tokenizer: PreTrainedTokenizerBase,
+        seq_length: int,
+        batch_size: int,
+        dataset_config: HFDatasetConfig,
+        num_proc: int,
+    ):
+        self.tokenizer = tokenizer
+        self.seq_length = seq_length
+        self.batch_size = batch_size
+        self.dataset_config = dataset_config
+        self.num_proc = num_proc
+
+        assert ( batch_size % self.num_proc ) == 0, 'batch size must be divisible by num_proc'
+    
+    def __iter__( self ):
+        gen = [
+            iter(
+                HFShardDataset(
+                    tokenizer=self.tokenizer,
+                    seq_length=self.seq_length,
+                    shard_idx=list( range( i, self.batch_size, self.num_proc ) ),
+                    shard_max=self.batch_size,
+                    dataset_config=self.dataset_config
+                ).as_data_loader()
+            ) for i in range( self.num_proc )
         ]
 
         try:

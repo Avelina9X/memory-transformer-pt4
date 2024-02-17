@@ -22,7 +22,7 @@ from model.modeling import LSWTForCausalLM
 
 from optimizer.minato import Minato
 from optimizer.laprop import LaProp
-from .data import PileDataset, OpenOrcaDataset
+from .data import PileDataset, OpenOrcaDataset, HFDatasetConfig, HFBatchDataset
 from .losses import MLELoss, SimCTGLoss, AccuracyMetric
 
 PILE_PATH_PATTERN = os.environ[ 'PILE_PATH_PATTERN' ]
@@ -38,7 +38,7 @@ class Trainer(): # pylint: disable=R0902
         train_config: LSWTConfigTraining,
         model: LSWTForCausalLM,
         tokenizer: PreTrainedTokenizerBase,
-        dataset: str
+        dataset: str | HFDatasetConfig
     ):
         """ Creates a Trainer instance for the entire pretraining pipeline.
         
@@ -150,6 +150,15 @@ class Trainer(): # pylint: disable=R0902
         raise ValueError( 'Invalid loss function' )
     
     def _load_dataset( self, dataset ):
+        if isinstance( dataset, HFDatasetConfig ):
+            return HFBatchDataset(
+                tokenizer=self.tokenizer,
+                seq_length=self.train_config.length_sequence,
+                batch_size=self.train_config.batch_size,
+                dataset_config=dataset,
+                num_proc=self.batch_groups,
+            )
+
         if dataset == 'pile':
             return PileDataset(
                 tokenizer=self.tokenizer,
