@@ -216,17 +216,28 @@ class LSWTAttention( torch.nn.Module ):
 
         # Project qkv and split into heads
         q = self.split_heads( self.proj_q( embeddings ) ).permute( 0, 2, 1, 3 )
-        k = self.split_heads( self.proj_k( embeddings ) ).permute( 0, 2, 1, 3 )
-        v = self.split_heads( self.proj_v( embeddings ) ).permute( 0, 2, 1, 3 )
+        
+        if not self.training:
+            k = self.split_heads( self.proj_k( embeddings ) ).permute( 0, 2, 1, 3 )
+            v = self.split_heads( self.proj_v( embeddings ) ).permute( 0, 2, 1, 3 )
+        else:
+            if past_key_values:
+                embeddings = torch.cat( [ past_key_values[0][ :, 0, :, : ], embeddings ], dim=-2 )
+            k = self.split_heads( self.proj_k( embeddings ) ).permute( 0, 2, 1, 3 )
+            v = self.split_heads( self.proj_v( embeddings ) ).permute( 0, 2, 1, 3 )
+            
+            past_states = embeddings[ :, None, :, : ]
+            
 
         # Append past keys and values
-        if past_key_values:
+        if past_key_values and not self.training:
             k = torch.cat( [ past_key_values[0], k ], dim=-2 )
             v = torch.cat( [ past_key_values[1], v ], dim=-2 )
 
         # Save new past keys and values
-        past_keys = k
-        past_values = v
+        if not self.training:
+            past_keys = k
+            past_values = v
         
         # Apply RMS norm
         if self.config.qk_norm:
@@ -269,7 +280,10 @@ class LSWTAttention( torch.nn.Module ):
         # Apply dropout
         o = self.out_dropout( self.proj_o( a ) )
 
-        return o, ( past_keys, past_values )
+        if not self.training:
+            return o, ( past_keys, past_values )
+        else:
+            return o, ( past_states, )
 
 class SwiGLU( torch.nn.Module ):
     """ SwiGLU activation
