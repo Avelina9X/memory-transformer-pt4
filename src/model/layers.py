@@ -11,6 +11,37 @@ from .configuration import LSWTConfig
 def flash_attention( query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, dropout: float ):
     return flash_attn_func( query, key, value, dropout_p=dropout, causal=True )
 
+class RMSHeadNorm( torch.nn.Module ):
+    """ RMS Norm layer for query and keys heads.
+    """
+    
+    def __init__( self, d_key: int, n_heads: int, eps: float = 1e-5, learn_scale: bool = True ):
+        super().__init__()
+        
+        self.d_key = d_key
+        self.n_heads = n_heads
+        self.eps = eps
+        
+        if learn_scale:
+            self.weight = torch.nn.Parameter( torch.empty( size=( n_heads, d_key ) ), requires_grad=True )
+            self.weight.data.fill_( 1.0 )
+        else:
+            self.register_parameter( 'weight', None )
+    
+    def forward( self, x: torch.Tensor ):
+        # Compute RMS per head
+        norm = x.square().mean( -1, keepdim=True ).sqrt() + self.eps
+        
+        # Normalize RMS
+        x = x / norm
+        
+        # Apply scaling if exists
+        if self.weight is not None:
+            weight = self.weight.to( dtype=x.dtype )
+            x = torch.einsum( 'bnld,nd->bnld', x, weight )
+        
+        return x
+
 class DropPath( torch.nn.Module ):
     """ DropPath layer.
     
@@ -157,6 +188,10 @@ class LSWTAttention( torch.nn.Module ):
 
             self.registers_k.data.normal_( mean=0.0, std=self.key_dim ** -0.5 )
             self.registers_v.data.normal_( mean=0.0, std=self.key_dim ** -0.5 )
+        
+        if config.qk_norm:
+            self.q_norm = RMSHeadNorm( self.key_dim, config.n_heads )
+            self.k_norm = RMSHeadNorm( self.key_dim, config.n_heads )
 
         self.proj_q = torch.nn.Linear( config.d_model, config.d_model, bias=config.enable_bias )
         self.proj_k = torch.nn.Linear( config.d_model, config.d_model, bias=config.enable_bias )
@@ -183,8 +218,6 @@ class LSWTAttention( torch.nn.Module ):
         q = self.split_heads( self.proj_q( embeddings ) ).permute( 0, 2, 1, 3 )
         k = self.split_heads( self.proj_k( embeddings ) ).permute( 0, 2, 1, 3 )
         v = self.split_heads( self.proj_v( embeddings ) ).permute( 0, 2, 1, 3 )
-        
-        # TODO: RMS norm?
 
         # Append past keys and values
         if past_key_values:
@@ -194,6 +227,11 @@ class LSWTAttention( torch.nn.Module ):
         # Save new past keys and values
         past_keys = k
         past_values = v
+        
+        # Apply RMS norm
+        if self.config.qk_norm:
+            q = self.q_norm( q )
+            k = self.k_norm( k )
 
         # Apply rotary embeddings
         q, k = apply_rope( q, k, rope_pos, rope_scale, self.config.rope_xpos_enabled )

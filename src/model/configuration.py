@@ -39,6 +39,8 @@ class LSWTConfig( PretrainedConfig ):
 
         gated_ffn=True,
         gated_att=False,
+        
+        qk_norm=False,
 
         enable_bias=True,
         init_std=0.02,
@@ -135,6 +137,9 @@ class LSWTConfig( PretrainedConfig ):
         # Gating settings
         self.gated_ffn = gated_ffn
         self.gated_att = gated_att
+        
+        # RMS norm for qk
+        self.qk_norm = qk_norm
 
         # Linear layer settings
         self.init_std = init_std
