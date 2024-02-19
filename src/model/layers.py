@@ -219,7 +219,7 @@ class LSWTAttention( torch.nn.Module ):
             a = self.config.rope_yarn_a
             b = self.config.rope_yarn_b
             s = self.config.rope_yarn_scale
-            rsqrt_t = a * torch.math.log( s ) + b
+            rsqrt_t = a * torch.math.log( s ) + b # type: ignore
             
             q *= rsqrt_t
             k *= rsqrt_t
