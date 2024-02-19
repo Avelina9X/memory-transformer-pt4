@@ -47,7 +47,7 @@ def train(
     pretrained_run_dir = f'./checkpoints/{pretrained_run_name}'
     new_seq_len = config[ 'train.length_sequence' ]
 
-    new_run_name = f'{pretrained_run_name}_{new_seq_len}'
+    new_run_name = f'{pretrained_run_name}_{new_seq_len}_gov'
     
     wandb_mode = wandb_mode or WANDB_MODE
 
@@ -81,10 +81,20 @@ def train(
     tokenizer = AutoTokenizer.from_pretrained( model_config.parent_embeddings, use_fast=True, cache_dir=HF_CACHE_DIR )
 
     # PG-19 config
+    # dataset_config = HFDatasetConfig(
+    #     'pg19',
+    #     None,
+    #     'train',
+    #     'text',
+    #     HF_CACHE_DIR
+    # )
+
+    # Gov config
     dataset_config = HFDatasetConfig(
-        'pg19',
+        'tau/scrolls',
+        'gov_report',
         'train',
-        'text',
+        'input',
         HF_CACHE_DIR
     )
 
