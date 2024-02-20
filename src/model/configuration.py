@@ -65,6 +65,8 @@ class LSWTConfig( PretrainedConfig ):
         eos_token_id=2,
 
         use_cache=True,
+        
+        recompute_kv=True,
 
         parent_embeddings='facebook/opt-125m',
 
@@ -86,6 +88,8 @@ class LSWTConfig( PretrainedConfig ):
 
             gated_ffn (bool): Weather to use SwiGLU in the FFN. When disabled uses GELU. Defaults to True.
             gated_att (bool): Enables head gating (currently not implemented). Defaults to False. TODO: implement attention gating.
+            
+            qk_norm (bool): Apply per-head RMS norm to the queries and keys. Defaults to False.
 
             enable_bias (bool): Enables bias terms in all backbone projections. Embedding projections never use bias. Defaults to True.
             init_std (float): Normal std for initialisation. Defaults to 0.02.
@@ -110,6 +114,7 @@ class LSWTConfig( PretrainedConfig ):
             eos_token_id (int): Default EOS token ID. Defaults to 2 (as in OPT).
 
             use_cache (bool): Weather KV cache should be enabled. Defaults to True.
+            recompute_kv (bool): Recompute keys and values during training for additional gradients. Defaults to True.
 
             parent_embeddings (str): Parent embeddings and tokenizer vocab. Defaults to 'facebook/opt-125m'.
         """
@@ -164,6 +169,7 @@ class LSWTConfig( PretrainedConfig ):
 
         # Enable cache
         self.use_cache = use_cache
+        self.recompute_kv = recompute_kv
 
         # Parent embeddings
         self.parent_embeddings = parent_embeddings

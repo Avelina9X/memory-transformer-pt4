@@ -213,11 +213,13 @@ class LSWTAttention( torch.nn.Module ):
         return x.contiguous().view( B, S, self.config.d_model )
 
     def forward( self, embeddings, past_key_values, rope_pos, rope_scale ):
+        
+        use_kv_cache = ( not self.training ) or ( not self.config.recompute_kv ) 
 
         # Project qkv and split into heads
         q = self.split_heads( self.proj_q( embeddings ) ).permute( 0, 2, 1, 3 )
         
-        if not self.training:
+        if use_kv_cache:
             k = self.split_heads( self.proj_k( embeddings ) ).permute( 0, 2, 1, 3 )
             v = self.split_heads( self.proj_v( embeddings ) ).permute( 0, 2, 1, 3 )
         else:
@@ -230,12 +232,12 @@ class LSWTAttention( torch.nn.Module ):
             
 
         # Append past keys and values
-        if past_key_values and not self.training:
+        if past_key_values and use_kv_cache:
             k = torch.cat( [ past_key_values[0], k ], dim=-2 )
             v = torch.cat( [ past_key_values[1], v ], dim=-2 )
 
         # Save new past keys and values
-        if not self.training:
+        if use_kv_cache:
             past_keys = k
             past_values = v
         
@@ -280,7 +282,7 @@ class LSWTAttention( torch.nn.Module ):
         # Apply dropout
         o = self.out_dropout( self.proj_o( a ) )
 
-        if not self.training:
+        if use_kv_cache:
             return o, ( past_keys, past_values )
         else:
             return o, ( past_states, )
