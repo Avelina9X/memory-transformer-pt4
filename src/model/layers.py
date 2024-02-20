@@ -219,27 +219,31 @@ class LSWTAttention( torch.nn.Module ):
         # Project qkv and split into heads
         q = self.split_heads( self.proj_q( embeddings ) ).permute( 0, 2, 1, 3 )
         
+        # If we're using a kv cache project first
         if use_kv_cache:
             k = self.split_heads( self.proj_k( embeddings ) ).permute( 0, 2, 1, 3 )
             v = self.split_heads( self.proj_v( embeddings ) ).permute( 0, 2, 1, 3 )
+            
+            # The concat past keys
+            if past_key_values:
+                k = torch.cat( [ past_key_values[0], k ], dim=-2 )
+                v = torch.cat( [ past_key_values[1], v ], dim=-2 )
+            
+            # Finally save cache
+            past_keys = k
+            past_values = v
+        
+        # If we're using a state cache, concat first
         else:
             if past_key_values:
                 embeddings = torch.cat( [ past_key_values[0][ :, 0, :, : ], embeddings ], dim=-2 )
+            
+            # The project
             k = self.split_heads( self.proj_k( embeddings ) ).permute( 0, 2, 1, 3 )
             v = self.split_heads( self.proj_v( embeddings ) ).permute( 0, 2, 1, 3 )
             
+            # Finally save states
             past_states = embeddings[ :, None, :, : ]
-            
-
-        # Append past keys and values
-        if past_key_values and use_kv_cache:
-            k = torch.cat( [ past_key_values[0], k ], dim=-2 )
-            v = torch.cat( [ past_key_values[1], v ], dim=-2 )
-
-        # Save new past keys and values
-        if use_kv_cache:
-            past_keys = k
-            past_values = v
         
         # Apply RMS norm
         if self.config.qk_norm:
