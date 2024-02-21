@@ -92,7 +92,7 @@ class LSWTPreTrainedModel( PreTrainedModel ):
         """
         
         if trim is not None:
-            return [ kv[ :, :, -trim :, : ].contiguous() for kv in cache ]
+            return [ kv[ :, :, -trim :, : ] for kv in cache ]
         return cache
 
     def cache_to(
