@@ -15,9 +15,10 @@ A public repo for the LSWTransformer, codename `memory-transformer-pt4`.
 - **Input/Output Projections** to decouple embedding matrix dimension from model dimension.
 - **SimCTG Loss (optional)** to encourage embedding diversity.
 - **LaProp Optimizer** for faster convergence.
+- ~~**QK RMSNorm** grouped per head, suggested in multiple works to improve performance.~~ Added, but hasn't improved performance.
+- **KV Recompute** during training for additional memory gradients. Can be disabled in config and is disabled when in eval mode.
 
 ### Planned Features
-- **QK RMSNorm** grouped per head, suggested in multiple works to improve performance.
 - **Partial RoPE** applying positional information to only a fraction of each head, suggested in GPT-Neo and GPT-J to improve performance.
 - **Long Term Memory** as an additional `past_key_values` argument.
 - **Segment Embeddings** utilising whitening to facilitate segment retrieval into long term memory.
@@ -38,6 +39,8 @@ The following environment variables **must** be set:
 - `WANDB_PROJECT_NAME` - The WandB project destination for all runs.
 - `HF_API_KEY` - Your Hugging Face API key to access protected datasets.
 - `HF_CACHE_DIR` - The directory to store loaded models and datasets.
+- `PILE_PATH_PATTERN` - A python string format pattern pointing to the pile shards. Example: `.../the_pile/{:02d}.jsonl`
+- `PILE_SHARDS` - The number of shards available for use.
 
 The following environment variables are **optional** but recommended:
 - `TOKENIZERS_PARALLELISM=true` - Forces HF tokenizers to support parallelism.
@@ -54,6 +57,7 @@ The following envars should be used for debugging `torch.compile` related issues
 - TODO: add citations to readme
 - TODO: deploy models to 🤗 and use shield.io for pretty links
 - TODO: move private functions out of classes when relevant or make public
+- TODO: add flag to disable wandb stats tracking
 
 ## Model Sizes
 | Name | $d_{model}$ | $n_{layers}$ | $n_{heads}$ | $d_{key}$ | Parameters |
