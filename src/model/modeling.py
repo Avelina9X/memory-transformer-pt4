@@ -153,8 +153,6 @@ class LSWTModel( LSWTPreTrainedModel ):
 
         self.rope_embedding = RotaryEmbedding(
             config.d_model // config.n_heads,
-            config.rope_xpos_scale,
-            config.rope_xpos_enabled,
             config.rope_base_freq,
             config.rope_reversed,
             config.rope_ntk_scale,

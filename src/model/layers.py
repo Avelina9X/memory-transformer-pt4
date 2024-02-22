@@ -108,7 +108,7 @@ class RotaryEmbedding( torch.nn.Module ):
     Creates the RoPE embeddings with support for ABF, XPos (experimental), and ReRoPE (reversal).
     """
     
-    def __init__( self, dim, scale_base=512, use_xpos=True, base_freq=10000, reverse=False, ntk_scale=1.0 ):
+    def __init__( self, dim, base_freq=10000, reverse=False, ntk_scale=1.0 ):
         super().__init__()
         self.reverse = reverse
         
@@ -117,8 +117,6 @@ class RotaryEmbedding( torch.nn.Module ):
         inv_freq = 1.0 / ( base_freq ** ( torch.arange( 0, dim, 2 ).float() / dim ) )
         self.register_buffer( 'inv_freq', inv_freq, persistent=False )
 
-        self.use_xpos = use_xpos
-        self.scale_base = scale_base
         scale = ( torch.arange( 0, dim, 2 ) + 0.4 * dim ) / ( 1.4 * dim )
         self.register_buffer( 'scale', scale, persistent=False )
 
@@ -131,37 +129,25 @@ class RotaryEmbedding( torch.nn.Module ):
         freqs = torch.einsum( 'i , j -> i j', t, self.inv_freq )
         freqs = torch.cat( ( freqs, freqs ), dim=-1 )
 
-        if not self.use_xpos:
-            return freqs, torch.ones( 1, device=device )
-
-        power = ( t - ( seq_len // 2 ) ) / self.scale_base
-        scale = self.scale ** power[ :, None ]
-        scale = torch.cat( ( scale, scale ), dim=-1 )
-
-        if self.reverse:
-            scale = scale ** -1.0
-
-        return freqs, scale
+        return freqs, torch.ones( 1, device=device )
 
 def _rotate_half( x ):
     x1, x2 = x.chunk( 2, dim=-1 )
     return torch.cat( ( -x2, x1 ), dim=-1 )
 
-def _apply_rotary_pos_emb( pos, t, scale = 1. ):
-    return ( t * pos.cos() * scale ).type( t.dtype ) + ( _rotate_half( t ) * pos.sin() * scale ).type( t.dtype )
+def _apply_rotary_pos_emb( pos, t ):
+    return ( t * pos.cos() ).type( t.dtype ) + ( _rotate_half( t ) * pos.sin() ).type( t.dtype )
 
-def apply_rope( query, key, rope_pos, rope_scale, reverse ):
+def apply_rope( query, key, rope_pos, yarn_scale ):
     q_length = query.shape[-2]
     k_length = key.shape[-2]
 
     # Get rotary embeddings for queries and keys
     rope_pos_q = rope_pos[ -q_length : ]
     rope_pos_k = rope_pos[ -k_length : ]
-    rope_scale_q = ( rope_scale[ -q_length : ] ) if reverse else 1.0
-    rope_scale_k = ( rope_scale[ -k_length : ] ** -1.0 ) if reverse else 1.0
 
-    query = _apply_rotary_pos_emb( rope_pos_q, query, rope_scale_q )
-    key = _apply_rotary_pos_emb( rope_pos_k, key, rope_scale_k )
+    query = _apply_rotary_pos_emb( rope_pos_q, query ) * yarn_scale
+    key = _apply_rotary_pos_emb( rope_pos_k, key ) * yarn_scale
 
     return query, key
 
@@ -251,7 +237,7 @@ class LSWTAttention( torch.nn.Module ):
             k = self.k_norm( k )
 
         # Apply rotary embeddings
-        q, k = apply_rope( q, k, rope_pos, rope_scale, self.config.rope_xpos_enabled )
+        q, k = apply_rope( q, k, rope_pos, rope_scale )
 
         # If we are using registers prepend the keys and values
         if self.config.n_registers > 0:

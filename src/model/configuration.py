@@ -55,8 +55,7 @@ class LSWTConfig( PretrainedConfig ):
 
         rope_base_freq=500000,
         rope_reversed=True,
-        rope_xpos_scale=512,
-        rope_xpos_enabled=False,
+
         rope_ntk_scale=1.0,
         rope_yarn_a=0.0,
         rope_yarn_b=1.0,
@@ -161,8 +160,7 @@ class LSWTConfig( PretrainedConfig ):
         # Positional embedding settings
         self.rope_base_freq = rope_base_freq
         self.rope_reversed = rope_reversed
-        self.rope_xpos_scale = rope_xpos_scale
-        self.rope_xpos_enabled = rope_xpos_enabled
+
         self.rope_ntk_scale = rope_ntk_scale
         self.rope_yarn_a = rope_yarn_a
         self.rope_yarn_b = rope_yarn_b
