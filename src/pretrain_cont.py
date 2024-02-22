@@ -47,14 +47,14 @@ def train(
     pretrained_run_dir = f'./checkpoints/{pretrained_run_name}'
     new_seq_len = config[ 'train.length_sequence' ]
 
-    new_run_name = f'{pretrained_run_name}_{new_seq_len}_gov'
+    new_run_name = f'{pretrained_run_name}_{new_seq_len}_pile'
     
     wandb_mode = wandb_mode or WANDB_MODE
 
     # If on first machine init wandb
     wandb.init(
         project=WANDB_PROJECT_NAME,
-        group='pretraining',
+        group='pretraining_cont',
         mode=wandb_mode,
         config=config,
         tags=tags,
@@ -90,13 +90,15 @@ def train(
     # )
 
     # Gov config
-    dataset_config = HFDatasetConfig(
-        'tau/scrolls',
-        'gov_report',
-        'train',
-        'input',
-        HF_CACHE_DIR
-    )
+    # dataset_config = HFDatasetConfig(
+    #     'tau/scrolls',
+    #     'gov_report',
+    #     'train',
+    #     'input',
+    #     HF_CACHE_DIR
+    # )
+
+    dataset_config = 'pile'
 
     # Instantiate trainer/evaluator
     trainer = Trainer( train_config, model, tokenizer, dataset_config )
@@ -202,7 +204,7 @@ if __name__ == '__main__':
 
             'train.lr_cooldown_tokens': 5_000_000_000,
 
-            'finetune.pretrained_run_name': REROPE_2K4K,
+            'finetune.pretrained_run_name': ROPE_2K4K,
         }
     
     train(
