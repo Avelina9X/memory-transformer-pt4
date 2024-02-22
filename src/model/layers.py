@@ -125,8 +125,8 @@ class RotaryEmbedding( torch.nn.Module ):
             yarn_scale = torch.tensor( 1.0, device=device )
             ntk_scale = self.config.rope_ntk_scale
         else:
-            length_scale = max( seq_len / self.config.rope_positions, 1.0 ) ** self.ntk_power
-            ntk_scale = self.config.rope_ntk_scale * length_scale 
+            length_scale = max( seq_len / self.config.rope_positions, 1.0 )
+            ntk_scale = self.config.rope_ntk_scale * length_scale ** self.ntk_power
             
             a = self.config.rope_yarn_a
             b = self.config.rope_yarn_b
