@@ -22,6 +22,14 @@ class LSWTConfig( PretrainedConfig ):
     """
 
     model_type = "lsw_transformer"
+    keys_to_ignore_at_inference = [ "past_key_values" ]
+    
+    attribute_map = {
+        'hidden_size': 'd_model',
+        'num_attention_heads': 'n_heads',
+        'num_hidden_layers': 'n_layers',
+        'intermediate_size': 'd_ffn',
+    }
 
     def __init__(
         self,
