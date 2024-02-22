@@ -151,12 +151,7 @@ class LSWTModel( LSWTPreTrainedModel ):
         self.input_proj = torch.nn.Linear( config.d_vocab, config.d_model, bias=False )
         self.input_norm = torch.nn.LayerNorm( config.d_model )
 
-        self.rope_embedding = RotaryEmbedding(
-            config.d_model // config.n_heads,
-            config.rope_base_freq,
-            config.rope_reversed,
-            config.rope_ntk_scale,
-        )
+        self.rope_embedding = RotaryEmbedding( config )
 
         self.blocks = torch.nn.ModuleList( [ LSWTBlock( config ) for _ in range( config.n_layers ) ] )
 
@@ -232,11 +227,8 @@ class LSWTModel( LSWTPreTrainedModel ):
 
         hidden_state_list.append( embeddings )
 
-        # Get total sequence length including past
-        sequence_length = embeddings.shape[-2] + ( past_key_values[0][0].shape[-2] if past_key_values is not None else 0 )
-
         # RoPE embeddings
-        rope_pos, rope_scale = self.rope_embedding( sequence_length, embeddings.device )
+        rope_pos, rope_scale = self.rope_embedding( embeddings, past_key_values )
 
         for i in range( self.config.n_layers ):
             curr_key_values = past_key_values[i] if past_key_values is not None else None

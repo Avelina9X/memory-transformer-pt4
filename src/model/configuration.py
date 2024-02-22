@@ -29,6 +29,7 @@ class LSWTConfig( PretrainedConfig ):
         'num_attention_heads': 'n_heads',
         'num_hidden_layers': 'n_layers',
         'intermediate_size': 'd_ffn',
+        'max_position_embeddings': 'rope_positions',
     }
 
     def __init__(
@@ -55,11 +56,12 @@ class LSWTConfig( PretrainedConfig ):
 
         rope_base_freq=500000,
         rope_reversed=True,
+        rope_positions=None,
 
+        rope_dynamic=False,
         rope_ntk_scale=1.0,
-        rope_yarn_a=0.0,
+        rope_yarn_a=0.07,
         rope_yarn_b=1.0,
-        rope_yarn_scale=1.0,
 
         dropout_att_mat=0.0,
         dropout_att_out=0.0,
@@ -103,12 +105,12 @@ class LSWTConfig( PretrainedConfig ):
 
             rope_base_freq (int): Base frequency for RoPE. Defaults to 500000 (RoPE ABF).
             rope_reversed (bool): Reverses RoPE order (i.e. ReRoPE). Defaults to True.
-            rope_xpos_scale (int): XPOS decay factor for RoPE. Defaults to 512.
-            rope_xpos_enabled (bool): Enables XPOS decay for RoPE. Defaults to False.
+            rope_positions (int): Number of positions used for training. Defaults to None.
+
+            rope_dynamic (bool): Enables dynamic NTK and YaRN. Defaults to False.
             rope_ntk_scale (float): NTK-Aware Scaling factor. Defaults to 1.0.
             rope_yarn_a (float): YaRN temperature a scale. Zero disables YaRN. Defaults to 0.0.
             rope_yarn_b (float): YaRN temperature b scale. Defaults to 1.0.
-            rope_ntk_scale (float): Yarn length scaling factor. Defaults to 1.0.
 
             dropout_att_mat (float): Attention matrix dropout. Defaults to 0.0.
             dropout_att_out (float): Attention layer output dropout. Defaults to 0.0.
@@ -160,11 +162,13 @@ class LSWTConfig( PretrainedConfig ):
         # Positional embedding settings
         self.rope_base_freq = rope_base_freq
         self.rope_reversed = rope_reversed
+        self.rope_positions = rope_positions
 
+        # Context window extension settings
+        self.rope_dynamic = rope_dynamic
         self.rope_ntk_scale = rope_ntk_scale
         self.rope_yarn_a = rope_yarn_a
         self.rope_yarn_b = rope_yarn_b
-        self.rope_yarn_scale = rope_yarn_scale
 
         # Dropout settings
         self.dropout_att_mat = dropout_att_mat

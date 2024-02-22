@@ -105,31 +105,45 @@ class SharedEmbeddings( torch.nn.Module ):
 class RotaryEmbedding( torch.nn.Module ):
     """ Rotary Embedding layer.
     
-    Creates the RoPE embeddings with support for ABF, XPos (experimental), and ReRoPE (reversal).
+    Creates the RoPE embeddings with support for ABF, and ReRoPE (reversal).
     """
     
-    def __init__( self, dim, base_freq=10000, reverse=False, ntk_scale=1.0 ):
+    def __init__( self, config: LSWTConfig, ntk_power=2.0 ):
         super().__init__()
-        self.reverse = reverse
+        self.config = config
+        self.ntk_power = ntk_power
+
+    def forward( self, embeddings, past_key_values ):
+        # Get total sequence length including past
+        seq_len = embeddings.shape[-2] + ( past_key_values[0][0].shape[-2] if past_key_values is not None else 0 )
+        device = embeddings.device
         
-        base_freq = base_freq * ntk_scale ** ( dim / ( dim - 2 ) )
-
-        inv_freq = 1.0 / ( base_freq ** ( torch.arange( 0, dim, 2 ).float() / dim ) )
-        self.register_buffer( 'inv_freq', inv_freq, persistent=False )
-
-        scale = ( torch.arange( 0, dim, 2 ) + 0.4 * dim ) / ( 1.4 * dim )
-        self.register_buffer( 'scale', scale, persistent=False )
-
-    def forward( self, seq_len, device ):
-        t = torch.arange( seq_len, device=device ).type_as( self.inv_freq ) # type: ignore
+        dim = self.config.d_model // self.config.n_heads
+        rope_base_freq = self.config.rope_base_freq
         
-        if self.reverse:
+        if not self.config.rope_dynamic:
+            yarn_scale = torch.tensor( 1.0, device=device )
+            ntk_scale = self.config.rope_ntk_scale
+        else:
+            length_scale = max( seq_len / self.config.rope_positions, 1.0 ) ** self.ntk_power
+            ntk_scale = self.config.rope_ntk_scale * length_scale 
+            
+            a = self.config.rope_yarn_a
+            b = self.config.rope_yarn_b
+            yarn_scale = torch.tensor( a * torch.math.log( length_scale ) + b, device=device ) # type: ignore
+        
+        t = torch.arange( seq_len, device=device ).float()
+        
+        base_freq = rope_base_freq * ntk_scale ** ( dim / ( dim - 2 ) )
+        inv_freq = 1.0 / ( base_freq ** ( torch.arange( 0, dim, 2, device=device ).float() / dim ) )
+        
+        if self.config.rope_reversed:
             t = t.flip( dims=[ 0 ] )
 
-        freqs = torch.einsum( 'i , j -> i j', t, self.inv_freq )
+        freqs = torch.einsum( 'i,j->ij', t, inv_freq )
         freqs = torch.cat( ( freqs, freqs ), dim=-1 )
 
-        return freqs, torch.ones( 1, device=device )
+        return freqs, yarn_scale
 
 def _rotate_half( x ):
     x1, x2 = x.chunk( 2, dim=-1 )
@@ -146,8 +160,8 @@ def apply_rope( query, key, rope_pos, yarn_scale ):
     rope_pos_q = rope_pos[ -q_length : ]
     rope_pos_k = rope_pos[ -k_length : ]
 
-    query = _apply_rotary_pos_emb( rope_pos_q, query ) * yarn_scale
-    key = _apply_rotary_pos_emb( rope_pos_k, key ) * yarn_scale
+    query = _apply_rotary_pos_emb( rope_pos_q, query ) * yarn_scale.type( query.dtype )
+    key = _apply_rotary_pos_emb( rope_pos_k, key ) * yarn_scale.type( key.dtype )
 
     return query, key
 
@@ -243,8 +257,8 @@ class LSWTAttention( torch.nn.Module ):
         if self.config.n_registers > 0:
             batch_size = k.shape[0]
 
-            r_k = self.registers_k.to( dtype=k.dtype ).repeat( batch_size, 1, 1, 1 )
-            r_v = self.registers_v.to( dtype=v.dtype ).repeat( batch_size, 1, 1, 1 )
+            r_k = ( self.registers_k * rope_scale ).to( dtype=k.dtype ).repeat( batch_size, 1, 1, 1 )
+            r_v = ( self.registers_v * rope_scale ).to( dtype=v.dtype ).repeat( batch_size, 1, 1, 1 )
             
             # TODO: RMS norm?
 
