@@ -212,8 +212,7 @@ class LSWTAttention( torch.nn.Module ):
         B, S, _, _ = x.size()
         return x.contiguous().view( B, S, self.config.d_model )
 
-    def forward( self, embeddings, past_key_values, rope_pos, rope_scale ):
-        
+    def compute_qkv( self, embeddings, past_key_values ):
         use_kv_cache = ( not self.training ) or ( not self.config.recompute_kv ) 
 
         # Project qkv and split into heads
@@ -230,8 +229,7 @@ class LSWTAttention( torch.nn.Module ):
                 v = torch.cat( [ past_key_values[1], v ], dim=-2 )
             
             # Finally save cache
-            past_keys = k
-            past_values = v
+            memory = ( k, v )
         
         # If we're using a state cache, concat first
         else:
@@ -243,7 +241,13 @@ class LSWTAttention( torch.nn.Module ):
             v = self.split_heads( self.proj_v( embeddings ) ).permute( 0, 2, 1, 3 )
             
             # Finally save states
-            past_states = embeddings[ :, None, :, : ]
+            memory = ( embeddings[ :, None, :, : ], )
+        
+        return q, k, v, memory
+
+    def forward( self, embeddings, past_key_values, rope_pos, rope_scale ):
+        
+        q, k, v, memory = self.compute_qkv( embeddings, past_key_values )
         
         # Apply RMS norm
         if self.config.qk_norm:
@@ -277,10 +281,7 @@ class LSWTAttention( torch.nn.Module ):
         # Apply dropout
         o = self.out_dropout( self.proj_o( a ) )
 
-        if use_kv_cache:
-            return o, ( past_keys, past_values )
-        else:
-            return o, ( past_states, )
+        return o, memory
 
 class SwiGLU( torch.nn.Module ):
     """ SwiGLU activation
