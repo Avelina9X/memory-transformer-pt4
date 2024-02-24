@@ -43,7 +43,7 @@ The following environment variables **must** be set:
 - `PILE_SHARDS` - The number of shards available for use.
 
 The following environment variables are **optional** but recommended:
-- `TOKENIZERS_PARALLELISM=true` - Forces HF tokenizers to support parallelism.
+- ~`TOKENIZERS_PARALLELISM=true` - Forces HF tokenizers to support parallelism.~ Not necessary after switching from `fork` to `forkserver` start method.
 - `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` - Helps reduce fragmentation of the PyTorch allocator.
 
 The following envars should be used for debugging `torch.compile` related issues:
