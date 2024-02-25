@@ -36,7 +36,7 @@ class LSWTConfig( PretrainedConfig ):
         self,
 
         vocab_size=50272,
-        trainable_embeddings=False,
+        trainable_embeddings=True,
 
         d_vocab=768,
         d_model=768,
@@ -44,7 +44,7 @@ class LSWTConfig( PretrainedConfig ):
         n_heads=12,
         n_layers=12,
 
-        n_registers=16,
+        n_registers=0,
 
         gated_ffn=True,
         gated_att=False,
@@ -213,20 +213,20 @@ class LSWTConfigTraining():
         length_sequence=2048,
         length_cache=2048,
 
-        lr_max=6e-4,
+        lr_max=1e-3,
         lr_warmup_steps=2000,
         lr_cooldown_tokens=30_000_000_000,
         lr_cooldown_ratio=0.1,
 
-        optimizer='SophiaG',
+        optimizer='LaProp',
         opt_beta_1=0.9,
         opt_beta_2=0.95,
-        opt_eps=1e-9,
-        opt_weight_decay=0.2,
+        opt_eps=1e-8,
+        opt_weight_decay=0.1,
         opt_max_grad_norm=1.0,
         opt_rho=0.1,
 
-        loss_objective='SimCTG',
+        loss_objective='MLE',
         loss_sim_margin=0.5,
     ):
         """LSW Transformer Training Configuration

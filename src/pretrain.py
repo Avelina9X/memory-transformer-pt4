@@ -3,10 +3,15 @@
 import datetime
 import os
 
+import yaml
 import rich
 import wandb
+import argparse
+from wcmatch import glob
+
 import torch
 import torch.distributed as dist
+import torch.multiprocessing as mp
 
 from transformers import AutoTokenizer
 import numpy as np
@@ -47,10 +52,9 @@ def train(
     rank: int = 0,
     world_size: int = 1,
     config: dict | None = None,
-    model_config: LSWTConfig | None = None,
-    train_config: LSWTConfigTraining | None = None,
     wandb_mode: str | None = None,
-    tags: list[str] | None = None
+    wandb_tags: list[str] | None = None,
+    wandb_run_name: str | None = None
 ):
     """ Pretraining function.
 
@@ -58,8 +62,6 @@ def train(
         rank (int, optional): The DDP process rank. Defaults to 0.
         world_size (int, optional): The DDP world size. When 1 DDP is disabled. Defulats to 1.
         config (dict | None, optional): Optional WandB style config. Defaults to None.
-        model_config (LSWTConfig | None, optional): Optional model config. Defaults to None.
-        train_config (LSWTConfigTraining | None, optional): Optional training config. Defaults to None.
         wandb_mode (str | None, optional): Optional wandb mode. Defaults to None.
         tags (list[str] | None, optional): Tags to add to wandb run. Defaults to None.
     """
@@ -82,7 +84,8 @@ def train(
             group='pretraining',
             mode=wandb_mode,
             config=config,
-            tags=tags,
+            tags=wandb_tags,
+            name=wandb_run_name,
         ) # type: ignore
 
     # Get validation and test datasets
@@ -90,8 +93,8 @@ def train(
     dataset_pile_uncopyrighted = load_pile_uncopyrighted( HF_CACHE_DIR )
 
     # Get and update model configs
-    model_config = model_config or LSWTConfig()
-    train_config = train_config or LSWTConfigTraining()
+    model_config = LSWTConfig()
+    train_config = LSWTConfigTraining()
     if rank == 0:
         train_utils.modify_dicts( wandb.config, model_config, train_config )
     else:
@@ -193,3 +196,54 @@ def train(
     if world_size > 1:
         ddp_cleanup()
 
+def run():
+    argparser = argparse.ArgumentParser()
+    
+    argparser.add_argument(
+        '-c',
+        '--config',
+        type=lambda x: glob.glob( x, flags=glob.BRACE ),
+        required=True
+    )
+    
+    argparser.add_argument(
+        '-w',
+        '--wmode',
+        default='disabled',
+        choices=[ 'online', 'offline', 'disabled' ]
+    )
+    
+    arguments = argparser.parse_args()
+    
+    def unpack_dict( d ): 
+        return {
+            f'{outer_k}.{inner_k}' : inner_v
+            for outer_k, outer_v in d.items()
+            for inner_k, inner_v in outer_v.items()
+        }
+    
+    config = {}
+    
+    for file in arguments.config:
+        with open( file, 'r' ) as f:
+            obj = unpack_dict( yaml.load( f, yaml.FullLoader ) )
+            config.update( obj )
+    
+    if torch.cuda.device_count() == 1:
+        train( config=config, wandb_mode=arguments.wmode, wandb_tags=[ 'rerope_tests' ], wandb_run_name=config[ 'meta.run_name' ] )
+    else:
+        mp.spawn( # type: ignore
+            fn=train,
+            args=(
+                torch.cuda.device_count(),
+                config,
+                arguments.wmode,
+                [ 'rerope_tests', 'ddp' ],
+                config[ 'meta.run_name' ]
+            ),
+            nprocs=torch.cuda.device_count(),
+            join=True,
+        )
+
+if __name__ == '__main__':    
+    run()
