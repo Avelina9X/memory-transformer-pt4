@@ -75,7 +75,7 @@ class LSWTConfig( PretrainedConfig ):
 
         use_cache=True,
         
-        recompute_kv=True,
+        recompute_kv=False,
 
         parent_embeddings='facebook/opt-125m',
 
@@ -123,7 +123,7 @@ class LSWTConfig( PretrainedConfig ):
             eos_token_id (int): Default EOS token ID. Defaults to 2 (as in OPT).
 
             use_cache (bool): Weather KV cache should be enabled. Defaults to True.
-            recompute_kv (bool): Recompute keys and values during training for additional gradients. Defaults to True.
+            recompute_kv (bool): Recompute keys and values during training for additional gradients. Defaults to False.
 
             parent_embeddings (str): Parent embeddings and tokenizer vocab. Defaults to 'facebook/opt-125m'.
         """
