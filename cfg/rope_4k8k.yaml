@@ -14,7 +14,7 @@ model:
 train:
   batch_size: 240
   batch_size_step: 3
-  batches_per_epoch: 256
+  batches_per_epoch: 1024
   length_sequence: 4096
   length_cache: 4096
   lr_cooldown_tokens: 10000000000

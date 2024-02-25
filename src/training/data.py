@@ -456,6 +456,14 @@ def load_wikitext( cache_dir ):
         cache_dir=cache_dir
     )
 
+def load_lambada( cache_dir ):
+    return load_dataset(
+        'EleutherAI/lambada_openai',
+        name='en',
+        split='test',
+        cache_dir=cache_dir
+    )
+
 def load_pile_uncopyrighted( cache_dir ):
     return load_dataset(
         'json',
