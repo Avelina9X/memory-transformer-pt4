@@ -66,6 +66,7 @@ def train(
         tags (list[str] | None, optional): Tags to add to wandb run. Defaults to None.
     """
     
+    torch.manual_seed( 0 )
     torch.backends.cuda.matmul.allow_tf32 = True # type: ignore # pylint: disable=W0212
     torch.backends.cudnn.allow_tf32 = True # type: ignore # pylint: disable=W0212
     torch._dynamo.config.cache_size_limit = 1024 * 1024 # type: ignore # pylint: disable=W0212
