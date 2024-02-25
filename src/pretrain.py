@@ -91,9 +91,9 @@ def train(
 
     # Get validation and test datasets
     dataset_wikitext = load_wikitext( HF_CACHE_DIR ) # key="page"
-    dataset_lambada = load_lambada( HF_CACHE_DIR ) # key="text"
-    dataset_pg19 = load_pg19( HF_CACHE_DIR, 'validation' ) # key="text"
-    dataset_gov_reports = load_gov_reports( HF_CACHE_DIR, 'validation' ) # key="input"
+    # dataset_lambada = load_lambada( HF_CACHE_DIR ) # key="text"
+    # dataset_pg19 = load_pg19( HF_CACHE_DIR, 'validation' ) # key="text"
+    # dataset_gov_reports = load_gov_reports( HF_CACHE_DIR, 'validation' ) # key="input"
     
     
     dataset_pile_uncopyrighted = load_pile_uncopyrighted( HF_CACHE_DIR )
@@ -158,7 +158,7 @@ def train(
         # If on first machine, do validation loop and log metrics
         if rank == 0:
             valid_metrics_wikitext = evaluator.eval_epoch( dataset_wikitext, 'page', train_config.length_sequence )
-            valid_metrics_lambada = evaluator.eval_epoch( dataset_lambada, 'text', train_config.length_sequence )
+            # valid_metrics_lambada = evaluator.eval_epoch( dataset_lambada, 'text', train_config.length_sequence )
             # valid_metrics_pg19 = evaluator.eval_epoch( dataset_pg19, 'text', train_config.length_sequence )
             # valid_metrics_gov_reports = evaluator.eval_epoch( dataset_gov_reports, 'input', train_config.length_sequence )
 
@@ -173,9 +173,9 @@ def train(
                 'validation/wikitext/loss': valid_metrics_wikitext[ 'loss' ],
                 'validation/wikitext/acc': valid_metrics_wikitext[ 'acc' ],
                 
-                'validation/lambada/ppl': np.exp( valid_metrics_lambada[ 'loss' ] ),
-                'validation/lambada/loss': valid_metrics_lambada[ 'loss' ],
-                'validation/lambada/acc': valid_metrics_lambada[ 'acc' ],
+                # 'validation/lambada/ppl': np.exp( valid_metrics_lambada[ 'loss' ] ),
+                # 'validation/lambada/loss': valid_metrics_lambada[ 'loss' ],
+                # 'validation/lambada/acc': valid_metrics_lambada[ 'acc' ],
                 
                 # 'validation/pg19/ppl': np.exp( valid_metrics_pg19[ 'loss' ] ),
                 # 'validation/pg19/loss': valid_metrics_pg19[ 'loss' ],
