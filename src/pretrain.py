@@ -35,10 +35,9 @@ def ddp_setup( rank, world_size ):
     os.environ[ 'MASTER_ADDR' ] = 'localhost'
     os.environ[ 'MASTER_PORT' ] = '12355'
     
-    dist.init_process_group( 'nccl', rank=rank, world_size=world_size, timeout=datetime.timedelta( hours=6 ) )
+    dist.init_process_group( 'nccl', rank=rank, world_size=world_size )
 
 def ddp_cleanup():
-    dist.barrier()
     dist.destroy_process_group()
     
 class MyDDP( torch.nn.parallel.DistributedDataParallel ):
@@ -87,6 +86,7 @@ def train(
             config=config,
             tags=wandb_tags,
             name=wandb_run_name,
+            settings=wandb.Settings( _disable_stats=True )
         ) # type: ignore
 
     # Get validation and test datasets
