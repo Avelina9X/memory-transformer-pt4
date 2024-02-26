@@ -29,7 +29,7 @@ class MLELoss( nn.Module ):
 
     def forward( self, last_hidden_states, logits, input_ids, labels ):
         # pylint: disable=W0613
-        mle_loss = self.train_fct(logits.view(-1, self.vocab_size), labels.view(-1))
+        mle_loss = self.train_fct(logits.float().view(-1, self.vocab_size), labels.view(-1))
 
         return mle_loss, mle_loss * 0.0
 
@@ -128,13 +128,13 @@ class SimCTGLoss( nn.Module ):
         assert labels.size() == input_ids.size()
         assert logits.size() == torch.Size([bsz, seqlen, self.vocab_size])
         # compute mle loss
-        mle_loss = self.train_fct(logits.view(-1, self.vocab_size), labels.view(-1))
+        mle_loss = self.train_fct(logits.float().view(-1, self.vocab_size), labels.view(-1))
 
         # compute cl loss
         norm_rep = last_hidden_states / last_hidden_states.norm(dim=2, keepdim=True)
         cosine_scores = torch.matmul(norm_rep, norm_rep.transpose(1,2))
         assert cosine_scores.size() == torch.Size([bsz, seqlen, seqlen])
-        cl_loss = self.contrastive_loss(cosine_scores, input_ids)
+        cl_loss = self.contrastive_loss(cosine_scores, input_ids).float()
         return mle_loss, cl_loss
 
 
@@ -156,7 +156,7 @@ class AccuracyMetric( nn.Module ):
         self.pad_token_id = pad_token_id
 
     def forward( self, logits: torch.Tensor, labels: torch.LongTensor ):
-        tp = ( logits.argmax( dim=-1 ) == labels ).sum()
-        valid_len = ( labels != self.pad_token_id ).sum()
+        tp = ( logits.argmax( dim=-1 ) == labels ).sum().float()
+        valid_len = ( labels != self.pad_token_id ).sum().float()
 
         return tp / valid_len
