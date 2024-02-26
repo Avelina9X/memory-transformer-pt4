@@ -204,11 +204,12 @@ if __name__ == '__main__':
 
             'train.lr_cooldown_tokens': 5_000_000_000,
 
-            'finetune.pretrained_run_name': ROPE_2K4K,
+            'finetune.pretrained_run_name': REROPE_2K4K,
+            'model.recompute_kv': False,
         }
     
     train(
         config=finetune_config,
-        wandb_mode='online',
+        wandb_mode='disabled',
         tags=[ 'rerope_tests', 'cont_pretrain' ]
     )
