@@ -1,5 +1,6 @@
 """ Main pretraining pipeline module. Pretrain's on The Pile """
 
+import copy
 import datetime
 import os
 
@@ -26,8 +27,6 @@ from model.embedding_loader import embedding_loader
 
 from constants import HF_CACHE_DIR, WANDB_PROJECT_NAME
 import train_utils
-
-WANDB_MODE = 'online'
 
 def ddp_setup( rank, world_size ):
     torch.cuda.set_device( rank )
@@ -62,20 +61,21 @@ def train(
         world_size (int, optional): The DDP world size. When 1 DDP is disabled. Defulats to 1.
         config (dict | None, optional): Optional WandB style config. Defaults to None.
         wandb_mode (str | None, optional): Optional wandb mode. Defaults to None.
-        tags (list[str] | None, optional): Tags to add to wandb run. Defaults to None.
+        wandb_tags (list[str] | None, optional): Tags to add to wandb run. Defaults to None.
+        wandb_run_name (str | None, optional): Optional wandb run name. Defaults to None.
     """
     
+    # Set manual seed for reproducibility
     torch.manual_seed( 0 )
+    
+    # Set some performance flags
     torch.backends.cuda.matmul.allow_tf32 = True # type: ignore # pylint: disable=W0212
     torch.backends.cudnn.allow_tf32 = True # type: ignore # pylint: disable=W0212
     torch._dynamo.config.cache_size_limit = 1024 * 1024 # type: ignore # pylint: disable=W0212
-    # torch._dynamo.config.accumulated_cache_size_limit = 1024 * 1024 # type: ignore # pylint: disable=W0212
     
     # Setup ddp if world size is greater than 1
     if world_size > 1:
         ddp_setup( rank, world_size )
-    
-    wandb_mode = wandb_mode or WANDB_MODE
 
     # If on first machine init wandb
     if rank == 0:
@@ -90,25 +90,34 @@ def train(
         ) # type: ignore
 
     # Get validation and test datasets
-    dataset_wikitext = load_wikitext( HF_CACHE_DIR ) # key="page"
-    # dataset_lambada = load_lambada( HF_CACHE_DIR ) # key="text"
-    # dataset_pg19 = load_pg19( HF_CACHE_DIR, 'validation' ) # key="text"
-    # dataset_gov_reports = load_gov_reports( HF_CACHE_DIR, 'validation' ) # key="input"
-    
-    
+    dataset_wikitext = load_wikitext( HF_CACHE_DIR )
     dataset_pile_uncopyrighted = load_pile_uncopyrighted( HF_CACHE_DIR )
 
     # Get and update model configs
     model_config = LSWTConfig()
     train_config = LSWTConfigTraining()
+    
+    # Update original config
     if rank == 0:
         train_utils.modify_dicts( wandb.config, model_config, train_config )
     else:
         train_utils.modify_dicts( config, model_config, train_config ) # type: ignore
-
-    # Load model and embeddings
+    
+    # Because of RNG stuff, we need to init the model without registers. Create config without registers
+    init_model_config = copy.deepcopy( model_config )
+    init_model_config.n_registers = 0
+    
+    # Create model as normal, but with reigsters disabled
     parent_embeddings = embedding_loader( model_config, cache_dir=HF_CACHE_DIR )
-    model = LSWTForCausalLM( model_config, parent_embeddings ).cuda()        
+    init_model = LSWTForCausalLM( init_model_config, parent_embeddings )
+    
+    # Create model as normal, but with register enabled and copy contents
+    model = LSWTForCausalLM( model_config, parent_embeddings )
+    state_dict_diff = model.load_state_dict( init_model.state_dict(), strict=False )
+    rich.print( state_dict_diff )
+    
+    # Place model on CUDA
+    model = model.cuda()
 
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained( model_config.parent_embeddings, use_fast=True, cache_dir=HF_CACHE_DIR )
