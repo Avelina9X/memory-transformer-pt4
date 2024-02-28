@@ -1,7 +1,6 @@
 """ Main pretraining pipeline module. Pretrain's on The Pile """
 
 import copy
-import datetime
 import os
 import argparse
 
@@ -14,7 +13,6 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 
 from transformers import AutoTokenizer
-import numpy as np
 
 from training.trainer import Trainer, TrainerDDP
 from training.eval import Eval
@@ -27,18 +25,27 @@ from model.embedding_loader import embedding_loader
 from constants import HF_CACHE_DIR, WANDB_PROJECT_NAME
 import train_utils
 
-def ddp_setup( rank, world_size ):
+def ddp_setup( rank: int, world_size: int ):
+    """ Sets up the DDP process group and sets CUDA rank.
+    Note this does not support multi-machine DDP, only multi-device DDP.
+
+    Args:
+        rank (int): current device rank
+        world_size (int): global world size
+    """
     torch.cuda.set_device( rank )
-    
+
     os.environ[ 'MASTER_ADDR' ] = 'localhost'
     os.environ[ 'MASTER_PORT' ] = '12355'
-    
+
     dist.init_process_group( 'nccl', rank=rank, world_size=world_size )
 
 def ddp_cleanup():
+    """ Shuts down the DDP process group. """
     dist.destroy_process_group()
-    
+
 class MyDDP( torch.nn.parallel.DistributedDataParallel ):
+    """ Custom DDP wrapper. Defers method and attribute accesses to underlying module. """
     def __getattr__(self, name):
         try:
             return super().__getattr__(name)
