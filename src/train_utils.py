@@ -6,18 +6,37 @@ import yaml
 import wandb
 import numpy as np
 
+from transformers import PreTrainedTokenizerBase
+
 from model.configuration import LSWTConfigTraining, LSWTConfig
 from model.modeling import LSWTForCausalLM
 from training.trainer import Trainer
 from constants import WANDB_PROJECT_NAME
 
-def find_and_extract( source, prefix ):
+def find_and_extract( source: str, prefix: str ) -> str | None:
+    """ Given a wandb config string and target prefix, return suffix
+
+    Args:
+        source (str): wandb style string in format `"prefx.suffix"`
+        prefix (str): prefix to match
+
+    Returns:
+        str | None: suffix if found, else None
+    """
     idx = source.find( prefix + '.' )
     if idx != 0:
         return None
     return source[ len( prefix ) + 1 : ]
 
+
 def modify_dicts( config: dict, model_config: LSWTConfig, train_config: LSWTConfigTraining ):
+    """ Updates Model and Training config given a wandb dict
+
+    Args:
+        config (dict): wandb dict source
+        model_config (LSWTConfig): model config destination
+        train_config (LSWTConfigTraining): train config destination
+    """
     for key, value in config.items():
         model_key = find_and_extract( key, 'model' )
         train_key = find_and_extract( key, 'train' )
@@ -30,7 +49,20 @@ def modify_dicts( config: dict, model_config: LSWTConfig, train_config: LSWTConf
             getattr( train_config, train_key )
             setattr( train_config, train_key, value )
 
-def get_checkpoint_path( name: str | None=None ):
+
+def get_checkpoint_path( name: str | None=None ) -> tuple[ pathlib.Path, pathlib.Path, pathlib.Path ]:
+    """ Returns the directory, config path and weights path for saving a model.
+    If no model name is given it will infer from the run name.
+    If the run has no name it will infer from the run id.
+
+    Args:
+        name (str | None): Desired name of model, or None if infered from wanbd. Defaults to None.
+
+    Returns:
+        root_dir (Path): Path of enclosing directory
+        config_dir (Path): Path of `config.json`
+        model_dir (Path): Path of `model.safetensors`
+    """
     name = name or wandb.run.name or wandb.run.id # type: ignore
 
     root_dir = pathlib.Path().cwd().joinpath( 'checkpoints', name )
@@ -38,7 +70,14 @@ def get_checkpoint_path( name: str | None=None ):
     model_dir = root_dir.joinpath( 'model.safetensors' )
     return root_dir, config_dir, model_dir
 
+
 def save_model( model: LSWTForCausalLM, log_wandb: bool=False ):
+    """ Saves the model to disk and uploads as an artifact to wandb
+
+    Args:
+        model (LSWTForCausalLM): The model to save
+        log_wandb (bool, optional): Sets if the model should be uploaded. Defaults to False.
+    """
     root_dir, config_dir, model_dir = get_checkpoint_path()
 
     model.half().save_pretrained( root_dir, safe_serialization=True )
@@ -52,12 +91,20 @@ def save_model( model: LSWTForCausalLM, log_wandb: bool=False ):
 
         wandb.run.log_artifact( model_artifact ) # type: ignore
 
-def add_special_tokens( tokenizer ):
-    tokenizer.add_tokens( [ '<seg_start>', '<seg_end>' ], special_tokens=True )
-    tokenizer.sep_token = '<seg_start>'
-    tokenizer.cls_token = '<seg_end>'
+
+def add_special_tokens( tokenizer: PreTrainedTokenizerBase ):
+    """ Adds `'<|im_start|>` and `<|im_end|>` to the tokenizer vocabulary
+
+    Args:
+        tokenizer (PreTrainedTokenizerBase): Target tokenizer to update
+    """
+    tokenizer.add_tokens( [ '<|im_start|>', '<|im_end|>' ], special_tokens=True )
+    tokenizer.sep_token = '<|im_start|>'
+    tokenizer.cls_token = '<|im_end|>'
+
 
 def get_model_artifact( run_name: str ):
+    """ TODO: update code for multiple runs with same name """
     pretrain_run = wandb.Api().runs(
         path=WANDB_PROJECT_NAME,
         filters={ "display_name": run_name }
@@ -69,19 +116,48 @@ def get_model_artifact( run_name: str ):
         if artifact.type == 'model'
     ][0]
 
+
 def set_backbone_trainable( model: LSWTForCausalLM, trainable: bool ):
+    """ Sets the trainable flag of decoder layers for a model.
+    Note that if layers are set as non-trainable their weights will be cast to FP16.
+    TODO: enable support for BF16
+
+    Args:
+        model (LSWTForCausalLM): The target model to update
+        trainable (bool): the trainable flag
+    """
     model.model.blocks.requires_grad_( trainable )
     if not trainable:
         model.model.blocks = model.model.blocks.half()
 
-def compute_metric_dict( inputs: dict, name: str ):
+
+def compute_metric_dict( inputs: dict[str, float], name: str ) -> dict[str, float]:
+    """ Given a dict of `loss` and `acc` keys, returns a wandb log dict of metrics
+
+    Args:
+        inputs (dict[str, float]): Dict contraining metrics
+        name (str): Metric group name
+
+    Returns:
+        dict[str, float]: wandb log dict of metrics
+    """
     return {
         f'{name}/ppl': np.exp( inputs[ 'loss' ] ),
         f'{name}/loss': inputs[ 'loss' ],
         f'{name}/acc': inputs[ 'acc' ],
     }
 
-def compute_stats_dict( trainer: Trainer, i: int ):
+
+def compute_stats_dict( trainer: Trainer, i: int ) -> dict[str, float | int]:
+    """ Given the trainer and current iteration returns a wandb log dict of stats
+
+    Args:
+        trainer (Trainer): Trainer used for training the model
+        i (int): Current iteration index. Should be zero indexed.
+
+    Returns:
+        dict[str, float | int]: wandb log dict of stats
+    """
     return {
         'stats/n_tokens': trainer.optimizer_step * trainer.train_config.batch_size * trainer.train_config.length_sequence,
         'stats/n_batches': trainer.optimizer_step,
@@ -89,7 +165,17 @@ def compute_stats_dict( trainer: Trainer, i: int ):
         'stats/learning_rate': trainer.get_schedule() * trainer.train_config.lr_max,
     }
 
-def parse_yaml_config( files: list[str] ):
+
+def parse_yaml_config( files: list[str] ) -> dict:
+    """ Given a list of YAML files, parses and returns a wandb config dict.
+    Note that dict keys will be overriden by the most recent file in the list.
+
+    Args:
+        files (list[str]): List of YAML file paths
+
+    Returns:
+        dict: wandb config dict
+    """
     def unpack_dict( d ):
         return {
             f'{outer_k}.{inner_k}' : inner_v
