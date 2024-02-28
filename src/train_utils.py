@@ -1,10 +1,14 @@
 """ Utilities and helper functions for training and pretraining """
 
 import pathlib
+import yaml
+
 import wandb
+import numpy as np
 
 from model.configuration import LSWTConfigTraining, LSWTConfig
 from model.modeling import LSWTForCausalLM
+from training.trainer import Trainer
 from constants import WANDB_PROJECT_NAME
 
 def find_and_extract( source, prefix ):
@@ -69,3 +73,35 @@ def set_backbone_trainable( model: LSWTForCausalLM, trainable: bool ):
     model.model.blocks.requires_grad_( trainable )
     if not trainable:
         model.model.blocks = model.model.blocks.half()
+
+def compute_metric_dict( inputs: dict, name: str ):
+    return {
+        f'{name}/ppl': np.exp( inputs[ 'loss' ] ),
+        f'{name}/loss': inputs[ 'loss' ],
+        f'{name}/acc': inputs[ 'acc' ],
+    }
+
+def compute_stats_dict( trainer: Trainer, i: int ):
+    return {
+        'stats/n_tokens': trainer.optimizer_step * trainer.train_config.batch_size * trainer.train_config.length_sequence,
+        'stats/n_batches': trainer.optimizer_step,
+        'stats/n_epochs': i + 1,
+        'stats/learning_rate': trainer.get_schedule() * trainer.train_config.lr_max,
+    }
+
+def parse_yaml_config( files: list[str] ):
+    def unpack_dict( d ):
+        return {
+            f'{outer_k}.{inner_k}' : inner_v
+            for outer_k, outer_v in d.items()
+            for inner_k, inner_v in outer_v.items()
+        }
+    
+    config = {}
+    
+    for file in files:
+        with open( file, 'r', encoding='utf-8' ) as f:
+            obj = unpack_dict( yaml.load( f, yaml.FullLoader ) )
+            config.update( obj )
+    
+    return config

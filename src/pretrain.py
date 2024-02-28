@@ -5,7 +5,6 @@ import datetime
 import os
 import argparse
 
-import yaml
 import rich
 import wandb
 from wcmatch import glob
@@ -168,24 +167,9 @@ def train(
         if rank == 0:
             valid_metrics_wikitext = evaluator.eval_epoch( dataset_wikitext, 'page', train_config.length_sequence )
 
-            train_log = {
-                'train/ppl': np.exp( train_metrics[ 'loss' ] ),
-                'train/loss': train_metrics[ 'loss' ],
-                'train/acc': train_metrics[ 'acc' ],
-            }
-
-            valid_log = {
-                'validation/wikitext/ppl': np.exp( valid_metrics_wikitext[ 'loss' ] ),
-                'validation/wikitext/loss': valid_metrics_wikitext[ 'loss' ],
-                'validation/wikitext/acc': valid_metrics_wikitext[ 'acc' ],
-            }
-
-            stats_log = {
-                'stats/n_tokens': trainer.optimizer_step * trainer.train_config.batch_size * trainer.train_config.length_sequence,
-                'stats/n_batches': trainer.optimizer_step,
-                'stats/n_epochs': i + 1,
-                'stats/learning_rate': trainer.get_schedule() * trainer.train_config.lr_max,
-            }
+            train_log = train_utils.compute_metric_dict( train_metrics, 'train' )
+            valid_log = train_utils.compute_metric_dict( valid_metrics_wikitext, 'validation/wikitext' )
+            stats_log = train_utils.compute_stats_dict( trainer, i )
 
             wandb.log( {
                 **train_log,
@@ -196,12 +180,9 @@ def train(
     # If on first machine, run testing, save model and log
     if rank == 0:
         test_metrics = evaluator.eval_epoch( dataset_pile_uncopyrighted, 'text', train_config.length_sequence )
+        test_log = train_utils.compute_metric_dict( test_metrics, 'test/pile-uncopyrighted' )
 
-        wandb.log( {
-            'test/pile-uncopyrighted/ppl': np.exp( test_metrics[ 'loss' ] ),
-            'test/pile-uncopyrighted/loss': test_metrics[ 'loss' ],
-            'test/pile-uncopyrighted/acc': test_metrics[ 'acc' ],
-        } )
+        wandb.log( test_log )
 
         train_utils.save_model( model, log_wandb=( wandb_mode == 'online' ) ) # type: ignore
         
@@ -230,19 +211,7 @@ def run():
     
     arguments = argparser.parse_args()
     
-    def unpack_dict( d ): 
-        return {
-            f'{outer_k}.{inner_k}' : inner_v
-            for outer_k, outer_v in d.items()
-            for inner_k, inner_v in outer_v.items()
-        }
-    
-    config = {}
-    
-    for file in arguments.config:
-        with open( file, 'r' ) as f:
-            obj = unpack_dict( yaml.load( f, yaml.FullLoader ) )
-            config.update( obj )
+    config = train_utils.parse_yaml_config( arguments.config )
     
     if torch.cuda.device_count() == 1:
         train( config=config, wandb_mode=arguments.wmode, wandb_tags=[ 'rerope_tests' ], wandb_run_name=config[ 'meta.run_name' ] )
