@@ -19,7 +19,7 @@ import numpy as np
 
 from training.trainer import Trainer, TrainerDDP
 from training.eval import Eval
-from training.data import load_pile_uncopyrighted, load_wikitext, load_lambada, load_pg19, load_gov_reports
+from training.data import load_pile_uncopyrighted, load_wikitext
 
 from model.configuration import LSWTConfigTraining, LSWTConfig
 from model.modeling import LSWTForCausalLM
@@ -167,9 +167,6 @@ def train(
         # If on first machine, do validation loop and log metrics
         if rank == 0:
             valid_metrics_wikitext = evaluator.eval_epoch( dataset_wikitext, 'page', train_config.length_sequence )
-            # valid_metrics_lambada = evaluator.eval_epoch( dataset_lambada, 'text', train_config.length_sequence )
-            # valid_metrics_pg19 = evaluator.eval_epoch( dataset_pg19, 'text', train_config.length_sequence )
-            # valid_metrics_gov_reports = evaluator.eval_epoch( dataset_gov_reports, 'input', train_config.length_sequence )
 
             train_log = {
                 'train/ppl': np.exp( train_metrics[ 'loss' ] ),
@@ -181,18 +178,6 @@ def train(
                 'validation/wikitext/ppl': np.exp( valid_metrics_wikitext[ 'loss' ] ),
                 'validation/wikitext/loss': valid_metrics_wikitext[ 'loss' ],
                 'validation/wikitext/acc': valid_metrics_wikitext[ 'acc' ],
-                
-                # 'validation/lambada/ppl': np.exp( valid_metrics_lambada[ 'loss' ] ),
-                # 'validation/lambada/loss': valid_metrics_lambada[ 'loss' ],
-                # 'validation/lambada/acc': valid_metrics_lambada[ 'acc' ],
-                
-                # 'validation/pg19/ppl': np.exp( valid_metrics_pg19[ 'loss' ] ),
-                # 'validation/pg19/loss': valid_metrics_pg19[ 'loss' ],
-                # 'validation/pg19/acc': valid_metrics_pg19[ 'acc' ],
-                
-                # 'validation/gov_reports/ppl': np.exp( valid_metrics_gov_reports[ 'loss' ] ),
-                # 'validation/gov_reports/loss': valid_metrics_gov_reports[ 'loss' ],
-                # 'validation/gov_reports/acc': valid_metrics_gov_reports[ 'acc' ],
             }
 
             stats_log = {
