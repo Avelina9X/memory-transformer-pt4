@@ -10,29 +10,29 @@ class Spectra( torch.optim.Optimizer ):
     `Spectra.step()` after calling `zero_grad(set_to_none=True)` on the main optimizer. 
             
     Based on Apple's ml-sigma-reparam: https://github.com/apple/ml-sigma-reparam
-    but with an additional `sigma` term that controls in the influence of normalization.
+    but with an additional `zeta` term that controls in the influence of normalization.
     
-    Setting sigma to zero disables normalization, and setting to one is full spectral norm.
+    Setting zeta to zero disables normalization, and setting to one is full spectral norm.
     
     Currently only supports linear layers (2D weight matrices).
     Support for ND convolutions is planned.
     """
-    def __init__( self, params, sigma=0.5 ):
+    def __init__( self, params, zeta=0.5 ):
         """Implements the Spectra algorithm.
         This is not an optimizer, `step()` should be called after gradients are zeroed.
         
-        If Spectra has no effect on training try raising sigma.
-        If model collapses try decreasing sigma.
+        If Spectra has no effect on training try raising zeta.
+        If model collapses try decreasing zeta.
 
         Args:
             params (Iterable): iterable of parameters to optimize or dicts defining param groups.
-            sigma (float, optional): spectral norm ratio, 0 disables normalization. Defaults to 0.5.
+            zeta (float, optional): spectral norm ratio, 0 disables normalization. Defaults to 0.5.
         """
         
-        if not 0.0 <= sigma <= 1.0:
-            raise ValueError( f"Invalid sigma: {sigma}" )
+        if not 0.0 <= zeta <= 1.0:
+            raise ValueError( f"Invalid zeta: {zeta}" )
         
-        defaults = { 'sigma': sigma }
+        defaults = { 'zeta': zeta }
         super().__init__( params, defaults )
 
     @torch.no_grad()
@@ -41,7 +41,7 @@ class Spectra( torch.optim.Optimizer ):
             raise ValueError( 'Spectra is not an optimizer so should use a closure' )
 
         for group in self.param_groups:
-            sigma = group['sigma']
+            zeta = group['zeta']
             
             for p in group['params']:
                 if p.grad is not None:
@@ -80,7 +80,7 @@ class Spectra( torch.optim.Optimizer ):
                 spectral_p = p / sigma
 
                 # Apply spectral norm to p
-                p.mul_( 1.0 - sigma ).add_( spectral_p, alpha=sigma )
+                p.mul_( 1.0 - zeta ).add_( spectral_p, alpha=zeta )
 
         return 0
         
