@@ -68,3 +68,6 @@ The following envars should be used for debugging `torch.compile` related issues
 | **Large**	| 2048	| 36 | 32 | 64 | 2.5B |
 | **XL**	| 3072	| 48 | 48 | 64 | 7.3B |
 | **XXL**	| 4096	| 48 | 64 | 64 | 13B  |
+
+## Citation
+If you wish to cite this work before then, you may refer to this repository and link to [my Semantic Scholar profile](https://www.semanticscholar.org/author/Avelina-Asada-Hadji-Kyriacou/2139984073).
