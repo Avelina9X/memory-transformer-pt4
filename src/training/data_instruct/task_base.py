@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 
 from datasets import DatasetDict, Dataset
+from evaluate import CombinedEvaluations, EvaluationModule
 
 class InstructionDatasetTask( Enum ):
     """ Enum of Instruction Dataset Types
@@ -324,7 +325,7 @@ class BaseInstructDataset( ABC ):
         ]
     
     @abstractmethod
-    def create_unlabelled_message_targets( self, doc: dict ) -> int | None:
+    def create_unlabelled_message_target( self, doc: dict ) -> int | None:
         """ Returns the target index for binary and multi-class tasks.
         
         Args:
@@ -349,9 +350,79 @@ class BaseInstructDataset( ABC ):
             self.format_generation_message( doc ),
         ]
     
+    """ ========================================================================
+        Message chain functions
+        ======================================================================== """
+    
+    @abstractmethod
+    def compute_metric( self, predictions=None, references=None ) -> dict:
+        """Compute the evaluation module.
+
+        Usage of positional arguments is not allowed to prevent mistakes.
+
+        Args:
+            predictions (list/array/tensor, optional): Predictions.
+            references (list/array/tensor, optional): References.
+
+        Return:
+            dict: Dictionary with the results of this evaluation module
+        """
+    
     # TODO: get evaluation metric from HF hub?
     # TODO: test - create LLM queries?
     # TODO: test - process LLM query outputs?
     # TODO: train - produce SFT sequences?
     # TODO: actually load documents and retrieve
     # TODO: tokenization
+
+class BaseChoiceInstructDataset( BaseInstructDataset ):
+
+    @abstractmethod
+    def _get_choices( self, doc: dict ) -> list:
+        """ Returns a list of potential choices
+
+        Args:
+            doc (dict): the input document.
+        
+        Returns:
+            list: the list of choices
+        """
+    
+    @abstractmethod
+    def _get_label_key( self ) -> str:
+        """ Returns a the dictionary key of the overidable target
+        
+        Returns:
+            str: dict key
+        """
+    
+    @abstractmethod
+    def _format_single_target( self, doc: dict ) -> dict:
+        """ Returns a single message dict for the target answer, correct or incorrect.
+
+        Args:
+            doc (dict): the input document.
+        
+        Returns:
+            dict: single line in the message list, ready to be formatted and tokenized.
+        """
+
+    def format_unlabelled_messages( self, doc: dict ) -> list[dict]:      
+        return [
+            self._format_single_target( dict( doc, **{ self._get_label_key() : i } ) )
+            for i in self._get_choices( doc )
+        ]
+
+    def format_target_messages( self, doc: dict ) -> list[dict]:
+        return [
+            msg
+            for i, msg in enumerate( self.format_unlabelled_messages( doc ) )
+            if i == self.create_unlabelled_message_target( doc )
+        ]
+
+    def format_distractor_messages( self, doc: dict ) -> list[dict]:
+        return [
+            msg
+            for i, msg in enumerate( self.format_unlabelled_messages( doc ) )
+            if i != self.create_unlabelled_message_target( doc )
+        ]

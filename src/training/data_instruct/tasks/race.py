@@ -1,19 +1,14 @@
 from datasets import DatasetDict, Dataset, load_dataset
+from evaluate import load as load_metric
 
-from ..task_base import BaseInstructDataset, InstructionDatasetTask
+from ..task_base import BaseChoiceInstructDataset, InstructionDatasetTask
 
-def _format_single_target( doc: dict ) -> dict:
-    prompt = doc['answer'] + '. ' + doc['options'][ ord( doc['answer'] ) - ord( 'A' ) ]
-    return {
-        'role': 'assistant',
-        'content': prompt,
-        'complete': True,
-    }
-
-class RaceInstructDataset( BaseInstructDataset ):
+class RaceInstructDataset( BaseChoiceInstructDataset ):
     def __init__( self, split: str, cache_dir: str ):
         self.split = split
+        self.metric = load_metric( 'accuracy' )
         super().__init__( cache_dir )
+        
     
     def download( self, cache_dir: str ) -> DatasetDict:
         return load_dataset( 'race', self.split, cache_dir=cache_dir ) # type: ignore
@@ -68,27 +63,26 @@ class RaceInstructDataset( BaseInstructDataset ):
             'complete': True,
         }
     
-    def format_target_messages( self, doc: dict ) -> list[dict]:
-        return [
-            _format_single_target( doc )
-        ]
+    def _format_single_target( self, doc: dict ) -> dict:
+        idx = self.create_unlabelled_message_target( doc )
+        prompt = doc['answer'] + '. ' + doc['options'][idx]
+        return {
+            'role': 'assistant',
+            'content': prompt,
+            'complete': True,
+        }
     
-    def format_distractor_messages( self, doc: dict ) -> list[dict]:      
-        return [
-            _format_single_target( dict( doc, answer=i ) )
-            for i in [ 'A', 'B', 'C', 'D' ]
-            if i != doc['answer']
-        ]
+    def _get_choices( self, doc: dict ) -> list:
+        return [ 'A', 'B', 'C', 'D' ]
     
-    def format_unlabelled_messages( self, doc: dict ) -> list[dict]:
-        return [
-            _format_single_target( dict( doc, answer=i ) )
-            for i in [ 'A', 'B', 'C', 'D' ]
-        ]
+    def _get_label_key( self ) -> str:
+        return 'answer'
     
-    def create_unlabelled_message_targets( self, doc: dict ) -> int:
+    def create_unlabelled_message_target( self, doc: dict ) -> int:
         return ord( doc['answer'] ) - ord( 'A' )
     
+    def compute_metric( self, predictions=None, references=None ) -> dict:
+        return self.metric.compute( predictions=predictions, references=references )
 
 
 def main():

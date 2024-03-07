@@ -1,9 +1,13 @@
 from datasets import DatasetDict, Dataset, load_dataset
+from evaluate import load as load_metric
 
-from ..task_base import BaseInstructDataset, InstructionDatasetTask
+from ..task_base import BaseChoiceInstructDataset, InstructionDatasetTask
 
-class GlueBaseInstructDataset( BaseInstructDataset ):
-    
+class GlueBaseInstructDataset( BaseChoiceInstructDataset ):
+    def __init__( self, cache_dir: str ):
+        self.metric = load_metric( 'glue', self.task_name )
+        super().__init__( cache_dir )
+
     def download( self, cache_dir: str ) -> DatasetDict:
         return load_dataset( 'glue', self.task_name, cache_dir=cache_dir ) # type: ignore
     
@@ -12,7 +16,8 @@ class GlueBaseInstructDataset( BaseInstructDataset ):
         return InstructionDatasetTask.INSTRUCT_OPEN
     
     @property
-    def group_name( self ) -> str | None: return 'GLUE'
+    def group_name( self ) -> str | None:
+        return 'GLUE'
     
     def get_training_docs( self ) -> Dataset:
         return self.dataset[ 'train' ]
@@ -26,11 +31,23 @@ class GlueBaseInstructDataset( BaseInstructDataset ):
     def get_fewshot_docs( self ) -> None:
         return None
     
-    def create_unlabelled_message_targets( self, doc: dict ) -> int | None:
+    def create_unlabelled_message_target( self, doc: dict ) -> int | None:
         return None if doc['label'] < 0 else doc['label']
+    
+    def _get_label_key( self ) -> str:
+        return 'label'
+    
+    def compute_metric( self, predictions=None, references=None ) -> dict:
+        return self.metric.compute( predictions=predictions, references=references )
 
 
 class GlueColaInstructDataset( GlueBaseInstructDataset ):
+    def __init__( self, cache_dir: str ):
+        self.add_metrics = [
+            load_metric( 'accuracy' ),
+            load_metric( 'f1' ),
+        ]
+        super().__init__( cache_dir )
     
     @property
     def task_description( self ) -> str:
@@ -64,23 +81,14 @@ class GlueColaInstructDataset( GlueBaseInstructDataset ):
             'complete': True,
         }
     
-    def format_target_messages( self, doc: dict ) -> list[dict]:
-        return [
-            self._format_single_target( doc )
-        ]
+    def _get_choices( self, doc: dict ) -> list:
+        return [ 0, 1 ]
     
-    def format_distractor_messages( self, doc: dict ) -> list[dict]:      
-        return [
-            self._format_single_target( dict( doc, label=i ) )
-            for i in [ 0, 1 ]
-            if i != doc['label']
-        ]
-    
-    def format_unlabelled_messages( self, doc: dict ) -> list[dict]:
-        return [
-            self._format_single_target( dict( doc, label=i ) )
-            for i in [ 0, 1 ]
-        ]
+    def compute_metric( self, predictions=None, references=None ) -> dict:
+        base = self.metric.compute( predictions=predictions, references=references )
+        for metric in self.add_metrics:
+            base.update( metric.compute( predictions=predictions, references=references ) )
+        return base
 
 
 class GlueMNLIInstructDataset( GlueBaseInstructDataset ):
@@ -131,23 +139,8 @@ class GlueMNLIInstructDataset( GlueBaseInstructDataset ):
             'complete': True,
         }
     
-    def format_target_messages( self, doc: dict ) -> list[dict]:
-        return [
-            self._format_single_target( doc )
-        ]
-    
-    def format_distractor_messages( self, doc: dict ) -> list[dict]:      
-        return [
-            self._format_single_target( dict( doc, label=i ) )
-            for i in [ 0, 1, 2 ]
-            if i != doc['label']
-        ]
-    
-    def format_unlabelled_messages( self, doc: dict ) -> list[dict]:
-        return [
-            self._format_single_target( dict( doc, label=i ) )
-            for i in [ 0, 1, 2 ]
-        ]
+    def _get_choices( self, doc: dict ) -> list:
+        return [ 0, 1, 2 ]
 
 class GlueMNLIMatchedInstructDataset( GlueMNLIInstructDataset ):
     
@@ -216,23 +209,8 @@ class GlueMRPCInstructDataset( GlueBaseInstructDataset ):
             'complete': True,
         }
     
-    def format_target_messages( self, doc: dict ) -> list[dict]:
-        return [
-            self._format_single_target( doc )
-        ]
-    
-    def format_distractor_messages( self, doc: dict ) -> list[dict]:      
-        return [
-            self._format_single_target( dict( doc, label=i ) )
-            for i in [ 0, 1 ]
-            if i != doc['label']
-        ]
-    
-    def format_unlabelled_messages( self, doc: dict ) -> list[dict]:
-        return [
-            self._format_single_target( dict( doc, label=i ) )
-            for i in [ 0, 1 ]
-        ]
+    def _get_choices( self, doc: dict ) -> list:
+        return [ 0, 1 ]
 
 
 class GlueQNLIInstructDataset( GlueBaseInstructDataset ):
@@ -271,23 +249,8 @@ class GlueQNLIInstructDataset( GlueBaseInstructDataset ):
             'complete': True,
         }
     
-    def format_target_messages( self, doc: dict ) -> list[dict]:
-        return [
-            self._format_single_target( doc )
-        ]
-    
-    def format_distractor_messages( self, doc: dict ) -> list[dict]:      
-        return [
-            self._format_single_target( dict( doc, label=i ) )
-            for i in [ 0, 1 ]
-            if i != doc['label']
-        ]
-    
-    def format_unlabelled_messages( self, doc: dict ) -> list[dict]:
-        return [
-            self._format_single_target( dict( doc, label=i ) )
-            for i in [ 0, 1 ]
-        ]
+    def _get_choices( self, doc: dict ) -> list:
+        return [ 0, 1 ]
 
 
 class GlueQQPInstructDataset( GlueBaseInstructDataset ):
@@ -326,23 +289,8 @@ class GlueQQPInstructDataset( GlueBaseInstructDataset ):
             'complete': True,
         }
     
-    def format_target_messages( self, doc: dict ) -> list[dict]:
-        return [
-            self._format_single_target( doc )
-        ]
-    
-    def format_distractor_messages( self, doc: dict ) -> list[dict]:      
-        return [
-            self._format_single_target( dict( doc, label=i ) )
-            for i in [ 0, 1 ]
-            if i != doc['label']
-        ]
-    
-    def format_unlabelled_messages( self, doc: dict ) -> list[dict]:
-        return [
-            self._format_single_target( dict( doc, label=i ) )
-            for i in [ 0, 1 ]
-        ]
+    def _get_choices( self, doc: dict ) -> list:
+        return [ 0, 1 ]
 
 
 class GlueRTEInstructDataset( GlueBaseInstructDataset ):
@@ -381,23 +329,8 @@ class GlueRTEInstructDataset( GlueBaseInstructDataset ):
             'complete': True,
         }
     
-    def format_target_messages( self, doc: dict ) -> list[dict]:
-        return [
-            self._format_single_target( doc )
-        ]
-    
-    def format_distractor_messages( self, doc: dict ) -> list[dict]:      
-        return [
-            self._format_single_target( dict( doc, label=i ) )
-            for i in [ 0, 1 ]
-            if i != doc['label']
-        ]
-    
-    def format_unlabelled_messages( self, doc: dict ) -> list[dict]:
-        return [
-            self._format_single_target( dict( doc, label=i ) )
-            for i in [ 0, 1 ]
-        ]
+    def _get_choices( self, doc: dict ) -> list:
+        return [ 0, 1 ]
 
 
 class GlueSST2InstructDataset( GlueBaseInstructDataset ):
@@ -434,23 +367,8 @@ class GlueSST2InstructDataset( GlueBaseInstructDataset ):
             'complete': True,
         }
     
-    def format_target_messages( self, doc: dict ) -> list[dict]:
-        return [
-            self._format_single_target( doc )
-        ]
-    
-    def format_distractor_messages( self, doc: dict ) -> list[dict]:      
-        return [
-            self._format_single_target( dict( doc, label=i ) )
-            for i in [ 0, 1 ]
-            if i != doc['label']
-        ]
-    
-    def format_unlabelled_messages( self, doc: dict ) -> list[dict]:
-        return [
-            self._format_single_target( dict( doc, label=i ) )
-            for i in [ 0, 1 ]
-        ]
+    def _get_choices( self, doc: dict ) -> list:
+        return [ 0, 1 ]
 
 
 class GlueWNLIInstructDataset( GlueBaseInstructDataset ):
@@ -489,23 +407,8 @@ class GlueWNLIInstructDataset( GlueBaseInstructDataset ):
             'complete': True,
         }
     
-    def format_target_messages( self, doc: dict ) -> list[dict]:
-        return [
-            self._format_single_target( doc )
-        ]
-    
-    def format_distractor_messages( self, doc: dict ) -> list[dict]:      
-        return [
-            self._format_single_target( dict( doc, label=i ) )
-            for i in [ 0, 1 ]
-            if i != doc['label']
-        ]
-    
-    def format_unlabelled_messages( self, doc: dict ) -> list[dict]:
-        return [
-            self._format_single_target( dict( doc, label=i ) )
-            for i in [ 0, 1 ]
-        ]
+    def _get_choices( self, doc: dict ) -> list:
+        return [ 0, 1 ]
 
 def main():
     # pylint: disable=W0611

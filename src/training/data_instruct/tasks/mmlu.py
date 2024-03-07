@@ -1,18 +1,13 @@
 from datasets import DatasetDict, Dataset, load_dataset
+from evaluate import load as load_metric
 
-from ..task_base import BaseInstructDataset, InstructionDatasetTask
+from ..task_base import BaseChoiceInstructDataset, InstructionDatasetTask
 
-def _format_single_target( doc: dict ) -> dict:
-    option = [ 'A', 'B', 'C', 'D' ][ doc[ 'answer' ] ]
-    choice = doc[ 'choices' ][ doc[ 'answer' ] ]
-    prompt = f'{option}. {choice}'
-    return {
-        'role': 'assistant',
-        'content': prompt,
-        'complete': True,
-    }
+class MMLUInstructDataset( BaseChoiceInstructDataset ):
+    def __init__( self, cache_dir: str ):
+        self.metric = load_metric( 'accuracy' )
+        super().__init__( cache_dir )
 
-class MMLUInstructDataset( BaseInstructDataset ):
     def download( self, cache_dir: str ) -> DatasetDict:
         return load_dataset( 'cais/mmlu', 'all', cache_dir=cache_dir ) # type: ignore
     
@@ -64,29 +59,28 @@ class MMLUInstructDataset( BaseInstructDataset ):
             'content': prompt,
             'complete': True,
         }
+
+    def _format_single_target( self, doc: dict ) -> dict:
+        option = [ 'A', 'B', 'C', 'D' ][ doc[ 'answer' ] ]
+        choice = doc[ 'choices' ][ doc[ 'answer' ] ]
+        prompt = f'{option}. {choice}'
+        return {
+            'role': 'assistant',
+            'content': prompt,
+            'complete': True,
+        }
     
-    def format_target_messages( self, doc: dict ) -> list[dict]:
-        return [
-            _format_single_target( doc )
-        ]
+    def _get_choices( self, doc: dict ) -> list:
+        return [ 0, 1, 2, 3 ]
     
-    def format_distractor_messages( self, doc: dict ) -> list[dict]:      
-        return [
-            _format_single_target( dict( doc, answer=i ) )
-            for i in range( 4 )
-            if i != doc['answer']
-        ]
-        
-    def format_unlabelled_messages( self, doc: dict ) -> list[dict]:
-        return [
-            _format_single_target( dict( doc, answer=i ) )
-            for i in range( 4 )
-        ]
+    def _get_label_key( self ) -> str:
+        return 'answer'
     
-    def create_unlabelled_message_targets( self, doc: dict ) -> int:
+    def create_unlabelled_message_target( self, doc: dict ) -> int:
         return doc['answer']
     
-
+    def compute_metric( self, predictions=None, references=None ) -> dict:
+        return self.metric.compute( predictions=predictions, references=references )
 
 def main():
     # pylint: disable=W0611
