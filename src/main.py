@@ -20,6 +20,10 @@ from constants import WANDB_API_KEY, WANDB_PROJECT_NAME
 from pretrain import train
 
 if __name__ == '__main__':
+    # fork (default on linux) is not threadsafe.
+    # See https://bnikolic.co.uk/blog/python/parallelism/2019/11/13/python-forkserver-preload.html
+    mp.set_start_method("forkserver" if "forkserver" in mp.get_all_start_methods() else "spawn")
+    
     wandb.login( key=WANDB_API_KEY )
 
     parser = argparse.ArgumentParser()
