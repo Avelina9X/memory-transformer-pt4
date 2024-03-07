@@ -51,6 +51,8 @@ class InstructionFormatter():
         }
     
     def tokenize_chat( self, conversation: list[dict] ):
+        # TODO: assert final message is complete
+
         outputs = self.apply_chat_template( conversation )
         
         return {
@@ -58,4 +60,16 @@ class InstructionFormatter():
             'targets': outputs[ 'tokens' ] + [ self.tokenizer.eos_token_id ],
             'train_mask': outputs[ 'train_mask' ] + [ False ],
             'test_mask': outputs[ 'test_mask' ] + [ False ],
+        }
+    
+    def tokenize_generation( self, conversation: list[dict] ):
+        # TODO: assert final message is incomplete
+
+        outputs = self.apply_chat_template( conversation )
+        
+        return {
+            'tokens': [ self.tokenizer.eos_token_id ] + outputs[ 'tokens' ],
+            'targets': None,
+            'train_mask': None,
+            'test_mask': None,
         }
