@@ -1,7 +1,7 @@
 import itertools
 from transformers import PreTrainedTokenizerBase
 
-from .task_base import Message
+from .task_base import Message, MessageList
 
 class InstructionFormatter():
     def __init__( self, tokenizer: PreTrainedTokenizerBase ):
@@ -52,7 +52,7 @@ class InstructionFormatter():
             'test_mask': list( itertools.chain( *test_mask ) ),
         }
     
-    def tokenize_chat( self, conversation: list[Message] ):
+    def tokenize_chat( self, conversation: MessageList ):
         # TODO: assert final message is complete
 
         outputs = self.apply_chat_template( conversation )
@@ -64,13 +64,13 @@ class InstructionFormatter():
             'test_mask': outputs[ 'test_mask' ] + [ False ],
         }
     
-    def _remove_system_msgs( self, msgs: list[Message] ):
+    def _remove_system_msgs( self, msgs: MessageList ):
         return [ msg for msg in msgs if msg.role != 'system' ]
     
     def tokenize_chat_fewshot(
         self,
-        target_conversation: list[Message],
-        fewshot_list: list[list[Message]],
+        target_conversation: MessageList,
+        fewshot_list: list[MessageList],
         fewshow_allsys: bool
     ):
         head = fewshot_list[0]
@@ -95,7 +95,7 @@ class InstructionFormatter():
         }
 
     
-    def tokenize_generation( self, conversation: list[Message] ):
+    def tokenize_generation( self, conversation: MessageList ):
         # TODO: assert final message is incomplete
 
         outputs = self.apply_chat_template( conversation )

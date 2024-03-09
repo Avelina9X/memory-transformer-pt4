@@ -5,6 +5,7 @@ Module containing iterable datasets used to finetune and test LSWTransformer mod
 from abc import ABC, abstractmethod
 from enum import Enum
 from dataclasses import dataclass
+from typing import TypeAlias
 
 from datasets import DatasetDict, Dataset
 from evaluate import CombinedEvaluations, EvaluationModule
@@ -42,6 +43,8 @@ class Message:
     role: str
     content: str
     complete: bool
+
+MessageList: TypeAlias = list[Message]
 
 class BaseInstructDataset( ABC ):
     
@@ -222,7 +225,7 @@ class BaseInstructDataset( ABC ):
         """
     
     @abstractmethod
-    def format_target_messages( self, doc: dict ) -> list[Message]:
+    def format_target_messages( self, doc: dict ) -> MessageList:
         """ Creates a list of candidate assistant output messages.
         
         Args:
@@ -233,7 +236,7 @@ class BaseInstructDataset( ABC ):
         """
     
     @abstractmethod
-    def format_distractor_messages( self, doc: dict ) -> list[Message]:
+    def format_distractor_messages( self, doc: dict ) -> MessageList:
         """ Creates a list of alternate or false assistant output messages.
         
         Args:
@@ -244,7 +247,7 @@ class BaseInstructDataset( ABC ):
         """
     
     @abstractmethod
-    def format_unlabelled_messages( self, doc: dict ) -> list[Message]:
+    def format_unlabelled_messages( self, doc: dict ) -> MessageList:
         """ Creates a list of all possible assistant output messages.
         
         Args:
@@ -275,7 +278,7 @@ class BaseInstructDataset( ABC ):
         Message chain functions
         ======================================================================== """
     
-    def create_target_message_list( self, doc: dict ) -> list[list[Message]]:
+    def create_target_message_list( self, doc: dict ) -> list[MessageList]:
         """ Creates a message list with the gold standard target. Use for SFT.
         
         Args:
@@ -293,7 +296,7 @@ class BaseInstructDataset( ABC ):
             for target in self.format_target_messages( doc )
         ]
     
-    def create_distractor_message_list( self, doc: dict ) -> list[list[Message]]:
+    def create_distractor_message_list( self, doc: dict ) -> list[MessageList]:
         """ Creates a list of message lists with the incorrect targets. Use for testing or contrastive training.
         
         Args:
@@ -311,7 +314,7 @@ class BaseInstructDataset( ABC ):
             for target in self.format_distractor_messages( doc )
         ]
     
-    def create_unlabelled_message_list( self, doc: dict ) -> list[list[Message]]:
+    def create_unlabelled_message_list( self, doc: dict ) -> list[MessageList]:
         """ Creates a list of message which may be true or false. Use for testing.
         
         Args:
@@ -329,7 +332,7 @@ class BaseInstructDataset( ABC ):
             for target in self.format_unlabelled_messages( doc )
         ]
     
-    def create_fewshot_message_list( self, doc: dict ) -> list[list[Message]]:
+    def create_fewshot_message_list( self, doc: dict ) -> list[MessageList]:
         """ Creates a list of fewshot messages.
         
         Args:
@@ -423,20 +426,20 @@ class BaseChoiceInstructDataset( BaseInstructDataset ):
             Message: single line in the message list, ready to be formatted and tokenized.
         """
 
-    def format_unlabelled_messages( self, doc: dict ) -> list[Message]:      
+    def format_unlabelled_messages( self, doc: dict ) -> MessageList:      
         return [
             self._format_single_target( dict( doc, **{ self._get_label_key() : i } ) )
             for i in self._get_choices( doc )
         ]
 
-    def format_target_messages( self, doc: dict ) -> list[Message]:
+    def format_target_messages( self, doc: dict ) -> MessageList:
         return [
             msg
             for i, msg in enumerate( self.format_unlabelled_messages( doc ) )
             if i == self.create_unlabelled_message_target( doc )
         ]
 
-    def format_distractor_messages( self, doc: dict ) -> list[Message]:
+    def format_distractor_messages( self, doc: dict ) -> MessageList:
         return [
             msg
             for i, msg in enumerate( self.format_unlabelled_messages( doc ) )

@@ -1,7 +1,7 @@
 from datasets import DatasetDict, Dataset, load_dataset
 from evaluate import load as load_metric
 
-from ..task_base import BaseChoiceInstructDataset, InstructionDatasetTask, Message
+from ..task_base import BaseChoiceInstructDataset, InstructionDatasetTask, Message, MessageList
 
 class MMLUInstructDataset( BaseChoiceInstructDataset ):
     def __init__( self, cache_dir: str ):
@@ -80,7 +80,7 @@ class MMLUInstructDataset( BaseChoiceInstructDataset ):
     def create_unlabelled_message_target( self, doc: dict ) -> int:
         return doc['answer']
     
-    def create_fewshot_message_list( self, doc: dict ) -> list[list[Message]]:
+    def create_fewshot_message_list( self, doc: dict ) -> list[MessageList]:
         # Get subject of document
         subject = doc[ 'subject' ]
 
