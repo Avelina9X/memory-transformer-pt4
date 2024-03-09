@@ -324,16 +324,16 @@ class BaseInstructDataset( ABC ):
             for target in self.format_unlabelled_messages( doc )
         ]
     
-    def create_fewshot_message_list( self, doc: dict ) -> list[list[dict]] | None:
+    def create_fewshot_message_list( self, doc: dict ) -> list[list[dict]]:
         """ Creates a list of fewshot messages.
         
         Args:
             doc (dict): the input document.
         
         Returns:
-            list[list[dict]]: list of message lists, ready to be formatted and tokenized or None if fewshotting not supported.       
+            list[list[dict]]: list of message lists, ready to be formatted and tokenized.       
         """
-        return None
+        raise NotImplementedError( 'This class does support fewshot evaluation.' )
     
     @abstractmethod
     def create_unlabelled_message_target( self, doc: dict ) -> int | None:
