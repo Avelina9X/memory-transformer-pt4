@@ -13,14 +13,14 @@ class BaseInstructionBatcher:
         self,
         model: PreTrainedModel,
         formatter: InstructionFormatter,
-        aggregation: str = 'mean'
+        aggregation: str = 'mean',
     ):
         """ Creates an Instruction Batcher for evaluating instruction datasets.
 
         Args:
             model (PreTrainedModel): Causal Model to evaluate
             formatter (InstructionFormatter): formatter object
-            aggregation (str, optional): Desired type of logprob aggregation, 'mean' or 'sum'. Defaults to 'mean'.
+            aggregation (str): Desired type of logprob aggregation, 'mean' or 'sum'. Defaults to 'mean'.
         """
         self.formatter = formatter
         self.model = model
@@ -55,11 +55,34 @@ class PreparedChoiceBatch:
     correct_index: int
 
 class ChoiceInstructionBatcher( BaseInstructionBatcher ):
-    def prepare_batch( self, task: BaseChoiceInstructDataset, doc: dict, device: str | torch.device ) -> PreparedChoiceBatch:
-        completions = task.create_unlabelled_message_list( doc )
-        correct = task.create_unlabelled_message_target( doc )
+    def prepare_batch(
+        self,
+        task: BaseChoiceInstructDataset,
+        target_doc: dict,
+        device: str | torch.device,
+        fewshot: bool,
+        fewshot_allsys: bool,
+    ) -> PreparedChoiceBatch:
+        """ Creates a prepared choice batch from a task and document
 
-        tokenized_completions = [ self.formatter.tokenize_chat( msgs ) for msgs in completions ]
+        Args:
+            task (BaseChoiceInstructDataset): The task used to parse documents
+            target_doc (dict): The target document to parse
+            device (str | torch.device): Where to place token and mask tensors
+            fewshot (bool): If fewshot testing should be enabled.
+            fewshot_allsys (bool): If all message groups should contain a system message
+        Returns:
+            PreparedChoiceBatch: _description_
+        """
+        completions = task.create_unlabelled_message_list( target_doc )
+        correct = task.create_unlabelled_message_target( target_doc )
+
+        if fewshot is False:
+            tokenized_completions = [ self.formatter.tokenize_chat( msgs ) for msgs in completions ]
+        else:
+            fewshot_list = task.create_fewshot_message_list( target_doc )
+            tokenized_completions = [ self.formatter.tokenize_chat_fewshot( msgs, fewshot_list, fewshot_allsys ) for msgs in completions ]
+
         max_length = max( len( line[ 'tokens' ] ) for line in tokenized_completions )
         pad_token_id = self.formatter.tokenizer.pad_token_id
 
@@ -90,7 +113,11 @@ class ChoiceInstructionBatcher( BaseInstructionBatcher ):
             correct_index=correct
         )
     
-    def compute_batch( self, prepared_batch: PreparedChoiceBatch, logits: torch.Tensor ) -> dict:
+    def compute_batch(
+        self,
+        prepared_batch: PreparedChoiceBatch,
+        logits: torch.Tensor
+    ) -> dict:
 
         # Grab easy references to elements of the batch
         targets = prepared_batch.targets.unsqueeze( -1 )
@@ -115,20 +142,32 @@ class ChoiceInstructionBatcher( BaseInstructionBatcher ):
         }
     
     @torch.inference_mode
-    def evaluate_document( self, task: BaseChoiceInstructDataset, doc: dict ) -> dict:
+    def evaluate_document(
+        self,
+        task: BaseChoiceInstructDataset,
+        doc: dict,
+        fewshot: bool = False,
+        fewshot_allsys: bool = True,
+    ) -> dict:
         device = self.model.get_input_embeddings().weight.device
-        prepared_batch = self.prepare_batch( task, doc, device )
+        prepared_batch = self.prepare_batch( task, doc, device, fewshot, fewshot_allsys )
         logits = self.model( prepared_batch.tokens ).logits
         results = self.compute_batch( prepared_batch, logits )
 
         return results
     
-    def evaluate_dataset( self, task: BaseChoiceInstructDataset, dataset: Iterable ):
+    def evaluate_dataset(
+        self,
+        task: BaseChoiceInstructDataset,
+        dataset: Iterable,
+        fewshot: bool = False,
+        fewshot_allsys: bool = True,
+    ):
         correct_list = []
         answer_list = []
 
         for line in dataset:
-            results = self.evaluate_document( task, line )
+            results = self.evaluate_document( task, line, fewshot, fewshot_allsys )
             correct_list.append( results[ 'references' ] )
             answer_list.append( results[ 'predictions' ] )
         

@@ -62,6 +62,37 @@ class InstructionFormatter():
             'test_mask': outputs[ 'test_mask' ] + [ False ],
         }
     
+    def _remove_system_msgs( self, msgs: list[dict] ):
+        return [ msg for msg in msgs if msg[ 'role' ] != 'system' ]
+    
+    def tokenize_chat_fewshot(
+        self,
+        target_conversation: list[dict],
+        fewshot_list: list[list[dict]],
+        fewshow_allsys: bool
+    ):
+        head = fewshot_list[0]
+        body = list( itertools.chain( *fewshot_list[ 1 : ] ) )
+        tail = target_conversation
+
+        if not fewshow_allsys:
+            body = self._remove_system_msgs( body )
+            tail = self._remove_system_msgs( tail )
+        
+        f_outputs = self.apply_chat_template( head + body )
+        t_outputs = self.apply_chat_template( tail )
+
+        f_outputs[ 'train_mask' ] = [ False for _ in f_outputs[ 'train_mask' ] ]
+        f_outputs[ 'test_mask' ] = [ False for _ in f_outputs[ 'test_mask' ] ]
+
+        return {
+            'tokens': [ self.tokenizer.eos_token_id ] + f_outputs[ 'tokens' ] + t_outputs[ 'tokens' ],
+            'targets': f_outputs[ 'tokens' ] + t_outputs[ 'tokens' ] + [ self.tokenizer.eos_token_id ],
+            'train_mask': f_outputs[ 'train_mask' ] + t_outputs[ 'train_mask' ] + [ False ],
+            'test_mask': f_outputs[ 'test_mask' ] + t_outputs[ 'test_mask' ] + [ False ],
+        }
+
+    
     def tokenize_generation( self, conversation: list[dict] ):
         # TODO: assert final message is incomplete
 

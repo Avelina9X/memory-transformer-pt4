@@ -324,6 +324,17 @@ class BaseInstructDataset( ABC ):
             for target in self.format_unlabelled_messages( doc )
         ]
     
+    def create_fewshot_message_list( self, doc: dict ) -> list[list[dict]] | None:
+        """ Creates a list of fewshot messages.
+        
+        Args:
+            doc (dict): the input document.
+        
+        Returns:
+            list[list[dict]]: list of message lists, ready to be formatted and tokenized or None if fewshotting not supported.       
+        """
+        return None
+    
     @abstractmethod
     def create_unlabelled_message_target( self, doc: dict ) -> int | None:
         """ Returns the target index for binary and multi-class tasks.
@@ -351,7 +362,7 @@ class BaseInstructDataset( ABC ):
         ]
     
     """ ========================================================================
-        Message chain functions
+        Metric functions
         ======================================================================== """
     
     @abstractmethod

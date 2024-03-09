@@ -6,6 +6,7 @@ from ..task_base import BaseChoiceInstructDataset, InstructionDatasetTask
 class MMLUInstructDataset( BaseChoiceInstructDataset ):
     def __init__( self, cache_dir: str ):
         self.metric = load_metric( 'accuracy' )
+        self._fewshot_cache = {}
         super().__init__( cache_dir )
 
     def download( self, cache_dir: str ) -> DatasetDict:
@@ -78,6 +79,29 @@ class MMLUInstructDataset( BaseChoiceInstructDataset ):
     
     def create_unlabelled_message_target( self, doc: dict ) -> int:
         return doc['answer']
+    
+    def create_fewshot_message_list( self, doc: dict ) -> list[list[dict]]:
+        # Get subject of document
+        subject = doc[ 'subject' ]
+
+        # Ensure subject isn't empty
+        if subject == '':
+            raise ValueError( 'Subject must be defined for fewshot generation.' )
+
+        # If subject isn't in cache, create the cache entry
+        if subject not in self._fewshot_cache:
+            fewshot_docs = self.get_fewshot_docs().filter( lambda x: x[ 'subject' ] == subject )
+            self._fewshot_cache[subject] = fewshot_docs
+        
+        # Otherwise retrieve from cache
+        else:
+            fewshot_docs = self._fewshot_cache[subject]
+
+        # Construct fewshot message list
+        return [
+            self.create_target_message_list( f_doc )[0]
+            for f_doc in fewshot_docs
+        ]
     
     def compute_metric( self, predictions=None, references=None ) -> dict:
         return self.metric.compute( predictions=predictions, references=references )
