@@ -39,7 +39,7 @@ class InstructionFormatter():
             'test_mask': prefix_test_mask + content_test_mask + suffix_test_mask,
         }
     
-    def apply_chat_template( self, conversation: list[Message] ):
+    def apply_chat_template( self, conversation: MessageList ):
         lines = [ self.apply_chat_template_line( line ) for line in conversation ]
         
         tokens = [ line[ 'tokens' ] for line in lines ]
