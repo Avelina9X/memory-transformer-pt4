@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 from typing import Iterable
 
@@ -14,6 +15,7 @@ class BaseInstructionBatcher:
         model: PreTrainedModel,
         formatter: InstructionFormatter,
         aggregation: str = 'mean',
+        pad_rounding: int = 16,
     ):
         """ Creates an Instruction Batcher for evaluating instruction datasets.
 
@@ -21,10 +23,12 @@ class BaseInstructionBatcher:
             model (PreTrainedModel): Causal Model to evaluate
             formatter (InstructionFormatter): formatter object
             aggregation (str): Desired type of logprob aggregation, 'mean' or 'sum'. Defaults to 'mean'.
+            pad_rounding (int): The multiple for which batches will be padded to. Defaults to 16.
         """
         self.formatter = formatter
         self.model = model
         self.aggregation = aggregation
+        self.pad_rounding = pad_rounding
 
         assert self.aggregation in [ 'mean', 'sum' ], "Aggregation must be one of 'mean' or 'sum'"
     
@@ -84,6 +88,8 @@ class ChoiceInstructionBatcher( BaseInstructionBatcher ):
             tokenized_completions = [ self.formatter.tokenize_chat_fewshot( msgs, fewshot_list, fewshot_allsys ) for msgs in completions ]
 
         max_length = max( len( line[ 'tokens' ] ) for line in tokenized_completions )
+        max_length = math.ceil( max_length / self.pad_rounding ) * self.pad_rounding
+
         pad_token_id = self.formatter.tokenizer.pad_token_id
 
         tokens_list = []
@@ -100,10 +106,10 @@ class ChoiceInstructionBatcher( BaseInstructionBatcher ):
             train_mask = line[ 'train_mask' ] + [ False ] * pad_len
             test_mask = line[ 'test_mask' ] + [ False ] * pad_len
 
-            tokens_list.append( torch.LongTensor( tokens ).to( device=device ) )
-            targets_list.append( torch.LongTensor( targets ).to( device=device ) )
-            train_mask_list.append( torch.BoolTensor( train_mask ).to( device=device ) )
-            test_mask_list.append( torch.BoolTensor( test_mask ).to( device=device ) )
+            tokens_list.append( torch.LongTensor( tokens ).to( device=device, non_blocking=True ) )
+            targets_list.append( torch.LongTensor( targets ).to( device=device, non_blocking=True ) )
+            train_mask_list.append( torch.BoolTensor( train_mask ).to( device=device, non_blocking=True ) )
+            test_mask_list.append( torch.BoolTensor( test_mask ).to( device=device, non_blocking=True ) )
 
         return PreparedChoiceBatch(
             tokens=torch.stack( tokens_list ),
