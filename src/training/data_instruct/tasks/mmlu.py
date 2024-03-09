@@ -9,7 +9,7 @@ class MMLUInstructDataset( BaseChoiceInstructDataset ):
         super().__init__( cache_dir )
 
     def download( self, cache_dir: str ) -> DatasetDict:
-        return load_dataset( 'cais/mmlu', 'all', cache_dir=cache_dir ) # type: ignore
+        return load_dataset( 'cais/mmlu', 'all', cache_dir=cache_dir, revision='7a00892cd331d78a88c8c869d0224a5cdd149848' ) # type: ignore
     
     @property
     def task_type( self ) -> InstructionDatasetTask:
