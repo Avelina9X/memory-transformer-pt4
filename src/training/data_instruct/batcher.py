@@ -131,7 +131,7 @@ class ChoiceInstructionBatcher( BaseInstructionBatcher ):
         correct_index = prepared_batch.correct_index
 
         # Compute per token log probabilites and gather by target token
-        logprobs = logits.log_softmax( -1 ).gather( -1, targets ).squeeze( -1 )
+        logprobs = logits.log_softmax( -1, torch.float32 ).gather( -1, targets ).squeeze( -1 )
 
         # Mask out all other tokens
         masked_logprobs = logprobs * test_mask
