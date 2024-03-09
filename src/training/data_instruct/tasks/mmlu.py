@@ -1,7 +1,7 @@
 from datasets import DatasetDict, Dataset, load_dataset
 from evaluate import load as load_metric
 
-from ..task_base import BaseChoiceInstructDataset, InstructionDatasetTask
+from ..task_base import BaseChoiceInstructDataset, InstructionDatasetTask, Message
 
 class MMLUInstructDataset( BaseChoiceInstructDataset ):
     def __init__( self, cache_dir: str ):
@@ -42,7 +42,7 @@ class MMLUInstructDataset( BaseChoiceInstructDataset ):
         return self.dataset[ 'dev' ]
         
     
-    def format_user_message( self, doc: dict ) -> dict:
+    def format_user_message( self, doc: dict ) -> Message:
         prompt = (
             f"Question: {doc['question']}\n"
             f"\n"
@@ -55,21 +55,21 @@ class MMLUInstructDataset( BaseChoiceInstructDataset ):
             f"Answer:"
         )
         
-        return {
-            'role': 'user',
-            'content': prompt,
-            'complete': True,
-        }
+        return Message(
+            role='user',
+            content=prompt,
+            complete=True,
+        )
 
-    def _format_single_target( self, doc: dict ) -> dict:
+    def _format_single_target( self, doc: dict ) -> Message:
         option = [ 'A', 'B', 'C', 'D' ][ doc[ 'answer' ] ]
         choice = doc[ 'choices' ][ doc[ 'answer' ] ]
         prompt = f'{option}. {choice}'
-        return {
-            'role': 'assistant',
-            'content': prompt,
-            'complete': True,
-        }
+        return Message(
+            role='assistant',
+            content=prompt,
+            complete=True,
+        )
     
     def _get_choices( self, doc: dict ) -> list:
         return [ 0, 1, 2, 3 ]
@@ -80,7 +80,7 @@ class MMLUInstructDataset( BaseChoiceInstructDataset ):
     def create_unlabelled_message_target( self, doc: dict ) -> int:
         return doc['answer']
     
-    def create_fewshot_message_list( self, doc: dict ) -> list[list[dict]]:
+    def create_fewshot_message_list( self, doc: dict ) -> list[list[Message]]:
         # Get subject of document
         subject = doc[ 'subject' ]
 

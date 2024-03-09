@@ -1,7 +1,7 @@
 from datasets import DatasetDict, Dataset, load_dataset
 from evaluate import load as load_metric
 
-from ..task_base import BaseChoiceInstructDataset, InstructionDatasetTask
+from ..task_base import BaseChoiceInstructDataset, InstructionDatasetTask, Message
 
 class RaceInstructDataset( BaseChoiceInstructDataset ):
     def __init__( self, split: str, cache_dir: str ):
@@ -42,7 +42,7 @@ class RaceInstructDataset( BaseChoiceInstructDataset ):
         return None
 
     
-    def format_user_message( self, doc: dict ) -> dict:
+    def format_user_message( self, doc: dict ) -> Message:
         prompt = (
             f"Background: {doc['article']}\n"
             f"\n"
@@ -57,20 +57,20 @@ class RaceInstructDataset( BaseChoiceInstructDataset ):
             f"Answer:"
         )
         
-        return {
-            'role': 'user',
-            'content': prompt,
-            'complete': True,
-        }
+        return Message(
+            role='user',
+            content=prompt,
+            complete=True,
+        )
     
-    def _format_single_target( self, doc: dict ) -> dict:
+    def _format_single_target( self, doc: dict ) -> Message:
         idx = self.create_unlabelled_message_target( doc )
         prompt = doc['answer'] + '. ' + doc['options'][idx]
-        return {
-            'role': 'assistant',
-            'content': prompt,
-            'complete': True,
-        }
+        return Message(
+            role='assistant',
+            content=prompt,
+            complete=True,
+        )
     
     def _get_choices( self, doc: dict ) -> list:
         return [ 'A', 'B', 'C', 'D' ]

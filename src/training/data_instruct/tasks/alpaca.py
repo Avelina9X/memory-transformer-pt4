@@ -1,7 +1,7 @@
 from datasets import DatasetDict, Dataset, load_dataset
 from evaluate import load as load_metric
 
-from ..task_base import BaseInstructDataset, InstructionDatasetTask
+from ..task_base import BaseInstructDataset, InstructionDatasetTask, Message
 
 class AlpacaInstructDataset( BaseInstructDataset ):
     def download( self, cache_dir: str ) -> DatasetDict:
@@ -32,7 +32,7 @@ class AlpacaInstructDataset( BaseInstructDataset ):
         return None
     
 
-    def format_system_message( self, doc: dict ) -> dict[str, str | bool]:
+    def format_system_message( self, doc: dict ) -> Message:
         prompt_nocontext = (
             'Below is an instruction that describes a task. '
             'Write a response that appropriately completes the request.'
@@ -42,13 +42,13 @@ class AlpacaInstructDataset( BaseInstructDataset ):
             'Write a response that appropriately completes the request.'
         )
 
-        return {
-            'role': 'system',
-            'content': prompt_context if len( doc['input'] ) > 0 else prompt_nocontext,
-            'complete': True,
-        }
+        return Message(
+            role='system',
+            content=prompt_context if len( doc['input'] ) > 0 else prompt_nocontext,
+            complete=True,
+        )
 
-    def format_user_message( self, doc: dict ) -> dict:
+    def format_user_message( self, doc: dict ) -> Message:
         prompt = (
             f'Instruction:\n'
             f'{doc["instruction"]}\n'
@@ -66,23 +66,23 @@ class AlpacaInstructDataset( BaseInstructDataset ):
             'Answer:'
         )
         
-        return {
-            'role': 'user',
-            'content': prompt,
-            'complete': True,
-        }
+        return Message(
+            role='user',
+            content=prompt,
+            complete=True,
+        )
 
-    def format_target_messages( self, doc: dict ) -> list[dict]:
-        return [ {
-            'role': 'assistant',
-            'content': doc['output'],
-            'complete': True,
-        } ]
+    def format_target_messages( self, doc: dict ) -> list[Message]:
+        return [ Message(
+            role='assistant',
+            content=doc['output'],
+            complete=True,
+        ) ]
     
-    def format_distractor_messages( self, doc: dict ) -> list[dict]:
+    def format_distractor_messages( self, doc: dict ) -> list[Message]:
         return []
     
-    def format_unlabelled_messages( self, doc: dict ) -> list[dict]:
+    def format_unlabelled_messages( self, doc: dict ) -> list[Message]:
         return []
     
     def create_unlabelled_message_target( self, doc: dict ) -> None:

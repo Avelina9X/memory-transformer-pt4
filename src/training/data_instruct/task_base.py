@@ -4,6 +4,7 @@ Module containing iterable datasets used to finetune and test LSWTransformer mod
 
 from abc import ABC, abstractmethod
 from enum import Enum
+from dataclasses import dataclass
 
 from datasets import DatasetDict, Dataset
 from evaluate import CombinedEvaluations, EvaluationModule
@@ -36,7 +37,11 @@ class InstructionDatasetTask( Enum ):
         """ Short description of the task type """
         return self._description_
 
-
+@dataclass
+class Message:
+    role: str
+    content: str
+    complete: bool
 
 class BaseInstructDataset( ABC ):
     
@@ -147,7 +152,7 @@ class BaseInstructDataset( ABC ):
         Message format functions
         ======================================================================== """
     
-    def format_system_message( self, doc: dict ) -> dict[str, str | bool]:
+    def format_system_message( self, doc: dict ) -> Message:
         """ Creates a system message from a document.
         
         Args:
@@ -199,85 +204,85 @@ class BaseInstructDataset( ABC ):
             case _:
                 raise NotImplementedError( 'Subclasses should implement this system message' )
         
-        return {
-            'role': 'system',
-            'content': prompt,
-            'complete': True,
-        }
+        return Message(
+            role='system',
+            content=prompt,
+            complete=True
+        )
     
     @abstractmethod
-    def format_user_message( self, doc: dict ) -> dict:
+    def format_user_message( self, doc: dict ) -> Message:
         """ Creates a user input message from a document.
         
         Args:
             doc (dict): the input document.
         
         Returns:
-            dict: single line in the message list, ready to be formatted and tokenized.       
+            Message: single line in the message list, ready to be formatted and tokenized.       
         """
     
     @abstractmethod
-    def format_target_messages( self, doc: dict ) -> list[dict]:
+    def format_target_messages( self, doc: dict ) -> list[Message]:
         """ Creates a list of candidate assistant output messages.
         
         Args:
             doc (dict): the input document.
         
         Returns:
-            dict: list of message dicts.       
+            list[Message]: list of messags.       
         """
     
     @abstractmethod
-    def format_distractor_messages( self, doc: dict ) -> list[dict]:
+    def format_distractor_messages( self, doc: dict ) -> list[Message]:
         """ Creates a list of alternate or false assistant output messages.
         
         Args:
             doc (dict): the input document.
         
         Returns:
-            dict: list of message dicts.       
+            list[Message]: list of messags.       
         """
     
     @abstractmethod
-    def format_unlabelled_messages( self, doc: dict ) -> list[dict]:
+    def format_unlabelled_messages( self, doc: dict ) -> list[Message]:
         """ Creates a list of all possible assistant output messages.
         
         Args:
             doc (dict): the input document.
         
         Returns:
-            dict: list of message dicts.       
+            list[Message]: list of messages.       
         """
     
-    def format_generation_message( self, doc: dict ) -> dict:
+    def format_generation_message( self, doc: dict ) -> Message:
         """ Creates an open ended output message from a document, ready for generation.
         
         Args:
             doc (dict): the input document.
         
         Returns:
-            dict: single line in the message list, ready to be formatted and tokenized.       
+            Message: single line in the message list, ready to be formatted and tokenized.       
         """
         _ = doc
-        return {
-            'role': 'assistant',
-            'content': '',
-            'complete': False,
-        }
+        return Message(
+            role='assistant',
+            content='',
+            complete=False,
+        )
     
     
     """ ========================================================================
         Message chain functions
         ======================================================================== """
     
-    def create_target_message_list( self, doc: dict ) -> list[list[dict]]:
+    def create_target_message_list( self, doc: dict ) -> list[list[Message]]:
         """ Creates a message list with the gold standard target. Use for SFT.
         
         Args:
             doc (dict): the input document.
         
         Returns:
-            list[dict]: message list, ready to be formatted and tokenized.       
+            list[list[Message]]: message list, ready to be formatted and tokenized.       
         """
         return [
             [
@@ -288,14 +293,14 @@ class BaseInstructDataset( ABC ):
             for target in self.format_target_messages( doc )
         ]
     
-    def create_distractor_message_list( self, doc: dict ) -> list[list[dict]]:
+    def create_distractor_message_list( self, doc: dict ) -> list[list[Message]]:
         """ Creates a list of message lists with the incorrect targets. Use for testing or contrastive training.
         
         Args:
             doc (dict): the input document.
         
         Returns:
-            list[list[dict]]: list of message lists, ready to be formatted and tokenized.       
+            list[list[Message]]: list of message lists, ready to be formatted and tokenized.       
         """
         return [
             [
@@ -306,14 +311,14 @@ class BaseInstructDataset( ABC ):
             for target in self.format_distractor_messages( doc )
         ]
     
-    def create_unlabelled_message_list( self, doc: dict ) -> list[list[dict]]:
+    def create_unlabelled_message_list( self, doc: dict ) -> list[list[Message]]:
         """ Creates a list of message which may be true or false. Use for testing.
         
         Args:
             doc (dict): the input document.
         
         Returns:
-            list[list[dict]]: list of message lists, ready to be formatted and tokenized.       
+            list[list[Message]]: list of message lists, ready to be formatted and tokenized.       
         """
         return [
             [
@@ -324,14 +329,14 @@ class BaseInstructDataset( ABC ):
             for target in self.format_unlabelled_messages( doc )
         ]
     
-    def create_fewshot_message_list( self, doc: dict ) -> list[list[dict]]:
+    def create_fewshot_message_list( self, doc: dict ) -> list[list[Message]]:
         """ Creates a list of fewshot messages.
         
         Args:
             doc (dict): the input document.
         
         Returns:
-            list[list[dict]]: list of message lists, ready to be formatted and tokenized.       
+            list[list[Message]]: list of message lists, ready to be formatted and tokenized.       
         """
         raise NotImplementedError( 'This class does support fewshot evaluation.' )
     
@@ -346,14 +351,14 @@ class BaseInstructDataset( ABC ):
             int | None: The correct target index.      
         """
     
-    def create_generation_messages( self, doc: dict ) -> list[dict]:
+    def create_generation_messages( self, doc: dict ) -> list[Message]:
         """ Creates a message list with a (potentially) blank assistant message for answer generation.
         
         Args:
             doc (dict): the input document.
         
         Returns:
-            list[dict]: message list, ready to be formatted and tokenized.       
+            list[Message]: message list, ready to be formatted and tokenized.       
         """
         return [
             self.format_system_message( doc ),
@@ -408,30 +413,30 @@ class BaseChoiceInstructDataset( BaseInstructDataset ):
         """
     
     @abstractmethod
-    def _format_single_target( self, doc: dict ) -> dict:
+    def _format_single_target( self, doc: dict ) -> Message:
         """ Returns a single message dict for the target answer, correct or incorrect.
 
         Args:
             doc (dict): the input document.
         
         Returns:
-            dict: single line in the message list, ready to be formatted and tokenized.
+            Message: single line in the message list, ready to be formatted and tokenized.
         """
 
-    def format_unlabelled_messages( self, doc: dict ) -> list[dict]:      
+    def format_unlabelled_messages( self, doc: dict ) -> list[Message]:      
         return [
             self._format_single_target( dict( doc, **{ self._get_label_key() : i } ) )
             for i in self._get_choices( doc )
         ]
 
-    def format_target_messages( self, doc: dict ) -> list[dict]:
+    def format_target_messages( self, doc: dict ) -> list[Message]:
         return [
             msg
             for i, msg in enumerate( self.format_unlabelled_messages( doc ) )
             if i == self.create_unlabelled_message_target( doc )
         ]
 
-    def format_distractor_messages( self, doc: dict ) -> list[dict]:
+    def format_distractor_messages( self, doc: dict ) -> list[Message]:
         return [
             msg
             for i, msg in enumerate( self.format_unlabelled_messages( doc ) )

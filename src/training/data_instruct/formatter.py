@@ -1,6 +1,8 @@
 import itertools
 from transformers import PreTrainedTokenizerBase
 
+from .task_base import Message
+
 class InstructionFormatter():
     def __init__( self, tokenizer: PreTrainedTokenizerBase ):
         self.tokenizer = tokenizer
@@ -10,10 +12,10 @@ class InstructionFormatter():
         assert isinstance( output, list )
         return output
     
-    def apply_chat_template_line( self, message: dict ):
-        role = message[ 'role' ]
-        content = message[ 'content' ]
-        complete = message[ 'complete' ]
+    def apply_chat_template_line( self, message: Message ):
+        role = message.role
+        content = message.content
+        complete = message.complete
         
         # TODO: assertions for role and completion
         
@@ -37,7 +39,7 @@ class InstructionFormatter():
             'test_mask': prefix_test_mask + content_test_mask + suffix_test_mask,
         }
     
-    def apply_chat_template( self, conversation: list[dict] ):
+    def apply_chat_template( self, conversation: list[Message] ):
         lines = [ self.apply_chat_template_line( line ) for line in conversation ]
         
         tokens = [ line[ 'tokens' ] for line in lines ]
@@ -50,7 +52,7 @@ class InstructionFormatter():
             'test_mask': list( itertools.chain( *test_mask ) ),
         }
     
-    def tokenize_chat( self, conversation: list[dict] ):
+    def tokenize_chat( self, conversation: list[Message] ):
         # TODO: assert final message is complete
 
         outputs = self.apply_chat_template( conversation )
@@ -62,13 +64,13 @@ class InstructionFormatter():
             'test_mask': outputs[ 'test_mask' ] + [ False ],
         }
     
-    def _remove_system_msgs( self, msgs: list[dict] ):
-        return [ msg for msg in msgs if msg[ 'role' ] != 'system' ]
+    def _remove_system_msgs( self, msgs: list[Message] ):
+        return [ msg for msg in msgs if msg.role != 'system' ]
     
     def tokenize_chat_fewshot(
         self,
-        target_conversation: list[dict],
-        fewshot_list: list[list[dict]],
+        target_conversation: list[Message],
+        fewshot_list: list[list[Message]],
         fewshow_allsys: bool
     ):
         head = fewshot_list[0]
@@ -93,7 +95,7 @@ class InstructionFormatter():
         }
 
     
-    def tokenize_generation( self, conversation: list[dict] ):
+    def tokenize_generation( self, conversation: list[Message] ):
         # TODO: assert final message is incomplete
 
         outputs = self.apply_chat_template( conversation )

@@ -1,7 +1,7 @@
 from datasets import DatasetDict, Dataset, load_dataset
 from evaluate import load as load_metric
 
-from ..task_base import BaseChoiceInstructDataset, InstructionDatasetTask
+from ..task_base import BaseChoiceInstructDataset, InstructionDatasetTask, Message
 
 class GlueBaseInstructDataset( BaseChoiceInstructDataset ):
     def __init__( self, cache_dir: str ):
@@ -57,7 +57,7 @@ class GlueColaInstructDataset( GlueBaseInstructDataset ):
     def task_name( self ) -> str:
         return 'cola'
     
-    def format_user_message( self, doc: dict ) -> dict:
+    def format_user_message( self, doc: dict ) -> Message:
         prompt = (
             f'Given the following sentence, answer the question with "yes" or "no".\n'
             f'\n'
@@ -68,18 +68,18 @@ class GlueColaInstructDataset( GlueBaseInstructDataset ):
             f'Answer:'
         )
         
-        return {
-            'role': 'user',
-            'content': prompt,
-            'complete': True,
-        }
+        return Message(
+            role='user',
+            content=prompt,
+            complete=True,
+        )
     
-    def _format_single_target( self, doc: dict ) -> dict:
-        return {
-            'role': 'assistant',
-            'content': [ 'no', 'yes' ][ doc['label'] ],
-            'complete': True,
-        }
+    def _format_single_target( self, doc: dict ) -> Message:
+        return Message(
+            role='assistant',
+            content=[ 'no', 'yes' ][ doc['label'] ],
+            complete=True,
+        )
     
     def _get_choices( self, doc: dict ) -> list:
         return [ 0, 1 ]
@@ -110,7 +110,7 @@ class GlueMNLIInstructDataset( GlueBaseInstructDataset ):
     def get_test_docs( self ) -> None:
         return None
     
-    def format_user_message( self, doc: dict ) -> dict:
+    def format_user_message( self, doc: dict ) -> Message:
         prompt = (
             f'Given a premise statement and a hypothesis statment, '
             f'respond with "True" if the premise entails the hypothesis, '
@@ -126,18 +126,18 @@ class GlueMNLIInstructDataset( GlueBaseInstructDataset ):
             f'Answer:'
         )
         
-        return {
-            'role': 'user',
-            'content': prompt,
-            'complete': True,
-        }
+        return Message(
+            role='user',
+            content=prompt,
+            complete=True,
+        )
     
-    def _format_single_target( self, doc: dict ) -> dict:
-        return {
-            'role': 'assistant',
-            'content': [  'True', 'Neither', 'False' ][ doc['label'] ],
-            'complete': True,
-        }
+    def _format_single_target( self, doc: dict ) -> Message:
+        return Message(
+            role='assistant',
+            content=[ 'True', 'Neither', 'False' ][ doc['label'] ],
+            complete=True,
+        )
     
     def _get_choices( self, doc: dict ) -> list:
         return [ 0, 1, 2 ]
@@ -183,7 +183,7 @@ class GlueMRPCInstructDataset( GlueBaseInstructDataset ):
     def task_name( self ) -> str:
         return 'mrpc'
     
-    def format_user_message( self, doc: dict ) -> dict:
+    def format_user_message( self, doc: dict ) -> Message:
         prompt = (
             f'Given the following sentences, answer the question with "yes" or "no".\n'
             f'\n'
@@ -196,18 +196,18 @@ class GlueMRPCInstructDataset( GlueBaseInstructDataset ):
             f'Answer:'
         )
         
-        return {
-            'role': 'user',
-            'content': prompt,
-            'complete': True,
-        }
+        return Message(
+            role='user',
+            content=prompt,
+            complete=True,
+        )
     
-    def _format_single_target( self, doc: dict ) -> dict:
-        return {
-            'role': 'assistant',
-            'content': [ 'no', 'yes' ][ doc['label'] ],
-            'complete': True,
-        }
+    def _format_single_target( self, doc: dict ) -> Message:
+        return Message(
+            role='assistant',
+            content=[ 'no', 'yes' ][ doc['label'] ],
+            complete=True,
+        )
     
     def _get_choices( self, doc: dict ) -> list:
         return [ 0, 1 ]
@@ -223,7 +223,7 @@ class GlueQNLIInstructDataset( GlueBaseInstructDataset ):
     def task_name( self ) -> str:
         return 'qnli'
 
-    def format_user_message( self, doc: dict ) -> dict:
+    def format_user_message( self, doc: dict ) -> Message:
         prompt = (
             f'Given the following sentences, answer the question with "yes" or "no".\n'
             f'\n'
@@ -236,18 +236,18 @@ class GlueQNLIInstructDataset( GlueBaseInstructDataset ):
             f'Answer:'
         )
         
-        return {
-            'role': 'user',
-            'content': prompt,
-            'complete': True,
-        }
+        return Message(
+            role='user',
+            content=prompt,
+            complete=True,
+        )
     
-    def _format_single_target( self, doc: dict ) -> dict:
-        return {
-            'role': 'assistant',
-            'content': [ 'yes', 'no' ][ doc['label'] ],
-            'complete': True,
-        }
+    def _format_single_target( self, doc: dict ) -> Message:
+        return Message(
+            role='assistant',
+            content=[ 'yes', 'no' ][ doc['label'] ],
+            complete=True,
+        )
     
     def _get_choices( self, doc: dict ) -> list:
         return [ 0, 1 ]
@@ -263,7 +263,7 @@ class GlueQQPInstructDataset( GlueBaseInstructDataset ):
     def task_name( self ) -> str:
         return 'qqp'
     
-    def format_user_message( self, doc: dict ) -> dict:
+    def format_user_message( self, doc: dict ) -> Message:
         prompt = (
             f'Given the following sentences, answer the question with "yes" or "no".\n'
             f'\n'
@@ -276,18 +276,18 @@ class GlueQQPInstructDataset( GlueBaseInstructDataset ):
             f'Answer:'
         )
         
-        return {
-            'role': 'user',
-            'content': prompt,
-            'complete': True,
-        }
+        return Message(
+            role='user',
+            content=prompt,
+            complete=True,
+        )
     
-    def _format_single_target( self, doc: dict ) -> dict:
-        return {
-            'role': 'assistant',
-            'content': [ 'no', 'yes' ][ doc['label'] ],
-            'complete': True,
-        }
+    def _format_single_target( self, doc: dict ) -> Message:
+        return Message(
+            role='assistant',
+            content=[ 'no', 'yes' ][ doc['label'] ],
+            complete=True,
+        )
     
     def _get_choices( self, doc: dict ) -> list:
         return [ 0, 1 ]
@@ -303,7 +303,7 @@ class GlueRTEInstructDataset( GlueBaseInstructDataset ):
     def task_name( self ) -> str:
         return 'rte'
     
-    def format_user_message( self, doc: dict ) -> dict:
+    def format_user_message( self, doc: dict ) -> Message:
         prompt = (
             f'Given the following sentences, answer the question with "yes" or "no".\n'
             f'\n'
@@ -316,18 +316,18 @@ class GlueRTEInstructDataset( GlueBaseInstructDataset ):
             f'Answer:'
         )
         
-        return {
-            'role': 'user',
-            'content': prompt,
-            'complete': True,
-        }
+        return Message(
+            role='user',
+            content=prompt,
+            complete=True,
+        )
     
-    def _format_single_target( self, doc: dict ) -> dict:
-        return {
-            'role': 'assistant',
-            'content': [ 'yes', 'no' ][ doc['label'] ],
-            'complete': True,
-        }
+    def _format_single_target( self, doc: dict ) -> Message:
+        return Message(
+            role='assistant',
+            content=[ 'yes', 'no' ][ doc['label'] ],
+            complete=True,
+        )
     
     def _get_choices( self, doc: dict ) -> list:
         return [ 0, 1 ]
@@ -343,7 +343,7 @@ class GlueSST2InstructDataset( GlueBaseInstructDataset ):
     def task_name( self ) -> str:
         return 'sst2'
     
-    def format_user_message( self, doc: dict ) -> dict:
+    def format_user_message( self, doc: dict ) -> Message:
         prompt = (
             f'Given the following sentence, answer the question with "positive" or "negative".\n'
             f'\n'
@@ -354,18 +354,18 @@ class GlueSST2InstructDataset( GlueBaseInstructDataset ):
             f'Answer:'
         )
         
-        return {
-            'role': 'user',
-            'content': prompt,
-            'complete': True,
-        }
+        return Message(
+            role='user',
+            content=prompt,
+            complete=True,
+        )
     
-    def _format_single_target( self, doc: dict ) -> dict:
-        return {
-            'role': 'assistant',
-            'content': [ 'negative', 'positive' ][ doc['label'] ],
-            'complete': True,
-        }
+    def _format_single_target( self, doc: dict ) -> Message:
+        return Message(
+            role='assistant',
+            content=[ 'negative', 'positive' ][ doc['label'] ],
+            complete=True,
+        )
     
     def _get_choices( self, doc: dict ) -> list:
         return [ 0, 1 ]
@@ -381,7 +381,7 @@ class GlueWNLIInstructDataset( GlueBaseInstructDataset ):
     def task_name( self ) -> str:
         return 'wnli'
     
-    def format_user_message( self, doc: dict ) -> dict:
+    def format_user_message( self, doc: dict ) -> Message:
         prompt = (
             f'Given the following sentences, answer the question with "yes" or "no".\n'
             f'\n'
@@ -394,18 +394,18 @@ class GlueWNLIInstructDataset( GlueBaseInstructDataset ):
             f'Answer:'
         )
         
-        return {
-            'role': 'user',
-            'content': prompt,
-            'complete': True,
-        }
+        return Message(
+            role='user',
+            content=prompt,
+            complete=True,
+        )
     
-    def _format_single_target( self, doc: dict ) -> dict:
-        return {
-            'role': 'assistant',
-            'content': [ 'no', 'yes' ][ doc['label'] ],
-            'complete': True,
-        }
+    def _format_single_target( self, doc: dict ) -> Message:
+        return Message(
+            role='assistant',
+            content=[ 'no', 'yes' ][ doc['label'] ],
+            complete=True,
+        )
     
     def _get_choices( self, doc: dict ) -> list:
         return [ 0, 1 ]
