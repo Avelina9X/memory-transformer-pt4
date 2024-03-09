@@ -76,7 +76,7 @@ class ChoiceInstructionBatcher( BaseInstructionBatcher ):
             fewshot (bool): If fewshot testing should be enabled.
             fewshot_allsys (bool): If all message groups should contain a system message
         Returns:
-            PreparedChoiceBatch: _description_
+            PreparedChoiceBatch: Batch of tokens, targets and masks, all moved to device.
         """
         completions = task.create_unlabelled_message_list( target_doc )
         correct = task.create_unlabelled_message_target( target_doc )
