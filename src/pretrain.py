@@ -70,15 +70,15 @@ def train(
         wandb_tags (list[str] | None, optional): Tags to add to wandb run. Defaults to None.
         wandb_run_name (str | None, optional): Optional wandb run name. Defaults to None.
     """
-    
+
     # Set manual seed for reproducibility
     torch.manual_seed( 0 )
-    
+
     # Set some performance flags
     torch.backends.cuda.matmul.allow_tf32 = True # type: ignore # pylint: disable=W0212
     torch.backends.cudnn.allow_tf32 = True # type: ignore # pylint: disable=W0212
     torch._dynamo.config.cache_size_limit = 1024 * 1024 # type: ignore # pylint: disable=W0212
-    
+
     # Setup ddp if world size is greater than 1
     if world_size > 1:
         ddp_setup( rank, world_size )
@@ -102,28 +102,28 @@ def train(
     # Get and update model configs
     model_config = LSWTConfig()
     train_config = LSWTConfigTraining()
-    
+
     # Update original config
     if rank == 0:
         train_utils.modify_dicts( wandb.config, model_config, train_config )
     else:
         train_utils.modify_dicts( config, model_config, train_config ) # type: ignore
-    
+
     # Because of RNG stuff, we need to init the model without registers. Create config without registers
     init_model_config = copy.deepcopy( model_config )
     init_model_config.n_registers = 0
-    
+
     # Create model as normal, but with reigsters disabled
     parent_embeddings = embedding_loader( model_config, cache_dir=HF_CACHE_DIR )
     init_model = LSWTForCausalLM( init_model_config, parent_embeddings )
-    
+
     # Create model as normal, but with register enabled and copy contents
     model = LSWTForCausalLM( model_config, parent_embeddings )
     state_dict_diff = model.load_state_dict( init_model.state_dict(), strict=False )
     rich.print( state_dict_diff )
-    
+
     # Place model on CUDA
-    model = model.cuda()
+    model = model.cuda() # type: ignore
 
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained( model_config.parent_embeddings, use_fast=True, cache_dir=HF_CACHE_DIR )
@@ -169,7 +169,7 @@ def train(
     # Train loop
     for i in range( trainer.get_total_epochs() ):
         train_metrics = trainer.train_epoch( iterator, i + 1 )
-        
+
         # If on first machine, do validation loop and log metrics
         if rank == 0:
             valid_metrics_wikitext = evaluator.eval_epoch( dataset_wikitext, 'page', train_config.length_sequence )
@@ -192,34 +192,34 @@ def train(
         wandb.log( test_log )
 
         train_utils.save_model( model, log_wandb=( wandb_mode == 'online' ) ) # type: ignore
-        
+
         wandb.finish()
-    
+
     # Cleanup ddp if world size is greater than 1
     if world_size > 1:
         ddp_cleanup()
 
 def run():
     argparser = argparse.ArgumentParser()
-    
+
     argparser.add_argument(
         '-c',
         '--config',
         type=lambda x: glob.glob( x, flags=glob.BRACE ),
         required=True
     )
-    
+
     argparser.add_argument(
         '-w',
         '--wmode',
         default='disabled',
         choices=[ 'online', 'offline', 'disabled' ]
     )
-    
+
     arguments = argparser.parse_args()
-    
+
     config = train_utils.parse_yaml_config( arguments.config )
-    
+
     if torch.cuda.device_count() == 1:
         train( config=config, wandb_mode=arguments.wmode, wandb_tags=[ 'rerope_tests' ], wandb_run_name=config[ 'meta.run_name' ] )
     else:
@@ -236,5 +236,5 @@ def run():
             join=True,
         )
 
-if __name__ == '__main__':    
+if __name__ == '__main__':
     run()

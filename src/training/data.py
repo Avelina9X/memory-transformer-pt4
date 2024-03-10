@@ -224,8 +224,11 @@ class HFShardDataset( IterableDataset ):
 
     @classmethod
     def line_parser( cls, df_conf: HFDatasetConfig, shard_idx: int, shard_max: int ):
-        dataset = load_dataset( df_conf.dataset_name, name=df_conf.dataset_sub_name, split=df_conf.dataset_split, cache_dir=df_conf.cache_dir, trust_remote_code=True ).shard( shard_max, shard_idx )
+        dataset = load_dataset( df_conf.dataset_name, name=df_conf.dataset_sub_name, split=df_conf.dataset_split, cache_dir=df_conf.cache_dir, trust_remote_code=True )
+        assert isinstance( dataset, HFDataset )
+        dataset = dataset.shard( shard_max, shard_idx )
         for line in iter( dataset ):
+            assert isinstance( line, dict )
             yield line[ df_conf.dataset_key ]
 
     @classmethod
