@@ -82,7 +82,8 @@ class ChoiceInstructionBatcher( BaseInstructionBatcher ):
         completions = task.create_unlabelled_message_list( target_doc )
         correct = task.create_unlabelled_message_target( target_doc )
 
-        assert isinstance( correct, int ), 'Message targets must be defined!'
+        if not isinstance( correct, int ):
+            raise ValueError( 'Message targets must be defined!' )
 
         if fewshot is False:
             tokenized_completions = [ self.formatter.tokenize_chat( msgs ) for msgs in completions ]
