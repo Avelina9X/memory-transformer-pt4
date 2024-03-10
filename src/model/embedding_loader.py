@@ -47,8 +47,9 @@ def embedding_loader( config: LSWTConfig, cache_dir: str | None=None ) -> torch.
     """
     embeddings = _load_embeddings( config.parent_embeddings, cache_dir )
 
-    # TODO: swap assertions for exceptions
-    assert embeddings.num_embeddings == config.vocab_size, 'Loaded embeddings vocab size =/= config.vocab_size'
-    assert embeddings.embedding_dim == config.d_vocab, 'Loaded embeddings dim =/= config.d_model'
+    if embeddings.num_embeddings != config.vocab_size:
+        raise ValueError( 'Loaded embeddings vocab size =/= config.vocab_size' )
+    if embeddings.embedding_dim != config.d_vocab:
+        raise ValueError( 'Loaded embeddings dim =/= config.d_model' )
 
     return embeddings.weight # type: ignore

@@ -30,7 +30,8 @@ class BaseInstructionBatcher:
         self.aggregation = aggregation
         self.pad_rounding = pad_rounding
 
-        assert self.aggregation in [ 'mean', 'sum' ], "Aggregation must be one of 'mean' or 'sum'"
+        if aggregation not in [ 'mean', 'sum' ]:
+            raise ValueError( f'Aggregation must be `mean` or `sum` but got `{aggregation}`' )
 
     def aggregate( self, logprobs: torch.Tensor, mask: torch.Tensor ) -> torch.Tensor:
         """ Aggregates log probabilities based on a mask and reduction type.

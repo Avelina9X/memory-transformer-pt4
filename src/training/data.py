@@ -149,7 +149,9 @@ class PileDataset( IterableDataset ):
         self.dir_pattern = dir_pattern
         self.pile_shards = pile_shards or list( range( 30 ) )
 
-        assert batch_size % len( self.pile_shards ) == 0, 'batch size must be divisible by pile shard count'
+        if batch_size % len( self.pile_shards ) != 0:
+            raise ValueError( 'batch size must be divisible by pile shard count' )
+
         self.shards_per_file = batch_size // len( self.pile_shards )
 
     def __iter__( self ):
@@ -303,7 +305,8 @@ class HFBatchDataset( IterableDataset ):
         self.dataset_config = dataset_config
         self.num_proc = num_proc
 
-        assert ( batch_size % self.num_proc ) == 0, 'batch size must be divisible by num_proc'
+        if ( batch_size % self.num_proc ) != 0:
+            raise ValueError( 'batch size must be divisible by num_proc' )
 
     def __iter__( self ):
         gen = [

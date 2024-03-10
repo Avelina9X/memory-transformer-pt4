@@ -16,14 +16,14 @@ from transformers import PretrainedConfig
 class LSWTConfig( PretrainedConfig ):
     """
     Configuration class for the LSWTransformer architecture.
-    
+
     Class attributes:
         - model_type: the model type prefix
     """
 
     model_type = "lsw_transformer"
     keys_to_ignore_at_inference = [ "past_key_values" ]
-    
+
     attribute_map = {
         'hidden_size': 'd_model',
         'num_attention_heads': 'n_heads',
@@ -48,7 +48,7 @@ class LSWTConfig( PretrainedConfig ):
 
         gated_ffn=True,
         gated_att=False,
-        
+
         qk_norm=False,
 
         enable_bias=True,
@@ -74,7 +74,7 @@ class LSWTConfig( PretrainedConfig ):
         eos_token_id=2,
 
         use_cache=True,
-        
+
         recompute_kv=False,
 
         parent_embeddings='facebook/opt-125m',
@@ -97,7 +97,7 @@ class LSWTConfig( PretrainedConfig ):
 
             gated_ffn (bool): Weather to use SwiGLU in the FFN. When disabled uses GELU. Defaults to True.
             gated_att (bool): Enables head gating (currently not implemented). Defaults to False. TODO: implement attention gating.
-            
+
             qk_norm (bool): Apply per-head RMS norm to the queries and keys. Defaults to False.
 
             enable_bias (bool): Enables bias terms in all backbone projections. Embedding projections never use bias. Defaults to True.
@@ -151,7 +151,7 @@ class LSWTConfig( PretrainedConfig ):
         # Gating settings
         self.gated_ffn = gated_ffn
         self.gated_att = gated_att
-        
+
         # RMS norm for qk
         self.qk_norm = qk_norm
 
@@ -185,7 +185,8 @@ class LSWTConfig( PretrainedConfig ):
         self.parent_embeddings = parent_embeddings
 
         # Assertions
-        assert d_model % n_heads == 0, 'd_model must be divisible by n_heads'
+        if d_model % n_heads != 0:
+            raise ValueError( 'd_model must be divisible by n_heads' )
 
     def to_wandb_dict( self, prefix='model' ) -> dict[str, Any]:
         """ Serializes this instance to WandB style dict.
@@ -285,8 +286,10 @@ class LSWTConfigTraining():
         self.loss_sim_margin=loss_sim_margin
 
         # Assertions
-        assert batch_size % batch_size_step == 0, 'batch_size must be divisible by batch_size_step'
-        assert loss_objective in [ 'MLE', 'SimCTG' ], 'loss_objective must be "MLE" or "SimCTG"'
+        if batch_size % batch_size_step != 0:
+            raise ValueError( 'batch_size must be divisible by batch_size_step' )
+        if loss_objective not in [ 'MLE', 'SimCTG' ]:
+            raise ValueError( 'loss_objective must be "MLE" or "SimCTG"' )
 
     def to_json_string( self ) -> str:
         """ Serializes this instance to a JSON string.
