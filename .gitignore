@@ -7,6 +7,7 @@ wandb/
 .vscode/
 
 docker_build.sh
+run-opt.sh
 run.sh
 run1.sh
 run2.sh
