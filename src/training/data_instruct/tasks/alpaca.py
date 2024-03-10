@@ -1,5 +1,4 @@
 from datasets import DatasetDict, Dataset, load_dataset
-from evaluate import load as load_metric
 
 from ..task_base import BaseInstructDataset, InstructionDatasetTask, Message
 
