@@ -5,32 +5,34 @@ from ..task_base import BaseInstructDataset, InstructionDatasetTask, Message
 
 class AlpacaInstructDataset( BaseInstructDataset ):
     def download( self, cache_dir: str ) -> DatasetDict:
-        return load_dataset( 'yahma/alpaca-cleaned', cache_dir=cache_dir )
+        dataset = load_dataset( 'yahma/alpaca-cleaned', cache_dir=cache_dir )
+        assert isinstance( dataset, DatasetDict )
+        return dataset
 
     @property
     def task_type( self ) -> InstructionDatasetTask:
         return InstructionDatasetTask.INSTRUCT_CLOSED
-    
+
     @property
     def group_name( self ) -> str | None:
         return None
-    
+
     @property
     def task_name( self ) -> str:
         return 'alpaca'
-    
+
     def get_training_docs( self ) -> Dataset:
         return self.dataset[ 'train' ]
-    
+
     def get_validation_docs( self ) -> None:
         return None
-    
+
     def get_test_docs( self ) -> None:
         return None
-    
+
     def get_fewshot_docs( self ) -> None:
         return None
-    
+
 
     def format_system_message( self, doc: dict ) -> Message:
         prompt_nocontext = (
@@ -65,7 +67,7 @@ class AlpacaInstructDataset( BaseInstructDataset ):
         prompt += (
             'Answer:'
         )
-        
+
         return Message(
             role='user',
             content=prompt,
@@ -78,16 +80,16 @@ class AlpacaInstructDataset( BaseInstructDataset ):
             content=doc['output'],
             complete=True,
         ) ]
-    
+
     def format_distractor_messages( self, doc: dict ) -> list[Message]:
         return []
-    
+
     def format_unlabelled_messages( self, doc: dict ) -> list[Message]:
         return []
-    
+
     def create_unlabelled_message_target( self, doc: dict ) -> None:
         return None
-    
+
     def compute_metric( self, predictions=None, references=None ) -> dict:
         # TODO: add warning for using compute
         return {}
@@ -97,7 +99,7 @@ def main():
     # pylint: disable=C0415
     import os
     import rich
-    
+
     cache_dir = os.environ[ 'HF_CACHE_DIR' ]
-    
+
     rich.print( AlpacaInstructDataset( cache_dir ) )
