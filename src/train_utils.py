@@ -182,12 +182,12 @@ def parse_yaml_config( files: list[str] ) -> dict:
             for outer_k, outer_v in d.items()
             for inner_k, inner_v in outer_v.items()
         }
-    
+
     config = {}
-    
+
     for file in files:
         with open( file, 'r', encoding='utf-8' ) as f:
             obj = unpack_dict( yaml.load( f, yaml.FullLoader ) )
             config.update( obj )
-    
+
     return config
