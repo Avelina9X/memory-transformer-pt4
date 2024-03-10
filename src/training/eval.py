@@ -10,7 +10,6 @@ from model.modeling import LSWTForCausalLM
 from constants import TORCH_COMPILE_OPTIONS
 
 from .losses import MLELoss, AccuracyMetric
-from .data import OpenOrcaDataset
 
 
 class Eval():

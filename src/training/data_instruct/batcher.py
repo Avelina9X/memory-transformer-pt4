@@ -1,10 +1,10 @@
 import math
 from dataclasses import dataclass
-from typing import Iterable, cast
+from typing import cast
+from collections.abc import Iterable
 
 import torch
 from transformers import PreTrainedModel
-from datasets import Dataset
 
 from .formatter import InstructionFormatter
 from .task_base import BaseChoiceInstructDataset
