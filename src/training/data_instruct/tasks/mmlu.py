@@ -108,7 +108,6 @@ class MMLUInstructDataset( BaseChoiceInstructDataset ):
     def compute_metric( self, predictions=None, references=None ) -> dict:
         metric = self.metric.compute( predictions=predictions, references=references )
         assert metric is not None
-
         return metric
 
 def main():

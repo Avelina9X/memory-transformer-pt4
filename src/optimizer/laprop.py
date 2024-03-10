@@ -32,7 +32,7 @@ class LaProp(torch.optim.Optimizer):
     def supports_memory_efficient_fp16(self):
         return True
 
-    def step(self, closure=None):
+    def step(self, closure=None): # type: ignore
         """Performs a single optimization step.
 
         Arguments:
@@ -70,7 +70,7 @@ class LaProp(torch.optim.Optimizer):
                     if amsgrad:
                         # Maintains max of all exp. moving avg. of sq. grad. values
                         state['max_exp_avg_sq'] = torch.zeros_like(p_data_fp32)
-                    
+
                 else:
                     state['exp_avg'] = state['exp_avg'].type_as(p_data_fp32)
                     state['exp_avg_sq'] = state['exp_avg_sq'].type_as(p_data_fp32)

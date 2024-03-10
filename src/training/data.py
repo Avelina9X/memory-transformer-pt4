@@ -20,7 +20,7 @@ from transformers import PreTrainedTokenizerBase
 class PileShardDataset( IterableDataset ):
     """ Iterable Dataset for a single Pile shard.
     """
-    
+
     def __init__(
         self,
         tokenizer: PreTrainedTokenizerBase,
@@ -124,7 +124,7 @@ class PileShardDataset( IterableDataset ):
 class PileDataset( IterableDataset ):
     """ Iterable Dataset for a multiple Pile shards.
     """
-    
+
     def __init__(
         self,
         tokenizer: PreTrainedTokenizerBase,
@@ -212,7 +212,7 @@ class HFShardDataset( IterableDataset ):
         self.shard_idx = shard_idx
         self.shard_max = shard_max
         self.dataset_config = dataset_config
-    
+
     @classmethod
     def tokenize_line( cls, line: str, tokenizer: PreTrainedTokenizerBase ):
         tokens = tokenizer.encode( line, add_special_tokens=False )
@@ -227,13 +227,13 @@ class HFShardDataset( IterableDataset ):
         dataset = load_dataset( df_conf.dataset_name, name=df_conf.dataset_sub_name, split=df_conf.dataset_split, cache_dir=df_conf.cache_dir, trust_remote_code=True ).shard( shard_max, shard_idx )
         for line in iter( dataset ):
             yield line[ df_conf.dataset_key ]
-    
+
     @classmethod
     def line_token_generator( cls, df_conf: HFDatasetConfig, shard_idx: int, shard_max: int, tokenizer: PreTrainedTokenizerBase ):
         for line in cls.line_parser( df_conf, shard_idx, shard_max ):
             for x, y in cls.tokenize_line( line, tokenizer ):
                 yield x, y
-    
+
     @classmethod
     def sequence_generator( cls, df_conf: HFDatasetConfig, tokenizer: PreTrainedTokenizerBase, shard_idxs: list[int], shard_max: int, seq_length: int ):
         def reset():
@@ -264,7 +264,7 @@ class HFShardDataset( IterableDataset ):
                     count, xs, ys = reset()
         except StopIteration:
             return
-    
+
     def __iter__( self ):
         return iter( self.sequence_generator(
             df_conf=self.dataset_config,
@@ -301,7 +301,7 @@ class HFBatchDataset( IterableDataset ):
         self.num_proc = num_proc
 
         assert ( batch_size % self.num_proc ) == 0, 'batch size must be divisible by num_proc'
-    
+
     def __iter__( self ):
         gen = [
             iter(
@@ -339,13 +339,13 @@ class HFBatchDataset( IterableDataset ):
 
 
 class OpenOrcaDataset( IterableDataset ):
-    
+
     prompt_format: dict[str, str] = {
         'prompt': '### System Prompt:\n{}',
         'question': '### Instruction:\n{}',
         'response': '### Response:\n{}',
     }
-    
+
     def __init__(
         self,
         tokenizer: PreTrainedTokenizerBase,
@@ -357,7 +357,7 @@ class OpenOrcaDataset( IterableDataset ):
         self.seq_length = seq_length
         self.batch_size = batch_size
         self.cache_dir = cache_dir
-    
+
     @classmethod
     def tokenize_segment( cls, segment_type: str, segment_text: str, tokenizer: PreTrainedTokenizerBase ):
         return [
@@ -365,28 +365,28 @@ class OpenOrcaDataset( IterableDataset ):
             *tokenizer.encode( cls.prompt_format[segment_type].format( segment_text ), add_special_tokens=False ),
             tokenizer.cls_token_id,
         ]
-    
+
     @classmethod
     def tokenize_line( cls, prompt: str, question: str, response: str, tokenizer: PreTrainedTokenizerBase ):
         p_tokens = cls.tokenize_segment( 'prompt', prompt, tokenizer )
         q_tokens = cls.tokenize_segment( 'question', question, tokenizer )
         r_tokens = cls.tokenize_segment( 'response', response, tokenizer )
-        
+
         if prompt == '':
             tokens = q_tokens + r_tokens
             mask_len = len( q_tokens )
         else:
             tokens = p_tokens + q_tokens + r_tokens
             mask_len = len( p_tokens ) + len( q_tokens )
-        
+
         tokens_x = [ tokenizer.bos_token_id ] + tokens
         tokens_y = tokens + [ tokenizer.eos_token_id ]
-        
+
         tokens_y = [ tokenizer.pad_token_id if i < mask_len else token for i, token in enumerate( tokens_y ) ]
 
         for x, y in zip( tokens_x, tokens_y ):
             yield ( x, y )
-    
+
     @classmethod
     def line_token_generator( cls, dataset: HFDataset, tokenizer: PreTrainedTokenizerBase, shard_num: int, shard_id: int ):
         while True:
@@ -396,7 +396,7 @@ class OpenOrcaDataset( IterableDataset ):
                 r_str = line[ 'response' ] # type: ignore
                 for x, y in cls.tokenize_line( p_str, q_str, r_str, tokenizer ):
                     yield x, y
-    
+
     @classmethod
     def sequence_generator( cls, dataset: HFDataset, tokenizer: PreTrainedTokenizerBase, batch_size: int, seq_length: int ):
         def reset():
@@ -427,7 +427,7 @@ class OpenOrcaDataset( IterableDataset ):
                     count, xs, ys = reset()
         except StopIteration:
             return
-    
+
     def __iter__( self ):
         return iter( self.sequence_generator(
             dataset=load_openorca( self.cache_dir ), # type: ignore
@@ -435,7 +435,7 @@ class OpenOrcaDataset( IterableDataset ):
             batch_size=self.batch_size,
             seq_length=self.seq_length,
         ) )
-    
+
     def as_data_loader( self ):
         return DataLoader(
             self,
@@ -443,7 +443,7 @@ class OpenOrcaDataset( IterableDataset ):
             batch_size=None,
             prefetch_factor=2,
         )
-    
+
     def __getitem__( self, index ):
         raise NotImplementedError( "This dataset does not support random access using __getitem__" )
 

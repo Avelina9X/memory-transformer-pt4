@@ -1,6 +1,6 @@
 import math
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, cast
 
 import torch
 from transformers import PreTrainedModel
@@ -31,7 +31,7 @@ class BaseInstructionBatcher:
         self.pad_rounding = pad_rounding
 
         assert self.aggregation in [ 'mean', 'sum' ], "Aggregation must be one of 'mean' or 'sum'"
-    
+
     def aggregate( self, logprobs: torch.Tensor, mask: torch.Tensor ) -> torch.Tensor:
         """ Aggregates log probabilities based on a mask and reduction type.
 
@@ -81,6 +81,8 @@ class ChoiceInstructionBatcher( BaseInstructionBatcher ):
         completions = task.create_unlabelled_message_list( target_doc )
         correct = task.create_unlabelled_message_target( target_doc )
 
+        assert isinstance( correct, int ), 'Message targets must be defined!'
+
         if fewshot is False:
             tokenized_completions = [ self.formatter.tokenize_chat( msgs ) for msgs in completions ]
         else:
@@ -112,13 +114,13 @@ class ChoiceInstructionBatcher( BaseInstructionBatcher ):
             test_mask_list.append( torch.BoolTensor( test_mask ).to( device=device, non_blocking=True ) )
 
         return PreparedChoiceBatch(
-            tokens=torch.stack( tokens_list ),
-            targets=torch.stack( targets_list ),
-            train_mask=torch.stack( train_mask_list ),
-            test_mask=torch.stack( test_mask_list ),
+            tokens=cast( torch.LongTensor, torch.stack( tokens_list ) ),
+            targets=cast( torch.LongTensor, torch.stack( targets_list ) ),
+            train_mask=cast( torch.BoolTensor, torch.stack( train_mask_list ) ),
+            test_mask=cast( torch.BoolTensor, torch.stack( test_mask_list ) ),
             correct_index=correct
         )
-    
+
     def compute_batch(
         self,
         prepared_batch: PreparedChoiceBatch,
@@ -146,8 +148,7 @@ class ChoiceInstructionBatcher( BaseInstructionBatcher ):
             'references': correct_index,
             'predictions': predicted_index,
         }
-    
-    @torch.inference_mode
+
     def evaluate_document(
         self,
         task: BaseChoiceInstructDataset,
@@ -155,13 +156,13 @@ class ChoiceInstructionBatcher( BaseInstructionBatcher ):
         fewshot: bool = False,
         fewshot_allsys: bool = True,
     ) -> dict:
-        device = self.model.get_input_embeddings().weight.device
-        prepared_batch = self.prepare_batch( task, doc, device, fewshot, fewshot_allsys )
-        logits = self.model( prepared_batch.tokens ).logits
-        results = self.compute_batch( prepared_batch, logits )
-
+        with torch.inference_mode():
+            device = self.model.get_input_embeddings().weight.device
+            prepared_batch = self.prepare_batch( task, doc, device, fewshot, fewshot_allsys )
+            logits = self.model( prepared_batch.tokens ).logits
+            results = self.compute_batch( prepared_batch, logits )
         return results
-    
+
     def evaluate_dataset(
         self,
         task: BaseChoiceInstructDataset,
@@ -176,5 +177,5 @@ class ChoiceInstructionBatcher( BaseInstructionBatcher ):
             results = self.evaluate_document( task, line, fewshot, fewshot_allsys )
             correct_list.append( results[ 'references' ] )
             answer_list.append( results[ 'predictions' ] )
-        
+
         return task.compute_metric( references=correct_list, predictions=answer_list )

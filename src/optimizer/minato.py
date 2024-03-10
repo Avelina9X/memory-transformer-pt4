@@ -28,22 +28,22 @@ class Minato( Optimizer ):
         weight_decay: float = 0.0,
         maximize: bool = False,
     ):
-        
+
         if lr < 0.0:
             raise ValueError( f'Invalid learning rate: {lr}' )
 
         if not 0.0 <= eps:
             raise ValueError( f'Invalid epsilon value: {eps}' )
-        
+
         if not 0.0 <= betas[0] < 1.0:
             raise ValueError( f'Invalid beta parameter at index 0: {betas[0]}' )
-        
+
         if not 0.0 <= betas[1] < 1.0:
             raise ValueError( f'Invalid beta parameter at index 1: {betas[1]}' )
-        
+
         if not 0.0 <= weight_decay:
             raise ValueError( f'Invalid weight_decay value: {weight_decay}' )
-        
+
         defaults = dict(
             lr=lr,
             betas=betas,
@@ -56,12 +56,12 @@ class Minato( Optimizer ):
 
 
     @torch.no_grad()
-    def step( self, closure=None ):
+    def step( self, closure=None ): # type: ignore
         loss = None
         if closure is not None:
             with torch.enable_grad():
                 loss = closure()
-        
+
         # Iterate over all param groups
         for group in self.param_groups:
 
@@ -75,7 +75,7 @@ class Minato( Optimizer ):
                 # If gradient is sparse, throw error
                 if p.grad.is_sparse:
                     raise RuntimeError( 'Minato does not support sparse gradients.' )
-                
+
                 # Grab hyperparameters
                 lr = group[ 'lr' ]
                 beta1, beta2 = group[ 'betas' ]
@@ -93,7 +93,7 @@ class Minato( Optimizer ):
                     state[ 'step' ] = 0
                     state[ 'exp_avg' ] = torch.zeros_like( p, memory_format=torch.preserve_format )
                     state[ 'exp_avg_sq' ] = torch.zeros_like( p, memory_format=torch.preserve_format )
-                
+
                 # Increment step
                 state[ 'step' ] += 1
 
@@ -120,7 +120,7 @@ class Minato( Optimizer ):
 
                 # Perform grafted update
                 p.data.add_( step_dir, alpha=step_size )
-        
+
         return loss
 
 
@@ -130,11 +130,11 @@ class Minato( Optimizer ):
 
 class _Minato(Optimizer):
     """Old Minato optimizer. Ignore.
-    
+
     Works just like Sophia without a hessian estimator,
     or Lion where beta_1 and beta_2 are shared.
     """
-    
+
     def __init__(
         self,
         params: ParamsT,
@@ -188,7 +188,7 @@ class _Minato(Optimizer):
 
 
     @torch.no_grad()
-    def step( self, closure=None ):
+    def step( self, closure=None ): # type: ignore
         loss = None
         if closure is not None:
             with torch.enable_grad():

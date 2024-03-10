@@ -73,24 +73,24 @@ class LSWTPreTrainedModel( PreTrainedModel ):
             { 'params': decay_params },
             { 'params': non_decay_params, 'weight_decay': 0.0 }
         ]
-    
+
     def trim_cache(
         self,
         cache: list[torch.Tensor],
         trim: int | None = 0,
     ) -> list[torch.Tensor]:
         """ Trims the key and value tuple to a max length.
-        
+
         Should be applied per layer, rather than to the list of all past key values.
-        
+
         Args:
             cache (list[torch.Tensor]): The key value cache to trim.
             trim (int, optional): Desired trim size. Zero means no trim. Defaults to 0.
-        
+
         Returns:
             list[torch.Tensor]: Trimmed cache
         """
-        
+
         if trim is not None:
             return [ kv[ :, :, -trim :, : ] for kv in cache ]
         return cache
@@ -104,7 +104,7 @@ class LSWTPreTrainedModel( PreTrainedModel ):
     ) -> list[list[torch.Tensor]] | None:
         """
         Moves KV cache between devices.
-        
+
         TODO: deprecate trim != 0
 
         Args:
@@ -296,7 +296,7 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
         return_dict=True,
         output_attentions=False,
         output_hidden_states=True,
-        
+
         max_key_values: int | None = None,
     ) -> CausalLMOutputWithPast:
         """
@@ -311,7 +311,7 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
             return_dict (bool, optional): Whether or not to return a CausalLMOutputWithPast. Must be True.
             output_attentions (bool, optional): Returns attentions for all layers. Must be False.
             output_hidden_states (bool, optional): Whether or not to return the hidden states of all layers. Defaults to True.
-            
+
             max_key_values (int, optional): The max number of past states to keep during generation. Defaults to None.
 
         Returns:
@@ -340,7 +340,7 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
         )
 
     # TODO: do this legit + remove pylint ignores # pylint: disable=W0511
-    def prepare_inputs_for_generation(
+    def prepare_inputs_for_generation( # type: ignore
         self,
         input_ids,
         past_key_values=None,
@@ -353,7 +353,7 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
         if past_key_values is not None:
             past_length = past_key_values[0][0].shape[2]
 
-            # Trim the past key values if a max_key_values model arg is passed            
+            # Trim the past key values if a max_key_values model arg is passed
             max_key_values = kwargs.get( 'max_key_values', 0 ) or 0
             past_key_values = self.cache_to( past_key_values, device=input_ids.device, trim=max_key_values )
             input_ids = input_ids[:, -1 : ]
