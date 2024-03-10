@@ -17,16 +17,20 @@ def _load_embeddings( name: str, cache_dir: str | None=None ):
     model_type = _get_model_type( name, cache_dir )
 
     if model_type == 'gpt2':
-        print( 'Loading GPT2 style embeddings' )
+        if __debug__:
+            print( 'Loading GPT2 style embeddings' )
 
         model_hf = GPT2Model.from_pretrained( name, n_layer=0, cache_dir=cache_dir )
-        embeddings = model_hf.get_input_embeddings() # type: ignore
+        assert isinstance( model_hf, GPT2Model )
+        embeddings = model_hf.get_input_embeddings()
 
     elif model_type == 'opt':
-        print( 'Loading OPT style embeddings' )
+        if __debug__:
+            print( 'Loading OPT style embeddings' )
 
         model_hf = OPTModel.from_pretrained( name, num_hidden_layers=0, cache_dir=cache_dir )
-        embeddings = model_hf.get_input_embeddings() # type: ignore
+        assert isinstance( model_hf, OPTModel )
+        embeddings = model_hf.get_input_embeddings()
 
     else:
         raise ValueError( f'Embedding loading not implemented for {model_type} style models!' )
@@ -52,4 +56,4 @@ def embedding_loader( config: LSWTConfig, cache_dir: str | None=None ) -> torch.
     if embeddings.embedding_dim != config.d_vocab:
         raise ValueError( 'Loaded embeddings dim =/= config.d_model' )
 
-    return embeddings.weight # type: ignore
+    return embeddings.weight
