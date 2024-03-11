@@ -251,8 +251,7 @@ class MixedTaskLoader( IterableDataset ):
         ]
 
         while True:
-            for gen in generators:
-                yield next( gen )
+            yield next( random.choice( generators ) )
 
     def token_generator( self, shard_idx: int ) -> Generator[tuple[int, int], None, None]:
         for messages in self.message_tokens_generator( shard_idx ):
