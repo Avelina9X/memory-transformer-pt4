@@ -290,6 +290,52 @@ class MixedTaskLoader( IterableDataset ):
             num_workers=1,
             batch_size=None,
             prefetch_factor=4,
+        )
+
+    def __getitem__( self, index ):
+        raise NotImplementedError( "This dataset does not support random access using __getitem__" )
+
+class ParallelMixedTaskLoader( IterableDataset ):
+    def __init__(
+        self,
+        task_list: TaskList,
+        formatter: InstructionFormatter,
+        seq_length: int,
+        batch_size: int,
+        mask_type: str,
+    ):
+
+        self.mixed_tasks = [
+            MixedTaskLoader(
+                task_list=task_list,
+                formatter=formatter,
+                seq_length=seq_length,
+                batch_size=1,
+                shuffle_seed=i,
+                mask_type=mask_type,
+            ) for i in range( batch_size )
+        ]
+
+    def __iter__( self ):
+        gen = [
+            iter( i.as_data_loader() ) for i in self.mixed_tasks
+        ]
+
+        try:
+            while True:
+                test_next = [ next( i ) for i in gen ]
+                test_next_x = torch.cat( [ i[0] for i in test_next ] )
+                test_next_y = torch.cat( [ i[1] for i in test_next ] )
+
+                yield test_next_x, test_next_y
+        except StopIteration:
+            return
+
+    def as_data_loader( self ):
+        return DataLoader(
+            self,
+            num_workers=0,
+            batch_size=None,
             pin_memory=True,
             pin_memory_device='cuda',
         )
