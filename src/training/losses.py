@@ -15,17 +15,17 @@ from torch.nn import CrossEntropyLoss
 
 class MLELoss( nn.Module ):
     """ Wrapper for sparse cross entropy loss with logits.
-    
+
     TODO: create base loss class that MLELoss inherts from.
     """
-    
+
     def __init__( self, vocab_size, pad_token_id ):
         super().__init__()
 
         self.vocab_size = vocab_size
         self.pad_token_id = pad_token_id
 
-        self.train_fct = CrossEntropyLoss( ignore_index=pad_token_id )
+        self.train_fct = CrossEntropyLoss( ignore_index=-100 )
 
     def forward( self, last_hidden_states, logits, input_ids, labels ):
         # pylint: disable=W0613
@@ -35,9 +35,9 @@ class MLELoss( nn.Module ):
 
 class SimCTGLoss( nn.Module ):
     """ Wrapper for SimCTG, i.e. contrastive loss + MLE loss.
-    
+
     TODO: create base loss class that MLELoss inherts from
-    
+
     @inproceedings{su2022a,
         title={A Contrastive Framework for Neural Text Generation},
         author={Yixuan Su and Tian Lan and Yan Wang and Dani Yogatama and Lingpeng Kong and Nigel Collier},
@@ -59,7 +59,7 @@ class SimCTGLoss( nn.Module ):
         self.vocab_size = vocab_size
         self.pad_token_id = pad_token_id
 
-        self.train_fct = CrossEntropyLoss( ignore_index=pad_token_id )
+        self.train_fct = CrossEntropyLoss( ignore_index=-100 )
 
         self.compute_device = compute_device
 
@@ -144,11 +144,11 @@ class SimCTGLoss( nn.Module ):
 
 class AccuracyMetric( nn.Module ):
     """ Wrapper for sparse multi-class accuracy.
-    
+
     TODO: inhert from a base class. Decide if should be base 'loss' or base 'metric'.
     TODO: move to seperate metrics module?
     """
-    
+
     def __init__( self, vocab_size, pad_token_id ):
         super().__init__()
 
