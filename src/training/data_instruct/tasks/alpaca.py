@@ -51,15 +51,13 @@ class AlpacaInstructDataset( BaseInstructDataset ):
 
     def format_user_message( self, doc: dict ) -> Message:
         prompt = (
-            f'Instruction:\n'
-            f'{doc["instruction"]}\n'
+            f'Instruction: {doc["instruction"]}\n'
             f'\n'
         )
 
         if len( doc['input'] ) > 0:
             prompt += (
-                f'Input:\n'
-                f'{doc["input"]}\n'
+                f'Input: {doc["input"]}\n'
                 f'\n'
             )
 
