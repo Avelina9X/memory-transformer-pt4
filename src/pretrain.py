@@ -12,7 +12,6 @@ import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 
-import evaluate
 import datasets
 import transformers
 from transformers import AutoTokenizer
@@ -80,11 +79,10 @@ def train(
     # Set some performance flags
     torch.backends.cuda.matmul.allow_tf32 = True # type: ignore # pylint: disable=W0212
     torch.backends.cudnn.allow_tf32 = True # type: ignore # pylint: disable=W0212
-    torch._dynamo.config.cache_size_limit = 1024 * 1024 # type: ignore # pylint: disable=W0212
+    torch._dynamo.config.cache_size_limit = 1024 * 1024 * 1024 # type: ignore # pylint: disable=W0212
 
     if not __debug__:
         transformers.utils.logging.disable_progress_bar()
-        evaluate.utils.logging.disable_progress_bar()
         datasets.utils.logging.disable_progress_bar()
 
     # Setup ddp if world size is greater than 1
@@ -172,6 +170,7 @@ def train(
         } )
 
     # Create training iterator
+    assert trainer.data_loader_train is not None
     iterator = iter( trainer.data_loader_train )
 
     # Train loop
