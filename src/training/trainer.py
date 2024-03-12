@@ -38,10 +38,10 @@ class Trainer(): # pylint: disable=R0902
         train_config: LSWTConfigTraining,
         model: LSWTForCausalLM,
         tokenizer: PreTrainedTokenizerBase,
-        dataset: str | HFDatasetConfig
+        dataset: str | HFDatasetConfig | None
     ):
         """ Creates a Trainer instance for the entire pretraining pipeline.
-        
+
         The constructor takes care of the following setup steps:
         - instantiating the optimizer specified in `train_config`
         - loading the pretraining dataset specified in the `dataset` argument
@@ -57,7 +57,7 @@ class Trainer(): # pylint: disable=R0902
             tokenizer (PreTrainedTokenizerBase): the initialised tokenizer
             dataset (str): dataset for pretraining
         """
-        
+
         self.train_config = train_config
         self.model = model
         self.tokenizer = tokenizer
@@ -96,12 +96,12 @@ class Trainer(): # pylint: disable=R0902
             postfix=f'loss={loss:.3f}, acc={acc:.3f}',
             prefix=f'Epoch {epoch}',
         )
-    
+
     def _load_cache( self ):
         batch_groups = self.train_config.batch_size // self.train_config.batch_size_step
         return [ None for _ in range( batch_groups ) ]
 
-    def _load_optimizer( self ) -> torch.optim.Optimizer:        
+    def _load_optimizer( self ) -> torch.optim.Optimizer:
         if self.train_config.optimizer == 'Minato':
             return Minato(
                 params=self.model.get_param_groups(),
@@ -121,7 +121,7 @@ class Trainer(): # pylint: disable=R0902
                 weight_decay=( self.train_config.opt_weight_decay ),
                 fused=True,
             )
-        
+
         if self.train_config.optimizer == 'LaProp':
             return LaProp(
                 params=self.model.get_param_groups(),
@@ -148,7 +148,7 @@ class Trainer(): # pylint: disable=R0902
             )
 
         raise ValueError( 'Invalid loss function' )
-    
+
     def _load_dataset( self, dataset ):
         if isinstance( dataset, HFDatasetConfig ):
             return HFBatchDataset(
@@ -167,7 +167,7 @@ class Trainer(): # pylint: disable=R0902
                 dir_pattern=PILE_PATH_PATTERN,
                 pile_shards=list( range( PILE_SHARDS ) )
             ).as_data_loader()
-        
+
         if dataset == 'openorca':
             return OpenOrcaDataset(
                 tokenizer=self.tokenizer,
@@ -175,7 +175,10 @@ class Trainer(): # pylint: disable=R0902
                 batch_size=self.train_config.batch_size,
                 cache_dir=HF_CACHE_DIR,
             ).as_data_loader()
-        
+
+        if dataset is None:
+            return None
+
         raise ValueError( 'Invalid dataset choice' )
 
 
@@ -189,7 +192,7 @@ class Trainer(): # pylint: disable=R0902
         Returns:
             dict[ str, float ]: dictionary of { metric_name : computed_mean }
         """
-        
+
         stats = {}
         for name, metric in self.metrics.items():
             stats[name] = float( metric.compute() )
@@ -198,13 +201,13 @@ class Trainer(): # pylint: disable=R0902
 
     def get_schedule( self ) -> float:
         """ Returns the learning rate percentage based on the Chinchilla schedule.
-        
+
         Note, you must manually scale by the max learning rate.
 
         Returns:
             float: LR ratio in range [0.0, 1.0]
         """
-        
+
         warmup_ratio = min( self.optimizer_step / self.train_config.lr_warmup_steps, 1.0 )
 
         tokens_seen = self.optimizer_step * self.train_config.batch_size * self.train_config.length_sequence
@@ -218,11 +221,11 @@ class Trainer(): # pylint: disable=R0902
 
     def get_total_epochs( self ) -> int:
         """ Compute the total number of epochs based on the number of total tokens.
-        
+
         Returns:
             int: total epochs
         """
-        
+
         tokens_per_epoch = self.train_config.batch_size * self.train_config.length_sequence * self.train_config.batches_per_epoch
         return int( np.ceil( self.train_config.lr_cooldown_tokens / tokens_per_epoch ) )
 
@@ -340,7 +343,7 @@ class Trainer(): # pylint: disable=R0902
 class TrainerDDP( Trainer ):
     """ Distributed training class for continuous cached online pre-training.
     """
-    
+
     def __init__(
         self,
         train_config: LSWTConfigTraining,
@@ -352,7 +355,7 @@ class TrainerDDP( Trainer ):
         dataset_shards: int = 30,
     ):
         """ Creates a Distributed Trainer instance for the entire pretraining pipeline.
-        
+
         The constructor takes care of the following setup steps:
         - instantiating the optimizer specified in `train_config` with the Zero policy
         - loading the pretraining dataset specified in the `dataset` argument with DDP sharding
@@ -371,22 +374,22 @@ class TrainerDDP( Trainer ):
             ddp_world_size (int): the total number of processes in the group
             dataset_shards (int): the number of dataset shards, defaults to 30, but 24 recommended
         """
-        
+
         self.ddp_rank = ddp_rank
         self.ddp_world_size = ddp_world_size
         self.dataset_shards = dataset_shards
-        
+
         super().__init__( train_config, model, tokenizer, dataset )
 
         # Modify batch_groups for DDP
         self.batch_groups = train_config.batch_size // ( train_config.batch_size_step * self.ddp_world_size )
-    
-    
+
+
     """ ========================================================================
         Overridden Internal Utility functions
         ======================================================================== """
-    
-    def _load_optimizer( self ) -> torch.optim.Optimizer:       
+
+    def _load_optimizer( self ) -> torch.optim.Optimizer:
         if self.train_config.optimizer == 'LaProp':
             return ZeroRedundancyOptimizer(
                 params=self.model.get_param_groups(),
@@ -396,7 +399,7 @@ class TrainerDDP( Trainer ):
                 eps=self.train_config.opt_eps,
                 weight_decay=( self.train_config.opt_weight_decay ),
             )
-        
+
         if self.train_config.optimizer == 'Minato':
             return ZeroRedundancyOptimizer(
                 params=self.model.get_param_groups(),
@@ -409,11 +412,11 @@ class TrainerDDP( Trainer ):
             )
 
         raise ValueError( 'Invalid optimizer' )
-    
+
     def _load_cache( self ):
         batch_groups = self.train_config.batch_size // ( self.train_config.batch_size_step * self.ddp_world_size )
         return [ None for _ in range( batch_groups ) ]
-    
+
     def _load_dataset( self, dataset ):
         if dataset == 'pile':
             return PileDataset(
@@ -423,30 +426,30 @@ class TrainerDDP( Trainer ):
                 dir_pattern=PILE_PATH_PATTERN,
                 pile_shards=list( range( self.ddp_rank, self.dataset_shards, self.ddp_world_size ) )
             ).as_data_loader()
-        
+
         raise ValueError( 'Invalid dataset choice' )
 
 
     """ ========================================================================
         Overridden Utility functions
         ======================================================================== """
-    
+
     def reset_metrics( self ) -> dict[ str, float ]:
         stats = {}
         for name, metric in self.metrics.items():
             # Syncronise and compute metrics from all devices
             stats[name] = float( sync_and_compute( metric ) )
-            
+
             # Ensure all devices wait for barrier before resetting
             dist.barrier()
             metric.reset()
         return stats
 
-    
+
     """ ========================================================================
         Overridden Training Functions
         ======================================================================== """
-    
+
     def train_batch_step( self, batch ):
         self.model.train()
 
@@ -457,12 +460,12 @@ class TrainerDDP( Trainer ):
 
         for idx in range( self.batch_groups ):
             self.model.require_backward_grad_sync = ( idx == self.batch_groups - 1 ) # type: ignore
-            
+
             past_key_values = self.model.cache_to( self.past_key_values_list[idx], 'cuda', non_blocking=True )
             self.past_key_values_list[idx] = None # type: ignore
-            
+
             loss, accuracy, past_key_values = self.train_sub_step( tokens_xs[idx], tokens_ys[idx], past_key_values )
-            
+
             past_key_values = self.model.cache_to( past_key_values, 'cpu', non_blocking=True )
             self.past_key_values_list[idx] = past_key_values # type: ignore
 
@@ -470,13 +473,13 @@ class TrainerDDP( Trainer ):
             self.metrics[ 'acc' ].update( accuracy )
 
         self.train_optim_step()
-                
+
         if self.optimizer_step <= 3:
             torch.cuda.empty_cache()
-    
+
     def train_epoch( self, iterator, epoch ):
         # dist.barrier()
-        
+
         start_time = time.time()
 
         for batch in range( self.train_config.batches_per_epoch ):

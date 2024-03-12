@@ -161,7 +161,10 @@ class ChoiceInstructionBatcher( BaseInstructionBatcher ):
         with torch.inference_mode():
             device = self.model.get_input_embeddings().weight.device
             prepared_batch = self.prepare_batch( task, doc, device, fewshot, fewshot_allsys )
-            logits = self.model( prepared_batch.tokens ).logits
+
+            with torch.autocast( device_type='cuda', dtype=torch.float16 ):
+                logits = self.model( prepared_batch.tokens ).logits
+
             results = self.compute_batch( prepared_batch, logits )
         return results
 
