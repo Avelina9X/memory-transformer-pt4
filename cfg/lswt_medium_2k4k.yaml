@@ -1,5 +1,5 @@
 meta:
-  run_name: lswt_medium_4k8k
+  run_name: lswt_medium_2k4k
 
 model:
   d_model: 1536
@@ -18,3 +18,4 @@ train:
   length_sequence: 2048
   length_cache: 2048
   lr_cooldown_tokens: 30000000000
+  lr_max: 0.0006
