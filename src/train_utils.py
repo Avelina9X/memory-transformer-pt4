@@ -93,7 +93,7 @@ def save_model( model: LSWTForCausalLM, log_wandb: bool=False ):
 
 
 def add_special_tokens( tokenizer: PreTrainedTokenizerBase ):
-    """ Adds `'<|im_start|>` and `<|im_end|>` to the tokenizer vocabulary
+    """ Adds `<|im_start|>` and `<|im_end|>` to the tokenizer vocabulary
 
     Args:
         tokenizer (PreTrainedTokenizerBase): Target tokenizer to update
