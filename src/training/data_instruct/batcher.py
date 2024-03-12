@@ -159,6 +159,7 @@ class ChoiceInstructionBatcher( BaseInstructionBatcher ):
         fewshot_allsys: bool = True,
     ) -> dict:
         with torch.inference_mode():
+            self.model.eval()
             device = self.model.get_input_embeddings().weight.device
             prepared_batch = self.prepare_batch( task, doc, device, fewshot, fewshot_allsys )
 
