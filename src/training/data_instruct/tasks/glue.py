@@ -182,6 +182,20 @@ class GlueMNLIMismatchedInstructDataset( GlueMNLIInstructDataset ):
     def get_test_docs( self ) -> Dataset:
         return self.dataset[ 'test' ]
 
+class GlueAXInstructDataset( GlueMNLIInstructDataset ):
+
+    @property
+    def task_name( self ) -> str:
+        return 'ax'
+
+    def get_training_docs( self ) -> Dataset | None:
+        return None
+
+    def get_validation_docs( self ) -> Dataset | None:
+        return None
+
+    def get_test_docs( self ) -> Dataset | None:
+        return self.dataset[ 'test' ]
 
 class GlueMRPCInstructDataset( GlueBaseInstructDataset ):
 
