@@ -65,8 +65,8 @@ class BaseInstructDataset( ABC ):
 
     def __repr__( self ) -> str:
 
-        group_name = f"'{self.group_name}'" if self.group_name is not None else 'None'
-        task_name = f"'{self.task_name}'" if self.task_name is not None else 'None'
+        group_name = f"'{self.task_name}'" if self.task_name is not None else 'None'
+        task_name = f"'{self.task_subset}'" if self.task_subset is not None else 'None'
 
         return (
             f"{self.__class__.__name__}(\n"
@@ -97,12 +97,12 @@ class BaseInstructDataset( ABC ):
 
     @property
     @abstractmethod
-    def group_name( self ) -> str | None:
+    def task_name( self ) -> str:
         """ Returns the task group name or `None` if not a subtask """
 
     @property
     @abstractmethod
-    def task_name( self ) -> str:
+    def task_subset( self ) -> str | None:
         """ Returns the specific task within the group """
 
 

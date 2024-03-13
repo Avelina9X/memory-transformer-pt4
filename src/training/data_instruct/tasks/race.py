@@ -24,11 +24,11 @@ class RaceInstructDataset( BaseChoiceInstructDataset ):
         return 'RACE is a large-scale reading comprehension dataset with more than 28,000 passages and nearly 100,000 questions.'
 
     @property
-    def group_name( self ) -> str | None:
+    def task_name( self ) -> str:
         return 'race'
 
     @property
-    def task_name( self ) -> str:
+    def task_subset( self ) -> str:
         return self.split
 
     def get_training_docs( self ) -> Dataset:

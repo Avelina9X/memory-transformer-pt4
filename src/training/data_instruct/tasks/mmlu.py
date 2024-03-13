@@ -23,12 +23,12 @@ class MMLUInstructDataset( BaseChoiceInstructDataset ):
         return 'MMLU is a massive multitask test consisting of multiple-choice questions covering 57 task subjects.'
 
     @property
-    def group_name( self ) -> str | None:
-        return None
-
-    @property
     def task_name( self ) -> str:
         return 'MMLU'
+
+    @property
+    def task_subset( self ) -> str:
+        return 'all'
 
 
     def get_training_docs( self ) -> Dataset:

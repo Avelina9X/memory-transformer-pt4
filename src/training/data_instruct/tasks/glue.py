@@ -5,11 +5,11 @@ from ..task_base import BaseChoiceInstructDataset, InstructionDatasetTask, Messa
 
 class GlueBaseInstructDataset( BaseChoiceInstructDataset ):
     def __init__( self, cache_dir: str ):
-        self.metric = load_metric( 'glue', self.task_name )
+        self.metric = load_metric( 'glue', self.task_subset )
         super().__init__( cache_dir )
 
     def download( self, cache_dir: str ) -> DatasetDict:
-        dataset = load_dataset( 'glue', self.task_name, cache_dir=cache_dir )
+        dataset = load_dataset( 'glue', self.task_subset, cache_dir=cache_dir )
         assert isinstance( dataset, DatasetDict )
         return dataset
 
@@ -18,7 +18,7 @@ class GlueBaseInstructDataset( BaseChoiceInstructDataset ):
         return InstructionDatasetTask.INSTRUCT_OPEN
 
     @property
-    def group_name( self ) -> str:
+    def task_name( self ) -> str:
         return 'GLUE'
 
     def get_training_docs( self ) -> Dataset | None:
@@ -59,7 +59,7 @@ class GlueColaInstructDataset( GlueBaseInstructDataset ):
         return 'Corpus of Linguistic Acceptability. The task is to determine the grammatical correctness of a sentence.'
 
     @property
-    def task_name( self ) -> str:
+    def task_subset( self ) -> str:
         return 'cola'
 
     def format_user_message( self, doc: dict ) -> Message:
@@ -108,7 +108,7 @@ class GlueMNLIInstructDataset( GlueBaseInstructDataset ):
         return 'Multi-Genre Natural Language Inference Corpus. The task is to predict whether a premise entails a hypothesis.'
 
     @property
-    def task_name( self ) -> str:
+    def task_subset( self ) -> str:
         return 'mnli'
 
     def get_training_docs( self ) -> Dataset | None:
@@ -155,7 +155,7 @@ class GlueMNLIInstructDataset( GlueBaseInstructDataset ):
 class GlueMNLIMatchedInstructDataset( GlueMNLIInstructDataset ):
 
     @property
-    def task_name( self ) -> str:
+    def task_subset( self ) -> str:
         return 'mnli_matched'
 
     def get_training_docs( self ) -> None:
@@ -170,7 +170,7 @@ class GlueMNLIMatchedInstructDataset( GlueMNLIInstructDataset ):
 class GlueMNLIMismatchedInstructDataset( GlueMNLIInstructDataset ):
 
     @property
-    def task_name( self ) -> str:
+    def task_subset( self ) -> str:
         return 'mnli_mismatched'
 
     def get_training_docs( self ) -> None:
@@ -185,7 +185,7 @@ class GlueMNLIMismatchedInstructDataset( GlueMNLIInstructDataset ):
 class GlueAXInstructDataset( GlueMNLIInstructDataset ):
 
     @property
-    def task_name( self ) -> str:
+    def task_subset( self ) -> str:
         return 'ax'
 
     def get_training_docs( self ) -> Dataset | None:
@@ -204,7 +204,7 @@ class GlueMRPCInstructDataset( GlueBaseInstructDataset ):
         return 'Microsoft Research Paraphrase Corpus. The task is to determine the semantic equivilence of 2 sentences.'
 
     @property
-    def task_name( self ) -> str:
+    def task_subset( self ) -> str:
         return 'mrpc'
 
     def format_user_message( self, doc: dict ) -> Message:
@@ -244,7 +244,7 @@ class GlueQNLIInstructDataset( GlueBaseInstructDataset ):
         return 'Stanford Question Answering Dataset. The task is to determine if a given sentence answers a question.'
 
     @property
-    def task_name( self ) -> str:
+    def task_subset( self ) -> str:
         return 'qnli'
 
     def format_user_message( self, doc: dict ) -> Message:
@@ -284,7 +284,7 @@ class GlueQQPInstructDataset( GlueBaseInstructDataset ):
         return 'Quora Question Pairs2 dataset. The task is to determine if 2 questions are equivilent.'
 
     @property
-    def task_name( self ) -> str:
+    def task_subset( self ) -> str:
         return 'qqp'
 
     def format_user_message( self, doc: dict ) -> Message:
@@ -324,7 +324,7 @@ class GlueRTEInstructDataset( GlueBaseInstructDataset ):
         return 'Recognizing Textual Entailment datasets. The task is to determine if 2 sentences have the same meaning.'
 
     @property
-    def task_name( self ) -> str:
+    def task_subset( self ) -> str:
         return 'rte'
 
     def format_user_message( self, doc: dict ) -> Message:
@@ -364,7 +364,7 @@ class GlueSST2InstructDataset( GlueBaseInstructDataset ):
         return 'Stanford Sentiment Treebank. The task is to determine the sentiment of a given sentence.'
 
     @property
-    def task_name( self ) -> str:
+    def task_subset( self ) -> str:
         return 'sst2'
 
     def format_user_message( self, doc: dict ) -> Message:
@@ -402,7 +402,7 @@ class GlueWNLIInstructDataset( GlueBaseInstructDataset ):
         return 'Winograd Schema Challenge. The task is to determine if a second sentence is true given the first.'
 
     @property
-    def task_name( self ) -> str:
+    def task_subset( self ) -> str:
         return 'wnli'
 
     def format_user_message( self, doc: dict ) -> Message:

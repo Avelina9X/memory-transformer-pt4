@@ -13,12 +13,12 @@ class AlpacaInstructDataset( BaseInstructDataset ):
         return InstructionDatasetTask.INSTRUCT_CLOSED
 
     @property
-    def group_name( self ) -> str | None:
-        return None
-
-    @property
     def task_name( self ) -> str:
         return 'alpaca'
+
+    @property
+    def task_subset( self ) -> None:
+        return None
 
     def get_training_docs( self ) -> Dataset:
         return self.dataset[ 'train' ]

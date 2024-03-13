@@ -51,7 +51,7 @@ class TaskLoader( IterableDataset ):
         """
 
         if not task.has_training_docs:
-            raise ValueError( f'Task {task.group_name}:{task.task_name} has no training set.' )
+            raise ValueError( f'Task {task.task_name}:{task.task_subset} has no training set.' )
 
         if fewshot_count < 1:
             raise ValueError( 'Fewshot count must be at least 1' )
