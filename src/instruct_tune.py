@@ -147,7 +147,7 @@ def instruct_tune(
                 fewshot_allsys=False
             )
 
-            rich.print( f'ZS:{task.group_name}:{task.task_name}={val_metrics}' )
+            rich.print( f'{task.group_name}/{task.task_name}={val_metrics}' )
 
         for task in validation_fewshot_tasks:
             task_ds = task.get_validation_docs()
@@ -160,7 +160,7 @@ def instruct_tune(
                 fewshot_allsys=False
             )
 
-            rich.print( f'ZS:{task.group_name}{task.task_name}={val_zs_metrics}' )
+            rich.print( f'{task.group_name}/{task.task_name}/ZS={val_zs_metrics}' )
 
             val_fs_metrics = batcher.evaluate_dataset(
                 task=task,
@@ -169,8 +169,9 @@ def instruct_tune(
                 fewshot_allsys=False
             )
 
-            rich.print( f'FS:{task.group_name}{task.task_name}={val_fs_metrics}' )
+            rich.print( f'{task.group_name}/{task.task_name}/FS={val_fs_metrics}' )
 
+    model.half().save_pretrained( f'./checkpoints/{wandb_run_name}' )
 
 def run():
     argparser = argparse.ArgumentParser()
@@ -197,6 +198,8 @@ def run():
 
     if config[ 'finetune.mode' ] not in [ 'vocab', 'sft', 'dpo_sft', 'dpo' ]:
         raise ValueError( "finetune.mode must be 'vocab', 'sft', 'dpo_sft' or 'dpo'" )
+
+    assert arguments.wmode == 'disabled'
 
     instruct_tune(
         config=config,
