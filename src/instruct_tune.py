@@ -134,7 +134,7 @@ def instruct_tune(
     iterator = iter( task_loader.as_data_loader() )
 
     for i in range( trainer.get_total_epochs() ):
-        train_metrics = trainer.train_epoch( iterator, i + 1 )
+        # train_metrics = trainer.train_epoch( iterator, i + 1 )
 
         for task in validation_zeroshot_tasks:
             task_ds = task.get_validation_docs()
