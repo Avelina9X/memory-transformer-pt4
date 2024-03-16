@@ -3,6 +3,14 @@ from datasets import DatasetDict, Dataset, load_dataset
 from ..task_base import BaseInstructDataset, InstructionDatasetTask, Message
 
 class TinyStoriesInstructDataset( BaseInstructDataset ):
+    def __init__( self, cache_dir: str, split: str ):
+        super().__init__( cache_dir )
+
+        self.split = split
+
+        if split not in [ 'instruct', 'summary' ]:
+            raise ValueError( 'Split must be either `instruct` or `summary`' )
+
     def download( self, cache_dir: str ) -> DatasetDict:
         dataset = load_dataset( 'skeskinen/TinyStories-GPT4', cache_dir=cache_dir )
         assert isinstance( dataset, DatasetDict )
@@ -14,11 +22,11 @@ class TinyStoriesInstructDataset( BaseInstructDataset ):
 
     @property
     def task_name( self ) -> str:
-        return 'tiny'
+        return 'tinystories-gpt4'
 
     @property
     def task_subset( self ) -> str:
-        return 'stories-gpt4'
+        return self.split
 
     def get_training_docs( self ) -> Dataset:
         return self.dataset[ 'train' ]
@@ -33,9 +41,26 @@ class TinyStoriesInstructDataset( BaseInstructDataset ):
         return None
 
     def format_user_message( self, doc: dict ) -> Message:
+        match self.split:
+            case 'instruct':
+                prompt = doc['prompt']
+
+            case 'summary':
+                prompt = (
+                    f"Based on the following summary write a short story (3-5 paragraphs) "
+                    f"which only uses very simple words that a 3 year old child would understand."
+                    f"\n\n"
+                    f"Summary: {doc['summary']}\n"
+                    f"\n"
+                    f"Story:"
+                )
+
+            case _:
+                assert False
+
         return Message(
             role='user',
-            content=doc['prompt'],
+            content=prompt,
             complete=True,
         )
 
@@ -67,4 +92,5 @@ def main():
 
     cache_dir = os.environ[ 'HF_CACHE_DIR' ]
 
-    rich.print( TinyStoriesInstructDataset( cache_dir ) )
+    rich.print( TinyStoriesInstructDataset( cache_dir, split='instruct' ) )
+    rich.print( TinyStoriesInstructDataset( cache_dir, split='summary' ) )
