@@ -4,27 +4,10 @@ import spacy
 
 from ..task_base import BaseInstructDataset, InstructionDatasetTask, Message
 
-class SquadV1InstructDataset( BaseInstructDataset ):
-    def __init__( self, cache_dir: str ):
-        self.metric = load_metric( 'squad' )
-        super().__init__( cache_dir )
-
-    def download( self, cache_dir: str ) -> DatasetDict:
-        dataset = load_dataset( 'rajpurkar/squad', cache_dir=cache_dir )
-        assert isinstance( dataset, DatasetDict )
-        return dataset
-
-    @property
-    def task_type( self ) -> InstructionDatasetTask:
-        return InstructionDatasetTask.SPAN_EXTRACTION
-
+class SquadBaseInstructDataset( BaseInstructDataset ):
     @property
     def task_name( self ) -> str:
         return 'squad'
-
-    @property
-    def task_subset( self ) -> str:
-        return 'v1.1'
 
     def get_training_docs( self ) -> Dataset:
         return self.dataset[ 'train' ]
@@ -55,6 +38,31 @@ class SquadV1InstructDataset( BaseInstructDataset ):
             complete=True,
         )
 
+    def format_unlabelled_messages( self, doc: dict ) -> list[Message]:
+        return []
+
+    def create_unlabelled_message_target( self, doc: dict ) -> None:
+        return None
+
+
+class SquadV1InstructDataset( SquadBaseInstructDataset ):
+    def __init__( self, cache_dir: str ):
+        self.metric = load_metric( 'squad' )
+        super().__init__( cache_dir )
+
+    def download( self, cache_dir: str ) -> DatasetDict:
+        dataset = load_dataset( 'rajpurkar/squad', cache_dir=cache_dir )
+        assert isinstance( dataset, DatasetDict )
+        return dataset
+
+    @property
+    def task_type( self ) -> InstructionDatasetTask:
+        return InstructionDatasetTask.SPAN_EXTRACTION
+
+    @property
+    def task_subset( self ) -> str:
+        return 'v1.1'
+
     def format_target_messages( self, doc: dict ) -> list[Message]:
         return [
             Message(
@@ -68,19 +76,13 @@ class SquadV1InstructDataset( BaseInstructDataset ):
     def format_distractor_messages( self, doc: dict ) -> list[Message]:
         return []
 
-    def format_unlabelled_messages( self, doc: dict ) -> list[Message]:
-        return []
-
-    def create_unlabelled_message_target( self, doc: dict ) -> None:
-        return None
-
     def compute_metric( self, predictions=None, references=None ) -> dict:
         metric = self.metric.compute( predictions=predictions, references=references )
         assert metric is not None
         return metric
 
 
-class SquadV2InstructDataset( BaseInstructDataset ):
+class SquadV2InstructDataset( SquadBaseInstructDataset ):
     def __init__( self, cache_dir: str ):
         self.metric = load_metric( 'squad_v2' )
         self._nlp = spacy.load( 'en_core_web_sm' )
@@ -96,41 +98,8 @@ class SquadV2InstructDataset( BaseInstructDataset ):
         return InstructionDatasetTask.SPAN_EXTRACTION_V2
 
     @property
-    def task_name( self ) -> str:
-        return 'squad'
-
-    @property
     def task_subset( self ) -> str:
         return 'v2'
-
-    def get_training_docs( self ) -> Dataset:
-        return self.dataset[ 'train' ]
-
-    def get_validation_docs( self ) -> Dataset:
-        return self.dataset[ 'validation' ]
-
-    def get_test_docs( self ) -> None:
-        return None
-
-    def get_fewshot_docs( self ) -> None:
-        return None
-
-    def format_user_message( self, doc: dict ) -> Message:
-        prompt = (
-            f'Title: {doc["title"]}\n'
-            f'\n'
-            f'Background: {doc["context"]}\n'
-            f'\n'
-            f'Question: {doc["question"]}\n'
-            f'\n'
-            f'Answer:'
-        )
-
-        return Message(
-            role='user',
-            content=prompt,
-            complete=True,
-        )
 
     def format_target_messages( self, doc: dict ) -> list[Message]:
         if len( doc[ 'answers' ][ 'text' ] ) > 0:
@@ -170,12 +139,6 @@ class SquadV2InstructDataset( BaseInstructDataset ):
                 )
                 for chunk in document.noun_chunks
             ]
-
-    def format_unlabelled_messages( self, doc: dict ) -> list[Message]:
-        return []
-
-    def create_unlabelled_message_target( self, doc: dict ) -> None:
-        return None
 
     def compute_metric( self, predictions=None, references=None ) -> dict:
         metric = self.metric.compute( predictions=predictions, references=references )
