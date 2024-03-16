@@ -1,3 +1,4 @@
+from collections.abc import Callable, Mapping
 from datasets import DatasetDict, Dataset, load_dataset
 from evaluate import load as load_metric
 
@@ -70,6 +71,12 @@ class CNNDailymailInstructDataset( BaseInstructDataset ):
         metric = self.metric.compute( predictions=predictions, references=references )
         assert metric is not None
         return metric
+
+
+DIRECTORY: Mapping[str, Callable[[str], BaseInstructDataset]] = {
+    '3.0.0': CNNDailymailInstructDataset,
+}
+
 
 def main():
     # pylint: disable=W0611

@@ -1,3 +1,4 @@
+from collections.abc import Callable, Mapping
 from datasets import DatasetDict, Dataset, load_dataset
 
 from ..task_base import BaseInstructDataset, InstructionDatasetTask, Message
@@ -90,6 +91,12 @@ class AlpacaInstructDataset( BaseInstructDataset ):
     def compute_metric( self, predictions=None, references=None ) -> dict:
         # TODO: add warning for using compute
         return {}
+
+
+DIRECTORY: Mapping[str, Callable[[str], BaseInstructDataset]] = {
+    '3.0.0': AlpacaInstructDataset,
+}
+
 
 def main():
     # pylint: disable=W0611

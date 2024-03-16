@@ -1,3 +1,4 @@
+from collections.abc import Callable, Mapping
 from datasets import DatasetDict, Dataset, load_dataset
 from evaluate import load as load_metric
 
@@ -154,6 +155,13 @@ class HellaswagNoChoiceInstructDataset( BaseChoiceInstructDataset ):
         metric = self.metric.compute( predictions=predictions, references=references )
         assert metric is not None
         return metric
+
+
+DIRECTORY: Mapping[str, Callable[[str], BaseChoiceInstructDataset]] = {
+    'choice': HellaswagChoiceInstructDataset,
+    'no_choice': HellaswagNoChoiceInstructDataset,
+}
+
 
 def main():
     # pylint: disable=W0611

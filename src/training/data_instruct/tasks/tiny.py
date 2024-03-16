@@ -1,3 +1,4 @@
+from collections.abc import Callable, Mapping
 from datasets import DatasetDict, Dataset, load_dataset
 
 from ..task_base import BaseInstructDataset, InstructionDatasetTask, Message
@@ -83,6 +84,12 @@ class TinyStoriesInstructDataset( BaseInstructDataset ):
     def compute_metric( self, predictions=None, references=None ) -> dict:
         # TODO: add warning for using compute
         return {}
+
+
+DIRECTORY: Mapping[str, Callable[[str], BaseInstructDataset]] = {
+    'instruct': lambda cache_dir: TinyStoriesInstructDataset( cache_dir=cache_dir, split='instruct' ),
+    'summary': lambda cache_dir: TinyStoriesInstructDataset( cache_dir=cache_dir, split='summary' ),
+}
 
 def main():
     # pylint: disable=W0611

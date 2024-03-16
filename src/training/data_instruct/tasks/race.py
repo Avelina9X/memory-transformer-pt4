@@ -1,3 +1,4 @@
+from collections.abc import Callable, Mapping
 from datasets import DatasetDict, Dataset, load_dataset
 from evaluate import load as load_metric
 
@@ -89,6 +90,11 @@ class RaceInstructDataset( BaseChoiceInstructDataset ):
 
         return metric
 
+DIRECTORY: Mapping[str, Callable[[str], BaseChoiceInstructDataset]] = {
+    'all': lambda cache_dir: RaceInstructDataset( cache_dir=cache_dir, split='all' ),
+    'middle': lambda cache_dir: RaceInstructDataset( cache_dir=cache_dir, split='middle' ),
+    'high': lambda cache_dir: RaceInstructDataset( cache_dir=cache_dir, split='high' ),
+}
 
 def main():
     # pylint: disable=W0611

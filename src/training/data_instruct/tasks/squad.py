@@ -1,3 +1,4 @@
+from collections.abc import Callable, Mapping
 from datasets import DatasetDict, Dataset, load_dataset
 from evaluate import load as load_metric
 import spacy
@@ -144,6 +145,12 @@ class SquadV2InstructDataset( SquadBaseInstructDataset ):
         metric = self.metric.compute( predictions=predictions, references=references )
         assert metric is not None
         return metric
+
+
+DIRECTORY: Mapping[str, Callable[[str], SquadBaseInstructDataset]] = {
+    'v1.1': SquadV1InstructDataset,
+    'v2': SquadV2InstructDataset,
+}
 
 
 def main():

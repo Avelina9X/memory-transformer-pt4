@@ -1,3 +1,4 @@
+from collections.abc import Callable, Mapping
 from datasets import DatasetDict, Dataset, load_dataset
 from evaluate import load as load_metric
 
@@ -109,6 +110,10 @@ class MMLUInstructDataset( BaseChoiceInstructDataset ):
         metric = self.metric.compute( predictions=predictions, references=references )
         assert metric is not None
         return metric
+
+DIRECTORY: Mapping[str, Callable[[str], BaseChoiceInstructDataset]] = {
+    'all': MMLUInstructDataset,
+}
 
 def main():
     # pylint: disable=W0611

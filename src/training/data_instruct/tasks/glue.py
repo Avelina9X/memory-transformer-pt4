@@ -1,3 +1,4 @@
+from collections.abc import Callable, Mapping
 from datasets import DatasetDict, Dataset, load_dataset
 from evaluate import load as load_metric
 
@@ -196,6 +197,7 @@ class GlueAXInstructDataset( GlueMNLIInstructDataset ):
 
     def get_test_docs( self ) -> Dataset | None:
         return self.dataset[ 'test' ]
+
 
 class GlueMRPCInstructDataset( GlueBaseInstructDataset ):
 
@@ -433,6 +435,23 @@ class GlueWNLIInstructDataset( GlueBaseInstructDataset ):
 
     def _get_choices( self, doc: dict ) -> list:
         return [ 0, 1 ]
+
+
+DIRECTORY: Mapping[str, Callable[[str], GlueBaseInstructDataset]] = {
+    'ax': GlueAXInstructDataset,
+    'cola': GlueColaInstructDataset,
+    'mnli': GlueMNLIInstructDataset,
+    'mnli_matched': GlueMNLIMatchedInstructDataset,
+    'mnli_mismatched': GlueMNLIMismatchedInstructDataset,
+    'mrpc': GlueMRPCInstructDataset,
+    'qnli': GlueQNLIInstructDataset,
+    'qqp': GlueQQPInstructDataset,
+    'rte': GlueRTEInstructDataset,
+    'sst2': GlueSST2InstructDataset,
+    # Add stsb
+    'wnli': GlueWNLIInstructDataset,
+}
+
 
 def main():
     # pylint: disable=W0611
