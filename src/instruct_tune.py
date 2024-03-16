@@ -17,7 +17,7 @@ from transformers import AutoTokenizer
 from training.trainer import Trainer
 
 from training.data_instruct.task_base import BaseChoiceInstructDataset
-from training.data_instruct.tasks import mmlu, race, glue, alpaca
+from training.data_instruct.tasks import mmlu, race, glue, alpaca, cnn_dailymail, hellaswag, orca, squad, tiny
 from training.data_instruct.formatter import InstructionFormatter
 from training.data_instruct.task_loader import TaskList, ParallelMixedTaskLoader
 from training.data_instruct.batcher import ChoiceInstructionBatcher
@@ -31,6 +31,7 @@ import train_utils
 def create_train_tasks( fewshot_n=5 ) -> TaskList:
     return [
         ( alpaca.AlpacaInstructDataset( cache_dir=HF_CACHE_DIR ), fewshot_n, True ),
+        ( orca.OpenOrcaInstructDataset( cache_dir=HF_CACHE_DIR ), fewshot_n, True ),
         ( race.RaceInstructDataset( cache_dir=HF_CACHE_DIR, split='middle' ), fewshot_n, False ),
         ( race.RaceInstructDataset( cache_dir=HF_CACHE_DIR, split='high' ), fewshot_n, False ),
         ( mmlu.MMLUInstructDataset( cache_dir=HF_CACHE_DIR ), fewshot_n, False ),
@@ -42,6 +43,12 @@ def create_train_tasks( fewshot_n=5 ) -> TaskList:
         ( glue.GlueRTEInstructDataset( cache_dir=HF_CACHE_DIR ), fewshot_n, False ),
         ( glue.GlueSST2InstructDataset( cache_dir=HF_CACHE_DIR ), fewshot_n, False ),
         ( glue.GlueWNLIInstructDataset( cache_dir=HF_CACHE_DIR ), fewshot_n, False ),
+        ( hellaswag.HellaswagChoiceInstructDataset( cache_dir=HF_CACHE_DIR ), fewshot_n, False ),
+        ( hellaswag.HellaswagNoChoiceInstructDataset( cache_dir=HF_CACHE_DIR ), fewshot_n, False ),
+        ( cnn_dailymail.CNNDailymailInstructDataset( cache_dir=HF_CACHE_DIR ), fewshot_n, False ),
+        ( squad.SquadV2InstructDataset( cache_dir=HF_CACHE_DIR ), fewshot_n, False ),
+        ( tiny.TinyStoriesInstructDataset( cache_dir=HF_CACHE_DIR, split='instruct' ), fewshot_n, False ),
+        ( tiny.TinyStoriesInstructDataset( cache_dir=HF_CACHE_DIR, split='summary' ), fewshot_n, False ),
     ]
 
 def create_validation_zeroshot_tasks() -> list[BaseChoiceInstructDataset]:
@@ -57,6 +64,8 @@ def create_validation_zeroshot_tasks() -> list[BaseChoiceInstructDataset]:
         glue.GlueWNLIInstructDataset( cache_dir=HF_CACHE_DIR ),
         race.RaceInstructDataset( 'middle', cache_dir=HF_CACHE_DIR ),
         race.RaceInstructDataset( 'high', cache_dir=HF_CACHE_DIR ),
+        hellaswag.HellaswagChoiceInstructDataset( cache_dir=HF_CACHE_DIR ),
+        hellaswag.HellaswagNoChoiceInstructDataset( cache_dir=HF_CACHE_DIR ),
     ]
 
 def create_validation_fewshot_tasks() -> list[BaseChoiceInstructDataset]:
@@ -134,7 +143,7 @@ def instruct_tune(
     iterator = iter( task_loader.as_data_loader() )
 
     for i in range( trainer.get_total_epochs() ):
-        # train_metrics = trainer.train_epoch( iterator, i + 1 )
+        train_metrics = trainer.train_epoch( iterator, i + 1 )
 
         for task in validation_zeroshot_tasks:
             task_ds = task.get_validation_docs()
