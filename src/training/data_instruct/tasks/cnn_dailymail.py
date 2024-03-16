@@ -6,7 +6,7 @@ from ..task_base import BaseInstructDataset, InstructionDatasetTask, Message
 
 class CNNDailymailInstructDataset( BaseInstructDataset ):
     def __init__( self, cache_dir: str ):
-        self.metric = load_metric( 'rogue' )
+        self.metric = load_metric( 'rouge' )
         super().__init__( cache_dir )
 
     def download( self, cache_dir: str ) -> DatasetDict:
