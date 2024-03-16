@@ -71,7 +71,7 @@ class Trainer(): # pylint: disable=R0902
         self.data_loader_train = self._load_dataset( dataset )
         self.loss_function = self._load_loss_function()
 
-        self.acc_function = AccuracyMetric( model.config.vocab_size, model.config.pad_token_id )
+        self.acc_function = AccuracyMetric( model.config.vocab_size, -100 )
 
         self.metrics = {
             'loss': metrics.Mean().to( 'cuda' ),
