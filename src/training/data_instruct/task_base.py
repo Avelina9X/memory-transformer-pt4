@@ -23,6 +23,7 @@ class InstructionDatasetTask( Enum ):
     MULTIPLE_CHOICE_CLOSED = 'multiple_choice_closed', 'Multiple choice question without a provided context. The possible choices are enumerated in the question.'
     INSTRUCT_OPEN = 'instruct_open', 'Question answering task where the possible responses are given. Has explicit hard negatives.'
     INSTRUCT_CLOSED = 'instruct_closed', 'Question answering task where the response must be generated. Does not have explicit hard negatives.'
+    SUMMARIZATION = 'summarization', 'Extractive or abstractive summarization task where given an article a summary must be produced.'
 
     def __new__( cls, *args, **kwargs ):
         obj = object.__new__( cls )
@@ -201,6 +202,10 @@ class BaseInstructDataset( ABC ):
                 prompt = (
                     'Below is an instruction that describes a task. '
                     'Write a response that appropriately completes the request.'
+                )
+            case InstructionDatasetTask.SUMMARIZATION:
+                prompt = (
+                    'Below is a long document. Write a concise summary for the document.'
                 )
 
             case _:
