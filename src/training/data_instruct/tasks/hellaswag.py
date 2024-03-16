@@ -66,18 +66,18 @@ class HellaswagChoiceInstructDataset( BaseChoiceInstructDataset ):
     def _format_single_target( self, doc: dict ) -> Message:
         return Message(
             role='assistant',
-            content=doc[ 'endings' ][ doc[ 'label' ] ],
+            content=doc[ 'endings' ][ int( doc[ 'label' ] ) ],
             complete=True,
         )
 
     def _get_choices( self, doc: dict ) -> list:
-        return [ 0, 1, 2, 3 ]
+        return [ '0', '1', '2', '3' ]
 
     def _get_label_key( self ) -> str:
-        return 'answer'
+        return 'label'
 
     def create_unlabelled_message_target( self, doc: dict ) -> int:
-        return doc['answer']
+        return int( doc[ 'label' ] )
 
     def compute_metric( self, predictions=None, references=None ) -> dict:
         metric = self.metric.compute( predictions=predictions, references=references )
@@ -138,18 +138,18 @@ class HellaswagNoChoiceInstructDataset( BaseChoiceInstructDataset ):
     def _format_single_target( self, doc: dict ) -> Message:
         return Message(
             role='assistant',
-            content=doc[ 'endings' ][ doc[ 'label' ] ],
+            content=doc[ 'endings' ][ int( doc[ 'label' ] ) ],
             complete=True,
         )
 
     def _get_choices( self, doc: dict ) -> list:
-        return [ 0, 1, 2, 3 ]
+        return [ '0', '1', '2', '3' ]
 
     def _get_label_key( self ) -> str:
-        return 'answer'
+        return 'label'
 
     def create_unlabelled_message_target( self, doc: dict ) -> int:
-        return doc['answer']
+        return int( doc[ 'label' ] )
 
     def compute_metric( self, predictions=None, references=None ) -> dict:
         metric = self.metric.compute( predictions=predictions, references=references )
