@@ -367,6 +367,18 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
         model_inputs.update(
             {
                 "past_key_values": past_key_values,
+                "use_cache": kwargs.get( 'use_cache' ),
+                'max_key_values': kwargs.get( 'max_key_values', 0 )
             }
         )
         return model_inputs
+
+    @staticmethod
+    def _reorder_cache(past_key_values, beam_idx):
+        reordered_past = ()
+        for layer_past in past_key_values:
+            new_val = tuple(past_state.index_select(0, beam_idx.to(past_state.device)) for past_state in layer_past)
+            reordered_past += (
+                new_val,
+            )
+        return reordered_past
