@@ -145,40 +145,41 @@ def instruct_tune(
     for i in range( trainer.get_total_epochs() ):
         train_metrics = trainer.train_epoch( iterator, i + 1 )
 
-        for task in validation_zeroshot_tasks:
-            task_ds = task.get_validation_docs()
-            assert task_ds is not None
+        if config[ 'finetune.mode' ] != 'vocab':
+            for task in validation_zeroshot_tasks:
+                task_ds = task.get_validation_docs()
+                assert task_ds is not None
 
-            val_metrics = batcher.evaluate_dataset(
-                task=task,
-                dataset=task_ds,
-                fewshot=False,
-                fewshot_allsys=False
-            )
+                val_metrics = batcher.evaluate_dataset(
+                    task=task,
+                    dataset=task_ds,
+                    fewshot=False,
+                    fewshot_allsys=False
+                )
 
-            rich.print( f'{task.task_name}/{task.task_subset}={val_metrics}' )
+                rich.print( f'{task.task_name}/{task.task_subset}={val_metrics}' )
 
-        for task in validation_fewshot_tasks:
-            task_ds = task.get_validation_docs()
-            assert task_ds is not None
+            for task in validation_fewshot_tasks:
+                task_ds = task.get_validation_docs()
+                assert task_ds is not None
 
-            val_zs_metrics = batcher.evaluate_dataset(
-                task=task,
-                dataset=task_ds,
-                fewshot=False,
-                fewshot_allsys=False
-            )
+                val_zs_metrics = batcher.evaluate_dataset(
+                    task=task,
+                    dataset=task_ds,
+                    fewshot=False,
+                    fewshot_allsys=False
+                )
 
-            rich.print( f'{task.task_name}/{task.task_subset}/ZS={val_zs_metrics}' )
+                rich.print( f'{task.task_name}/{task.task_subset}/ZS={val_zs_metrics}' )
 
-            val_fs_metrics = batcher.evaluate_dataset(
-                task=task,
-                dataset=task_ds,
-                fewshot=True,
-                fewshot_allsys=False
-            )
+                val_fs_metrics = batcher.evaluate_dataset(
+                    task=task,
+                    dataset=task_ds,
+                    fewshot=True,
+                    fewshot_allsys=False
+                )
 
-            rich.print( f'{task.task_name}/{task.task_subset}/FS={val_fs_metrics}' )
+                rich.print( f'{task.task_name}/{task.task_subset}/FS={val_fs_metrics}' )
 
     model.half().save_pretrained( f'./checkpoints/{wandb_run_name}' )
 
