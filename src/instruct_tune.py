@@ -77,6 +77,7 @@ def instruct_tune(
         transformers.utils.logging.disable_progress_bar()
         evaluate.utils.logging.disable_progress_bar()
         datasets.utils.logging.disable_progress_bar()
+        torch._inductor.select_algorithm.PRINT_AUTOTUNE = False # type: ignore # pylint: disable=W0212
 
     # Get pretrained run name and checkpoint directory
     pretrained_run_name = config[ 'finetune.checkpoint' ]
@@ -193,6 +194,9 @@ def run():
 
     config = train_utils.parse_yaml_config( arguments.config )
     config[ 'meta.run_name' ] += f'_{shortuuid.uuid()[:4]}'
+
+    if os.path.exists( f"./checkpoints/{config['meta.run_name']}" ):
+        raise ValueError( f"Cannot create run '{config['meta.run_name']}' because it already exists!" )
 
     if config[ 'finetune.mode' ] not in [ 'vocab', 'sft', 'dpo_sft', 'dpo' ]:
         raise ValueError( "finetune.mode must be 'vocab', 'sft', 'dpo_sft' or 'dpo'" )
