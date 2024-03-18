@@ -19,7 +19,7 @@ from transformers import AutoTokenizer
 from training.trainer import Trainer
 
 from training.data_instruct.task_base import BaseChoiceInstructDataset
-from training.data_instruct.tasks import mmlu, race, glue, alpaca, cnn_dailymail, hellaswag, orca, squad, tiny, DIRECTORY_ALL
+from training.data_instruct.tasks import mmlu, race, glue, alpaca, cnn_dailymail, hellaswag, orca, squad, tiny, DIRECTORY_ALL, DIRECTORY_CHOICE
 from training.data_instruct.formatter import InstructionFormatter
 from training.data_instruct.task_loader import TaskList, ParallelMixedTaskLoader
 from training.data_instruct.batcher import ChoiceInstructionBatcher
@@ -66,24 +66,24 @@ def create_train_tasks( sft_mix: list ) -> TaskList:
 
 def create_validation_zeroshot_tasks() -> list[BaseChoiceInstructDataset]:
     return [
-        glue.GlueColaInstructDataset( cache_dir=HF_CACHE_DIR ),
-        glue.GlueMNLIMatchedInstructDataset( cache_dir=HF_CACHE_DIR ),
-        glue.GlueMNLIMismatchedInstructDataset( cache_dir=HF_CACHE_DIR ),
-        glue.GlueMRPCInstructDataset( cache_dir=HF_CACHE_DIR ),
-        glue.GlueQNLIInstructDataset( cache_dir=HF_CACHE_DIR ),
-        glue.GlueQQPInstructDataset( cache_dir=HF_CACHE_DIR ),
-        glue.GlueRTEInstructDataset( cache_dir=HF_CACHE_DIR ),
-        glue.GlueSST2InstructDataset( cache_dir=HF_CACHE_DIR ),
-        glue.GlueWNLIInstructDataset( cache_dir=HF_CACHE_DIR ),
-        race.RaceInstructDataset( 'middle', cache_dir=HF_CACHE_DIR ),
-        race.RaceInstructDataset( 'high', cache_dir=HF_CACHE_DIR ),
-        hellaswag.HellaswagChoiceInstructDataset( cache_dir=HF_CACHE_DIR ),
-        hellaswag.HellaswagNoChoiceInstructDataset( cache_dir=HF_CACHE_DIR ),
+        DIRECTORY_CHOICE[ 'glue' ][ 'cola' ]( HF_CACHE_DIR ),
+        DIRECTORY_CHOICE[ 'glue' ][ 'mnli_matched' ]( HF_CACHE_DIR ),
+        DIRECTORY_CHOICE[ 'glue' ][ 'mnli_mismatched' ]( HF_CACHE_DIR ),
+        DIRECTORY_CHOICE[ 'glue' ][ 'mrpc' ]( HF_CACHE_DIR ),
+        DIRECTORY_CHOICE[ 'glue' ][ 'qnli' ]( HF_CACHE_DIR ),
+        DIRECTORY_CHOICE[ 'glue' ][ 'qqp' ]( HF_CACHE_DIR ),
+        DIRECTORY_CHOICE[ 'glue' ][ 'rte' ]( HF_CACHE_DIR ),
+        DIRECTORY_CHOICE[ 'glue' ][ 'sst2' ]( HF_CACHE_DIR ),
+        DIRECTORY_CHOICE[ 'glue' ][ 'wnli' ]( HF_CACHE_DIR ),
+        DIRECTORY_CHOICE[ 'race' ][ 'middle' ]( HF_CACHE_DIR ),
+        DIRECTORY_CHOICE[ 'race' ][ 'high' ]( HF_CACHE_DIR ),
+        DIRECTORY_CHOICE[ 'hellaswag' ][ 'choice' ]( HF_CACHE_DIR ),
+        DIRECTORY_CHOICE[ 'hellaswag' ][ 'no_choice' ]( HF_CACHE_DIR ),
     ]
 
 def create_validation_fewshot_tasks() -> list[BaseChoiceInstructDataset]:
     return [
-        mmlu.MMLUInstructDataset( cache_dir=HF_CACHE_DIR ),
+        DIRECTORY_CHOICE[ 'mmlu' ][ 'all' ]( HF_CACHE_DIR )
     ]
 
 def instruct_tune(
@@ -134,13 +134,15 @@ def instruct_tune(
     formatter = InstructionFormatter( tokenizer )
     batcher = ChoiceInstructionBatcher( model, formatter, 'mean' )
 
-    # Create dataset
+    # Get mask type for this training variant
     mask_type = {
         'vocab': 'train',
         'sft': 'train',
         'sft_dpo': 'test',
     }[ config[ 'finetune.mode' ] ]
 
+    # Create dataset
+    # TODO: add support for multitask vs mixedtask training
     task_loader = ParallelMixedTaskLoader(
         task_list=train_tasks,
         formatter=formatter,
@@ -149,63 +151,54 @@ def instruct_tune(
         mask_type=mask_type,
     )
 
+    # Print out our configs
     rich.print( trainer.train_config )
     rich.print( trainer.model.config )
 
+    # Update the base config
     config.update( {
         **model_config.to_wandb_dict(),
         **train_config.to_wandb_dict(),
     } )
 
+    # Log bas config
     log_full_config( output_dir, config )
-
-    # TODO: add support for multitask vs mixedtask training
 
     # Create iterator
     iterator = iter( task_loader.as_data_loader() )
 
+    # Train loop
     for i in range( trainer.get_total_epochs() ):
+        # Train for an epoch and get metrics
         train_metrics = trainer.train_epoch( iterator, i + 1 )
+
+        # Create empty validation metrics list
         validation_metrics = []
 
+        # If validation flag is set run validation
         if config[ 'meta.validate' ]:
+
+            # Zero shot validation
             for task in validation_zeroshot_tasks:
                 task_ds = task.get_validation_docs()
                 assert task_ds is not None
 
-                val_metrics = batcher.evaluate_dataset(
-                    task=task,
-                    dataset=task_ds,
-                    fewshot=False,
-                    fewshot_allsys=False
-                )
-
+                val_metrics = batcher.evaluate_dataset( task, task_ds, False, False )
                 curr_metrics = f'{task.task_name}/{task.task_subset}={val_metrics}'
                 validation_metrics.append( curr_metrics )
                 rich.print( curr_metrics )
 
+            # Zero shot + few shot validation
             for task in validation_fewshot_tasks:
                 task_ds = task.get_validation_docs()
                 assert task_ds is not None
 
-                val_zs_metrics = batcher.evaluate_dataset(
-                    task=task,
-                    dataset=task_ds,
-                    fewshot=False,
-                    fewshot_allsys=False
-                )
-
+                val_zs_metrics = batcher.evaluate_dataset( task, task_ds, False, False )
                 curr_metrics = f'{task.task_name}/{task.task_subset}/ZS={val_zs_metrics}'
                 validation_metrics.append( curr_metrics )
                 rich.print( curr_metrics )
 
-                val_fs_metrics = batcher.evaluate_dataset(
-                    task=task,
-                    dataset=task_ds,
-                    fewshot=True,
-                    fewshot_allsys=False
-                )
-
+                val_fs_metrics = batcher.evaluate_dataset( task, task_ds, True, False )
                 curr_metrics = f'{task.task_name}/{task.task_subset}/FS={val_fs_metrics}'
                 validation_metrics.append( curr_metrics )
                 rich.print( curr_metrics )
@@ -249,7 +242,7 @@ def run():
     instruct_tune(
         config=config,
         wandb_mode=arguments.wmode,
-        wandb_tags=[ f"fineutne_{config[ 'finetune.mode' ]}" ],
+        wandb_tags=[ f"finetune_{config[ 'finetune.mode' ]}" ],
         wandb_run_name=config[ 'meta.run_name' ],
     )
 
