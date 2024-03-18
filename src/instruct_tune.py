@@ -1,4 +1,5 @@
 import copy
+import json
 import os
 import argparse
 import typing
@@ -28,6 +29,29 @@ from model.modeling import LSWTForCausalLM
 
 from constants import HF_CACHE_DIR
 import train_utils
+
+def log_full_config( output_dir: str, config: dict ):
+    os.makedirs( output_dir, mode=0o777, exist_ok=True )
+
+    json_file = os.path.join( output_dir, 'run_config.json' )
+    json_str = json.dumps( config, indent=2 )
+
+    with open( json_file, 'w', encoding="utf-8" ) as f:
+        f.write( json_str + '\n' )
+
+def log_stats( output_dir: str, train_metrics: dict, valid_list: list, step: int ):
+    os.makedirs( output_dir, mode=0o777, exist_ok=True )
+
+    log_file = os.path.join( output_dir, 'outputs.log' )
+
+    with open( log_file, 'a', encoding="utf-8" ) as f:
+        f.write( f'Step={step}\n' )
+        f.write( f'Train={train_metrics}\n' )
+
+        for line in valid_list:
+            f.write( f'{line}\n' )
+
+        f.write( '\n' )
 
 def create_train_tasks( sft_mix: list ) -> TaskList:
     sft_mix = [
@@ -82,6 +106,7 @@ def instruct_tune(
     # Get pretrained run name and checkpoint directory
     pretrained_run_name = config[ 'finetune.checkpoint' ]
     pretrained_run_dir = f'./checkpoints/{pretrained_run_name}'
+    output_dir = f'./checkpoints/{wandb_run_name}'
 
     # Grab configs
     model_config = typing.cast( LSWTConfig, LSWTConfig.from_pretrained( pretrained_run_dir, torch_dtype=None ) )
@@ -127,6 +152,13 @@ def instruct_tune(
     rich.print( trainer.train_config )
     rich.print( trainer.model.config )
 
+    config.update( {
+        **model_config.to_wandb_dict(),
+        **train_config.to_wandb_dict(),
+    } )
+
+    log_full_config( output_dir, config )
+
     # TODO: add support for multitask vs mixedtask training
 
     # Create iterator
@@ -134,6 +166,7 @@ def instruct_tune(
 
     for i in range( trainer.get_total_epochs() ):
         train_metrics = trainer.train_epoch( iterator, i + 1 )
+        validation_metrics = []
 
         if config[ 'meta.validate' ]:
             for task in validation_zeroshot_tasks:
@@ -147,7 +180,9 @@ def instruct_tune(
                     fewshot_allsys=False
                 )
 
-                rich.print( f'{task.task_name}/{task.task_subset}={val_metrics}' )
+                curr_metrics = f'{task.task_name}/{task.task_subset}={val_metrics}'
+                validation_metrics.append( curr_metrics )
+                rich.print( curr_metrics )
 
             for task in validation_fewshot_tasks:
                 task_ds = task.get_validation_docs()
@@ -160,7 +195,9 @@ def instruct_tune(
                     fewshot_allsys=False
                 )
 
-                rich.print( f'{task.task_name}/{task.task_subset}/ZS={val_zs_metrics}' )
+                curr_metrics = f'{task.task_name}/{task.task_subset}/ZS={val_zs_metrics}'
+                validation_metrics.append( curr_metrics )
+                rich.print( curr_metrics )
 
                 val_fs_metrics = batcher.evaluate_dataset(
                     task=task,
@@ -169,9 +206,13 @@ def instruct_tune(
                     fewshot_allsys=False
                 )
 
-                rich.print( f'{task.task_name}/{task.task_subset}/FS={val_fs_metrics}' )
+                curr_metrics = f'{task.task_name}/{task.task_subset}/FS={val_fs_metrics}'
+                validation_metrics.append( curr_metrics )
+                rich.print( curr_metrics )
 
-    model.half().save_pretrained( f'./checkpoints/{wandb_run_name}' )
+        log_stats( output_dir, train_metrics, validation_metrics, trainer.optimizer_step )
+
+    model.half().save_pretrained( output_dir )
 
 def run():
     argparser = argparse.ArgumentParser()
