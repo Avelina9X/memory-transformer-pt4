@@ -24,6 +24,7 @@ class InstructionDatasetTask( Enum ):
     INSTRUCT_OPEN = 'instruct_open', 'Question answering task where the possible responses are given. Has explicit hard negatives.'
     INSTRUCT_CLOSED = 'instruct_closed', 'Question answering task where the response must be generated. Does not have explicit hard negatives.'
     SUMMARIZATION = 'summarization', 'Extractive or abstractive summarization task where given an article a summary must be produced.'
+    CONVERSATIONAL = 'conversational', 'Conversational style dataset, may be any task formatted in multiple user and assistant messages.'
 
     def __new__( cls, *args, **kwargs ):
         obj = object.__new__( cls )
@@ -345,7 +346,7 @@ class BaseInstructDataset( ABC ):
         Returns:
             list[list[Message]]: list of message lists, ready to be formatted and tokenized.
         """
-        raise NotImplementedError( 'This class does support fewshot evaluation.' )
+        raise NotImplementedError( 'This class does not support fewshot evaluation.' )
 
     @abstractmethod
     def create_unlabelled_message_target( self, doc: dict ) -> int | None:

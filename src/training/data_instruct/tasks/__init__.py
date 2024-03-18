@@ -3,6 +3,7 @@ from collections.abc import Callable, Mapping
 from . import (
     alpaca,
     cnn_dailymail,
+    coqa,
     glue,
     hellaswag,
     mmlu,
@@ -35,9 +36,14 @@ DIRECTORY_GENERATIVE: dict[str, Mapping[str, Callable[[str], BaseInstructDataset
     'tiny': tiny.DIRECTORY,
 }
 
+DIRECTORY_CONVERSATIONAL: dict[str, Mapping[str, Callable[[str], BaseInstructDataset]]] = {
+    'coqa': coqa.DIRECTORY,
+}
+
 DIRECTORY_ALL: dict[str, Mapping[str, Callable[[str], BaseInstructDataset]]] = {
     **DIRECTORY_CHOICE,
     **DIRECTORY_EXTRACT,
     **DIRECTORY_SUMMARY,
-    **DIRECTORY_GENERATIVE
+    **DIRECTORY_CONVERSATIONAL,
+    **DIRECTORY_GENERATIVE,
 }
