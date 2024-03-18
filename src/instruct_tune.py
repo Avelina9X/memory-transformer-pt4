@@ -2,6 +2,7 @@ import copy
 import os
 import argparse
 import typing
+import shortuuid
 
 import rich
 import wandb
@@ -17,7 +18,7 @@ from transformers import AutoTokenizer
 from training.trainer import Trainer
 
 from training.data_instruct.task_base import BaseChoiceInstructDataset
-from training.data_instruct.tasks import mmlu, race, glue, alpaca, cnn_dailymail, hellaswag, orca, squad, tiny
+from training.data_instruct.tasks import mmlu, race, glue, alpaca, cnn_dailymail, hellaswag, orca, squad, tiny, DIRECTORY_ALL
 from training.data_instruct.formatter import InstructionFormatter
 from training.data_instruct.task_loader import TaskList, ParallelMixedTaskLoader
 from training.data_instruct.batcher import ChoiceInstructionBatcher
@@ -28,27 +29,15 @@ from model.modeling import LSWTForCausalLM
 from constants import HF_CACHE_DIR
 import train_utils
 
-def create_train_tasks( fewshot_n=5 ) -> TaskList:
+def create_train_tasks( sft_mix: list ) -> TaskList:
+    sft_mix = [
+        ( i[0].split( '/' ), i[1], i[2] )
+        for i in sft_mix
+    ]
+
     return [
-        ( alpaca.AlpacaInstructDataset( cache_dir=HF_CACHE_DIR ), fewshot_n, True ),
-        ( orca.OpenOrcaInstructDataset( cache_dir=HF_CACHE_DIR ), fewshot_n, True ),
-        ( race.RaceInstructDataset( cache_dir=HF_CACHE_DIR, split='middle' ), fewshot_n, False ),
-        ( race.RaceInstructDataset( cache_dir=HF_CACHE_DIR, split='high' ), fewshot_n, False ),
-        ( mmlu.MMLUInstructDataset( cache_dir=HF_CACHE_DIR ), fewshot_n, False ),
-        ( glue.GlueColaInstructDataset( cache_dir=HF_CACHE_DIR ), fewshot_n, False ),
-        ( glue.GlueMNLIInstructDataset( cache_dir=HF_CACHE_DIR ), fewshot_n, False ),
-        ( glue.GlueMRPCInstructDataset( cache_dir=HF_CACHE_DIR ), fewshot_n, False ),
-        ( glue.GlueQNLIInstructDataset( cache_dir=HF_CACHE_DIR ), fewshot_n, False ),
-        ( glue.GlueQQPInstructDataset( cache_dir=HF_CACHE_DIR ), fewshot_n, False ),
-        ( glue.GlueRTEInstructDataset( cache_dir=HF_CACHE_DIR ), fewshot_n, False ),
-        ( glue.GlueSST2InstructDataset( cache_dir=HF_CACHE_DIR ), fewshot_n, False ),
-        ( glue.GlueWNLIInstructDataset( cache_dir=HF_CACHE_DIR ), fewshot_n, False ),
-        ( hellaswag.HellaswagChoiceInstructDataset( cache_dir=HF_CACHE_DIR ), fewshot_n, False ),
-        ( hellaswag.HellaswagNoChoiceInstructDataset( cache_dir=HF_CACHE_DIR ), fewshot_n, False ),
-        ( cnn_dailymail.CNNDailymailInstructDataset( cache_dir=HF_CACHE_DIR ), fewshot_n, False ),
-        ( squad.SquadV2InstructDataset( cache_dir=HF_CACHE_DIR ), fewshot_n, False ),
-        ( tiny.TinyStoriesInstructDataset( cache_dir=HF_CACHE_DIR, split='instruct' ), fewshot_n, False ),
-        ( tiny.TinyStoriesInstructDataset( cache_dir=HF_CACHE_DIR, split='summary' ), fewshot_n, False ),
+        ( DIRECTORY_ALL[task[0]][task[1]]( HF_CACHE_DIR ), fewshot_n, fewshot_allsys )
+        for task, fewshot_n, fewshot_allsys in sft_mix
     ]
 
 def create_validation_zeroshot_tasks() -> list[BaseChoiceInstructDataset]:
@@ -111,7 +100,7 @@ def instruct_tune(
     trainer = Trainer( train_config, model, tokenizer, None )
 
     # Create task mixes
-    train_tasks = create_train_tasks()
+    train_tasks = create_train_tasks( config[ 'finetune.sft_mix' ] )
     validation_zeroshot_tasks = create_validation_zeroshot_tasks()
     validation_fewshot_tasks = create_validation_fewshot_tasks()
 
@@ -145,7 +134,7 @@ def instruct_tune(
     for i in range( trainer.get_total_epochs() ):
         train_metrics = trainer.train_epoch( iterator, i + 1 )
 
-        if config[ 'finetune.mode' ] != 'vocab':
+        if config[ 'meta.validate' ]:
             for task in validation_zeroshot_tasks:
                 task_ds = task.get_validation_docs()
                 assert task_ds is not None
@@ -203,13 +192,14 @@ def run():
     arguments = argparser.parse_args()
 
     config = train_utils.parse_yaml_config( arguments.config )
-
-    rich.print( config )
+    config[ 'meta.run_name' ] += f'_{shortuuid.uuid()[:4]}'
 
     if config[ 'finetune.mode' ] not in [ 'vocab', 'sft', 'dpo_sft', 'dpo' ]:
         raise ValueError( "finetune.mode must be 'vocab', 'sft', 'dpo_sft' or 'dpo'" )
 
     assert arguments.wmode == 'disabled'
+
+    rich.print( config )
 
     instruct_tune(
         config=config,
