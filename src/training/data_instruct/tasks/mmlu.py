@@ -11,7 +11,7 @@ class MMLUInstructDataset( BaseChoiceInstructDataset ):
         super().__init__( cache_dir )
 
     def download( self, cache_dir: str ) -> DatasetDict:
-        dataset = load_dataset( 'cais/mmlu', 'all', cache_dir=cache_dir, revision='7a00892cd331d78a88c8c869d0224a5cdd149848' )
+        dataset = load_dataset( 'cais/mmlu', 'all', cache_dir=cache_dir, revision='7a00892cd331d78a88c8c869d0224a5cdd149848', trust_remote_code=True )
         assert isinstance( dataset, DatasetDict )
         return dataset
 
