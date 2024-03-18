@@ -1,5 +1,6 @@
 """ Utilities and helper functions for training and pretraining """
 
+import os
 import pathlib
 import yaml
 
@@ -186,6 +187,9 @@ def parse_yaml_config( files: list[str] ) -> dict:
     config = {}
 
     for file in files:
+        if not os.path.isfile( file ):
+            raise ValueError( f'Config file {file} does not exist!' )
+
         with open( file, 'r', encoding='utf-8' ) as f:
             obj = unpack_dict( yaml.load( f, yaml.FullLoader ) )
             config.update( obj )
