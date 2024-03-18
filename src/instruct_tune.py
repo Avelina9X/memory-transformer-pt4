@@ -307,8 +307,6 @@ def run():
     if config[ 'finetune.mode' ] not in [ 'vocab', 'sft', 'dpo_sft', 'dpo' ]:
         raise ValueError( "finetune.mode must be 'vocab', 'sft', 'dpo_sft' or 'dpo'" )
 
-    assert arguments.wmode == 'disabled'
-
     rich.print( config )
 
     instruct_tune(
