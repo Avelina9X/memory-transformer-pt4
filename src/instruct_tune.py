@@ -1,4 +1,3 @@
-import copy
 import json
 import os
 import argparse
@@ -19,7 +18,7 @@ from transformers import AutoTokenizer
 from training.trainer import Trainer
 
 from training.data_instruct.task_base import BaseChoiceInstructDataset
-from training.data_instruct.tasks import mmlu, race, glue, alpaca, cnn_dailymail, hellaswag, orca, squad, tiny, DIRECTORY_ALL, DIRECTORY_CHOICE
+from training.data_instruct.tasks import DIRECTORY_ALL, DIRECTORY_CHOICE
 from training.data_instruct.formatter import InstructionFormatter
 from training.data_instruct.task_loader import TaskList, ParallelMixedTaskLoader
 from training.data_instruct.batcher import ChoiceInstructionBatcher
