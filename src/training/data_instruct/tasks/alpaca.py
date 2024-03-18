@@ -18,8 +18,8 @@ class AlpacaInstructDataset( BaseInstructDataset ):
         return 'alpaca'
 
     @property
-    def task_subset( self ) -> None:
-        return None
+    def task_subset( self ) -> str:
+        return 'cleaned'
 
     def get_training_docs( self ) -> Dataset:
         return self.dataset[ 'train' ]
@@ -94,7 +94,7 @@ class AlpacaInstructDataset( BaseInstructDataset ):
 
 
 DIRECTORY: Mapping[str, Callable[[str], BaseInstructDataset]] = {
-    '3.0.0': AlpacaInstructDataset,
+    'cleaned': AlpacaInstructDataset,
 }
 
 
