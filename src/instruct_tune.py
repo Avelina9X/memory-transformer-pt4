@@ -26,7 +26,7 @@ from training.data_instruct.batcher import ChoiceInstructionBatcher
 from model.configuration import LSWTConfigTraining, LSWTConfig
 from model.modeling import LSWTForCausalLM
 
-from constants import HF_CACHE_DIR
+from constants import HF_CACHE_DIR, WANDB_API_KEY, WANDB_PROJECT_NAME
 import train_utils
 
 def log_full_config( output_dir: str, config: dict ):
@@ -91,6 +91,9 @@ def instruct_tune(
     wandb_tags: list[str] | None = None,
     wandb_run_name: str | None = None
 ):
+    # Log in to wandb
+    wandb.login( key=WANDB_API_KEY )
+
     # Set some performance flags
     torch.backends.cuda.matmul.allow_tf32 = True # type: ignore # pylint: disable=W0212
     torch.backends.cudnn.allow_tf32 = True # type: ignore # pylint: disable=W0212
@@ -154,10 +157,25 @@ def instruct_tune(
     rich.print( trainer.train_config )
     rich.print( trainer.model.config )
 
+    # Compute params
+    params_total = sum( p.numel() for p in model.parameters() )
+    params_trainable = sum( p.numel() for p in model.parameters() if p.requires_grad )
+    params_non_trainable = sum( p.numel() for p in model.parameters() if not p.requires_grad )
+
+    # Print parametes
+    print( '\nParameter Count:' )
+    rich.print( f'total         = {params_total}' )
+    rich.print( f'trainable     = {params_trainable}' )
+    rich.print( f'non trainable = {params_non_trainable}' )
+    print()
+
     # Update the base config
     config.update( {
         **model_config.to_wandb_dict(),
         **train_config.to_wandb_dict(),
+        'params.total': params_total,
+        'params.trainable': params_trainable,
+        'params.non_trainable': params_non_trainable,
     } )
 
     # Log bas config
@@ -166,16 +184,32 @@ def instruct_tune(
     # Create iterator
     iterator = iter( task_loader.as_data_loader() )
 
+
+    # Initialise WandB
+    wandb.init(
+        project=WANDB_PROJECT_NAME,
+        group='finetuning',
+        mode=wandb_mode,
+        config=config,
+        tags=wandb_tags,
+        name=wandb_run_name,
+        settings=wandb.Settings( _disable_stats=True )
+    )
+
+    input_artifact = train_utils.get_model_artifact( pretrained_run_name )
+    wandb.use_artifact( input_artifact )
+
     # Train loop
     for i in range( trainer.get_total_epochs() ):
         # Train for an epoch and get metrics
         train_metrics = trainer.train_epoch( iterator, i + 1 )
 
         # Create empty validation metrics list
-        validation_metrics = []
+        validation_lines = []
+        validation_dict = {}
 
-        # If validation flag is set run validation
-        if config[ 'meta.validate' ]:
+        # If validation flag is set (or it's the last epoch) run validation
+        if config[ 'meta.validate' ] or i + 1 == trainer.get_total_epochs():
 
             # Zero shot validation
             for task in validation_zeroshot_tasks:
@@ -184,8 +218,15 @@ def instruct_tune(
 
                 val_metrics = batcher.evaluate_dataset( task, task_ds, False, False )
                 curr_metrics = f'{task.task_name}/{task.task_subset}={val_metrics}'
-                validation_metrics.append( curr_metrics )
+                validation_lines.append( curr_metrics )
                 rich.print( curr_metrics )
+
+                validation_dict.update(
+                    **train_utils.compute_validation_metric_dict(
+                        val_metrics,
+                        f'{task.task_name}/{task.task_subset}'
+                    )
+                )
 
             # Zero shot + few shot validation
             for task in validation_fewshot_tasks:
@@ -194,17 +235,49 @@ def instruct_tune(
 
                 val_zs_metrics = batcher.evaluate_dataset( task, task_ds, False, False )
                 curr_metrics = f'{task.task_name}/{task.task_subset}/ZS={val_zs_metrics}'
-                validation_metrics.append( curr_metrics )
+                validation_lines.append( curr_metrics )
                 rich.print( curr_metrics )
+
+                validation_dict.update(
+                    **train_utils.compute_validation_metric_dict(
+                        val_zs_metrics,
+                        f'{task.task_name}/{task.task_subset}/ZS'
+                    )
+                )
 
                 val_fs_metrics = batcher.evaluate_dataset( task, task_ds, True, False )
                 curr_metrics = f'{task.task_name}/{task.task_subset}/FS={val_fs_metrics}'
-                validation_metrics.append( curr_metrics )
+                validation_lines.append( curr_metrics )
                 rich.print( curr_metrics )
 
-        log_stats( output_dir, train_metrics, validation_metrics, trainer.optimizer_step )
+                validation_dict.update(
+                    **train_utils.compute_validation_metric_dict(
+                        val_fs_metrics,
+                        f'{task.task_name}/{task.task_subset}/FS'
+                    )
+                )
+
+        log_stats( output_dir, train_metrics, validation_lines, trainer.optimizer_step )
+
+        train_log = train_utils.compute_metric_dict( train_metrics, 'train' )
+        stats_log = train_utils.compute_stats_dict( trainer, i )
+
+        wandb.log( {
+            **train_log,
+            **validation_dict,
+            **stats_log,
+        } )
 
     model.half().save_pretrained( output_dir )
+    tokenizer.save_pretrained( output_dir )
+
+    model_artifact = wandb.Artifact( name=model.config.model_type, type="model" )
+    model_artifact.add_dir( output_dir )
+
+    assert wandb.run is not None
+    wandb.run.log_artifact( model_artifact )
+
+    wandb.finish()
 
 def run():
     argparser = argparse.ArgumentParser()

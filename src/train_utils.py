@@ -148,6 +148,21 @@ def compute_metric_dict( inputs: dict[str, float], name: str ) -> dict[str, floa
         f'{name}/acc': inputs[ 'acc' ],
     }
 
+def compute_validation_metric_dict( inputs: dict[str, float], name: str ) -> dict[str, float]:
+    """ Given a dict of arbitrary keys, returns a wandb log dict of metrics
+
+    Args:
+        inputs (dict[str, float]): Dict contraining metrics
+        name (str): Metric group name
+
+    Returns:
+        dict[str, float]: wandb log dict of metrics
+    """
+    return {
+        f'{name}/{key}' : value
+        for key, value in inputs.items()
+    }
+
 
 def compute_stats_dict( trainer: Trainer, i: int ) -> dict[str, float | int]:
     """ Given the trainer and current iteration returns a wandb log dict of stats
