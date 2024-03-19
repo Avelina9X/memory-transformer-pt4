@@ -368,7 +368,7 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
             {
                 "past_key_values": past_key_values,
                 "use_cache": kwargs.get( 'use_cache' ),
-                'max_key_values': kwargs.get( 'max_key_values', 0 )
+                'max_key_values': kwargs.get( 'max_key_values', self.config.rope_positions )
             }
         )
         return model_inputs
