@@ -48,11 +48,11 @@ class HellaswagChoiceInstructDataset( BaseChoiceInstructDataset ):
             f"What is the most appropriate completion for the following text?\n"
             f"\"{doc['ctx']}\"\n"
             f"\n"
-            f"Completions:\n"
-            f"1. {doc['endings'][0]}\n"
-            f"2. {doc['endings'][1]}\n"
-            f"3. {doc['endings'][2]}\n"
-            f"4. {doc['endings'][3]}\n"
+            f"Choices:\n"
+            f"A. {doc['endings'][0]}\n"
+            f"B. {doc['endings'][1]}\n"
+            f"C. {doc['endings'][2]}\n"
+            f"D. {doc['endings'][3]}\n"
             f"\n"
             f"Answer:"
         )
@@ -64,8 +64,9 @@ class HellaswagChoiceInstructDataset( BaseChoiceInstructDataset ):
         )
 
     def _format_single_target( self, doc: dict ) -> Message:
+        idx = int(doc['label'])
         prompt = (
-            f"{doc['label']}. {doc['endings'][int(doc['label'])]}"
+            f"{[ 'A', 'B', 'C', 'D' ][idx]}. {doc['endings'][idx]}"
         )
 
         return Message(
