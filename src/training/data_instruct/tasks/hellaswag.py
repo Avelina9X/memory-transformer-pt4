@@ -49,10 +49,10 @@ class HellaswagChoiceInstructDataset( BaseChoiceInstructDataset ):
             f"\"{doc['ctx']}\"\n"
             f"\n"
             f"Completions:\n"
-            f"- {doc['endings'][0]}\n"
-            f"- {doc['endings'][1]}\n"
-            f"- {doc['endings'][2]}\n"
-            f"- {doc['endings'][3]}\n"
+            f"1. {doc['endings'][0]}\n"
+            f"2. {doc['endings'][1]}\n"
+            f"3. {doc['endings'][2]}\n"
+            f"4. {doc['endings'][3]}\n"
             f"\n"
             f"Answer:"
         )
@@ -64,9 +64,13 @@ class HellaswagChoiceInstructDataset( BaseChoiceInstructDataset ):
         )
 
     def _format_single_target( self, doc: dict ) -> Message:
+        prompt = (
+            f"{doc['label']}. {doc['endings'][int(doc['label'])]}"
+        )
+
         return Message(
             role='assistant',
-            content=doc[ 'endings' ][ int( doc[ 'label' ] ) ],
+            content=prompt,
             complete=True,
         )
 
