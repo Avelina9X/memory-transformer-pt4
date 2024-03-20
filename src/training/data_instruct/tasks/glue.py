@@ -43,17 +43,10 @@ class GlueBaseInstructDataset( BaseChoiceInstructDataset ):
     def compute_metric( self, predictions=None, references=None ) -> dict:
         metric = self.metric.compute( predictions=predictions, references=references )
         assert metric is not None
-
         return metric
 
 
 class GlueColaInstructDataset( GlueBaseInstructDataset ):
-    def __init__( self, cache_dir: str ):
-        self.add_metrics = [
-            load_metric( 'accuracy' ),
-            load_metric( 'f1' ),
-        ]
-        super().__init__( cache_dir )
 
     @property
     def task_description( self ) -> str:
@@ -89,17 +82,6 @@ class GlueColaInstructDataset( GlueBaseInstructDataset ):
 
     def _get_choices( self, doc: dict ) -> list:
         return [ 0, 1 ]
-
-    def compute_metric( self, predictions=None, references=None ) -> dict:
-        base = self.metric.compute( predictions=predictions, references=references )
-        assert base is not None
-
-        for metric in self.add_metrics:
-            update = metric.compute( predictions=predictions, references=references )
-            assert update is not None
-
-            base.update( update )
-        return base
 
 
 class GlueMNLIInstructDataset( GlueBaseInstructDataset ):
