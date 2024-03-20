@@ -2,7 +2,7 @@ from collections.abc import Callable, Mapping
 from datasets import DatasetDict, Dataset, load_dataset
 from evaluate import load as load_metric
 
-from ..task_base import BaseChoiceInstructDataset, InstructionDatasetTask, Message
+from ..task_base import BaseChoiceInstructDataset, InstructionDatasetTask, Message, MessageList
 
 class GlueBaseInstructDataset( BaseChoiceInstructDataset ):
     def __init__( self, cache_dir: str ):
@@ -34,7 +34,7 @@ class GlueBaseInstructDataset( BaseChoiceInstructDataset ):
     def get_fewshot_docs( self ) -> Dataset | None:
         return None
 
-    def create_unlabelled_message_target( self, doc: dict ) -> int | None:
+    def create_unlabelled_message_target( self, doc: dict ) -> int | float | None:
         return None if doc['label'] < 0 else doc['label']
 
     def _get_label_key( self ) -> str:
@@ -397,6 +397,71 @@ class GlueSST2InstructDataset( GlueBaseInstructDataset ):
         return [ 0, 1 ]
 
 
+class GlueSTSBInstructDataset( GlueBaseInstructDataset ):
+    @property
+    def task_description( self ) -> str:
+        return 'The Semantic Textual Similarity Benchmark. Each pair is human-annotated with a similarity score from 1 to 5.'
+
+    @property
+    def task_subset( self ) -> str:
+        return 'stsb'
+
+    def format_user_message( self, doc: dict ) -> Message:
+        prompt = (
+            f'Given the following sentences, answer the question with a number between 0 and 5.\n'
+            f'\n'
+            f'Sentence 1: {doc["sentence1"]}\n'
+            f'\n'
+            f'Sentence 2: {doc["sentence2"]}\n'
+            f'\n'
+            f'Question: On a scale of 0 to 5 how similar are Sentence 1 and Sentence 2?\n'
+            f'\n'
+            f'Answer:'
+        )
+
+        return Message(
+            role='user',
+            content=prompt,
+            complete=True,
+        )
+
+    def _format_single_target( self, doc: dict ) -> Message:
+        return Message(
+            role='assistant',
+            content=f"{doc['label']}",
+            complete=True,
+        )
+
+    def _get_choices( self, doc: dict ) -> list:
+        return [ 0, 1, 2, 3, 4, 5 ]
+
+    def format_unlabelled_messages( self, doc: dict ) -> MessageList:
+        return [
+            self._format_single_target( dict( doc, **{ self._get_label_key() : i } ) )
+            for i in self._get_choices( doc )
+        ]
+
+    def format_target_messages( self, doc: dict ) -> MessageList:
+        target_idx = self.create_unlabelled_message_target( doc )
+        assert target_idx is not None
+
+        return [
+            msg
+            for i, msg in enumerate( self.format_unlabelled_messages( doc ) )
+            if i == round( target_idx )
+        ]
+
+    def format_distractor_messages( self, doc: dict ) -> MessageList:
+        target_idx = self.create_unlabelled_message_target( doc )
+        assert target_idx is not None
+
+        return [
+            msg
+            for i, msg in enumerate( self.format_unlabelled_messages( doc ) )
+            if i != round( target_idx )
+        ]
+
+
 class GlueWNLIInstructDataset( GlueBaseInstructDataset ):
 
     @property
@@ -448,7 +513,7 @@ DIRECTORY: Mapping[str, Callable[[str], GlueBaseInstructDataset]] = {
     'qqp': GlueQQPInstructDataset,
     'rte': GlueRTEInstructDataset,
     'sst2': GlueSST2InstructDataset,
-    # Add stsb
+    'stsb': GlueSST2InstructDataset,
     'wnli': GlueWNLIInstructDataset,
 }
 
@@ -470,4 +535,5 @@ def main():
     rich.print( GlueQQPInstructDataset( cache_dir ), end='\n\n' )
     rich.print( GlueRTEInstructDataset( cache_dir ), end='\n\n' )
     rich.print( GlueSST2InstructDataset( cache_dir ), end='\n\n' )
+    rich.print( GlueSTSBInstructDataset( cache_dir ), end='\n\n' )
     rich.print( GlueWNLIInstructDataset( cache_dir ), end='\n\n' )

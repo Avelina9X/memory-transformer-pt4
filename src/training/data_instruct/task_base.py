@@ -349,14 +349,14 @@ class BaseInstructDataset( ABC ):
         raise NotImplementedError( 'This class does not support fewshot evaluation.' )
 
     @abstractmethod
-    def create_unlabelled_message_target( self, doc: dict ) -> int | None:
+    def create_unlabelled_message_target( self, doc: dict ) -> int | float | None:
         """ Returns the target index for binary and multi-class tasks.
 
         Args:
             doc (dict): the input document.
 
         Returns:
-            int | None: The correct target index.
+            int | float | None: The correct target index.
         """
 
     def create_generation_messages( self, doc: dict ) -> list[Message]:
