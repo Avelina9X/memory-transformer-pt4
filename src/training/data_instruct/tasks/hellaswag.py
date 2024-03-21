@@ -102,7 +102,7 @@ class HellaswagNoChoiceInstructDataset( BaseChoiceInstructDataset ):
 
     @property
     def task_type( self ) -> InstructionDatasetTask:
-        return InstructionDatasetTask.MULTIPLE_CHOICE_CLOSED
+        return InstructionDatasetTask.INSTRUCT_CLOSED
 
     @property
     def task_description( self ) -> str:
