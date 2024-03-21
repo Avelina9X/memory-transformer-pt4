@@ -82,7 +82,7 @@ class ARCInstructDataset( BaseChoiceInstructDataset ):
         return 'answerKey'
 
     def create_unlabelled_message_target( self, doc: dict ) -> int:
-        return self._get_choices( doc ).index( self._get_label_key() )
+        return self._get_choices( doc ).index( doc[ self._get_label_key() ] )
 
     def compute_metric( self, predictions=None, references=None ) -> dict:
         metric = self.metric.compute( predictions=predictions, references=references )
