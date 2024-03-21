@@ -10,6 +10,7 @@ from . import (
     mmlu,
     obqa,
     orca,
+    piqa,
     race,
     squad,
     tiny
@@ -23,6 +24,7 @@ DIRECTORY_CHOICE: dict[str, Mapping[str, Callable[[str], BaseChoiceInstructDatas
     'hellaswag': hellaswag.DIRECTORY,
     'mmlu': mmlu.DIRECTORY,
     'obqa': obqa.DIRECTORY,
+    'piqa': piqa.DIRECTORY,
     'race': race.DIRECTORY,
 }
 
