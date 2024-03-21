@@ -14,7 +14,8 @@ from . import (
     race,
     squad,
     super_glue,
-    tiny
+    tiny,
+    winogrande
 )
 
 from ..task_base import BaseInstructDataset, BaseChoiceInstructDataset
@@ -28,6 +29,7 @@ DIRECTORY_CHOICE: dict[str, Mapping[str, Callable[[str], BaseChoiceInstructDatas
     'piqa': piqa.DIRECTORY,
     'super_glue': super_glue.DIRECTORY,
     'race': race.DIRECTORY,
+    'winogrande': winogrande.DIRECTORY,
 }
 
 DIRECTORY_EXTRACT: dict[str, Mapping[str, Callable[[str], BaseInstructDataset]]] = {
