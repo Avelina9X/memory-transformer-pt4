@@ -57,7 +57,7 @@ class PreparedChoiceBatch:
     targets: torch.LongTensor
     train_mask: torch.BoolTensor
     test_mask: torch.BoolTensor
-    correct_index: int
+    correct_index: int | float
 
 class ChoiceInstructionBatcher( BaseInstructionBatcher ):
     def prepare_batch(
@@ -82,7 +82,7 @@ class ChoiceInstructionBatcher( BaseInstructionBatcher ):
         completions = task.create_unlabelled_message_list( target_doc )
         correct = task.create_unlabelled_message_target( target_doc )
 
-        if not isinstance( correct, int ):
+        if correct is None:
             raise ValueError( 'Message targets must be defined!' )
 
         if fewshot is False:
