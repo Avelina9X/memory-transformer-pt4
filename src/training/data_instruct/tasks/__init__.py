@@ -13,6 +13,7 @@ from . import (
     piqa,
     race,
     squad,
+    super_glue,
     tiny
 )
 
@@ -25,6 +26,7 @@ DIRECTORY_CHOICE: dict[str, Mapping[str, Callable[[str], BaseChoiceInstructDatas
     'mmlu': mmlu.DIRECTORY,
     'obqa': obqa.DIRECTORY,
     'piqa': piqa.DIRECTORY,
+    'super_glue': super_glue.DIRECTORY,
     'race': race.DIRECTORY,
 }
 
