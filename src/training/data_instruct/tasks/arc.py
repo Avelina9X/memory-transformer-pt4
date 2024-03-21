@@ -48,14 +48,18 @@ class ARCInstructDataset( BaseChoiceInstructDataset ):
 
 
     def format_user_message( self, doc: dict ) -> Message:
+
+        answers = ''.join( [
+            f'{label}. {text}\n'
+            for label, text
+            in zip( doc['choices']['label'], doc['choices']['text'] )
+        ] )
+
         prompt = (
             f"Question: {doc['question']}\n"
             f"\n"
             f"Choices:\n"
-            f"{doc['choices']['label'][0]}. {doc['choices']['text'][0]}\n"
-            f"{doc['choices']['label'][1]}. {doc['choices']['text'][1]}\n"
-            f"{doc['choices']['label'][2]}. {doc['choices']['text'][2]}\n"
-            f"{doc['choices']['label'][3]}. {doc['choices']['text'][3]}\n"
+            f"{answers}"
             f"\n"
             f"Answer:"
         )
