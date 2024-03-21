@@ -495,7 +495,7 @@ DIRECTORY: Mapping[str, Callable[[str], GlueBaseInstructDataset]] = {
     'qqp': GlueQQPInstructDataset,
     'rte': GlueRTEInstructDataset,
     'sst2': GlueSST2InstructDataset,
-    'stsb': GlueSST2InstructDataset,
+    'stsb': GlueSTSBInstructDataset,
     'wnli': GlueWNLIInstructDataset,
 }
 

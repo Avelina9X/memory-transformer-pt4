@@ -73,6 +73,7 @@ def create_validation_zeroshot_tasks() -> list[BaseChoiceInstructDataset]:
         DIRECTORY_CHOICE[ 'glue' ][ 'qqp' ]( HF_CACHE_DIR ),
         DIRECTORY_CHOICE[ 'glue' ][ 'rte' ]( HF_CACHE_DIR ),
         DIRECTORY_CHOICE[ 'glue' ][ 'sst2' ]( HF_CACHE_DIR ),
+        DIRECTORY_CHOICE[ 'glue' ][ 'stsb' ]( HF_CACHE_DIR ),
         DIRECTORY_CHOICE[ 'glue' ][ 'wnli' ]( HF_CACHE_DIR ),
         DIRECTORY_CHOICE[ 'race' ][ 'middle' ]( HF_CACHE_DIR ),
         DIRECTORY_CHOICE[ 'race' ][ 'high' ]( HF_CACHE_DIR ),
