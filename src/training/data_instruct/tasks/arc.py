@@ -68,7 +68,7 @@ class ARCInstructDataset( BaseChoiceInstructDataset ):
 
     def _format_single_target( self, doc: dict ) -> Message:
         idx = self.create_unlabelled_message_target( doc )
-        prompt = doc['answer'] + '. ' + doc['options'][idx]
+        prompt = doc['choices']['label'][idx] + '. ' + doc['choices']['text'][idx]
         return Message(
             role='assistant',
             content=prompt,
