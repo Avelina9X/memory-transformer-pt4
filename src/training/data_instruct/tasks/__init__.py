@@ -2,6 +2,7 @@ from collections.abc import Callable, Mapping
 
 from . import (
     alpaca,
+    arc,
     cnn_dailymail,
     coqa,
     glue,
@@ -20,6 +21,7 @@ DIRECTORY_CHOICE: dict[str, Mapping[str, Callable[[str], BaseChoiceInstructDatas
     'hellaswag': hellaswag.DIRECTORY,
     'mmlu': mmlu.DIRECTORY,
     'race': race.DIRECTORY,
+    'arc': arc.DIRECTORY,
 }
 
 DIRECTORY_EXTRACT: dict[str, Mapping[str, Callable[[str], BaseInstructDataset]]] = {
