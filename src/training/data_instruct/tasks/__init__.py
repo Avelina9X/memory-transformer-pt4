@@ -8,6 +8,7 @@ from . import (
     glue,
     hellaswag,
     mmlu,
+    obqa,
     orca,
     race,
     squad,
@@ -17,11 +18,12 @@ from . import (
 from ..task_base import BaseInstructDataset, BaseChoiceInstructDataset
 
 DIRECTORY_CHOICE: dict[str, Mapping[str, Callable[[str], BaseChoiceInstructDataset]]] = {
+    'arc': arc.DIRECTORY,
     'glue': glue.DIRECTORY,
     'hellaswag': hellaswag.DIRECTORY,
     'mmlu': mmlu.DIRECTORY,
+    'obqa': obqa.DIRECTORY,
     'race': race.DIRECTORY,
-    'arc': arc.DIRECTORY,
 }
 
 DIRECTORY_EXTRACT: dict[str, Mapping[str, Callable[[str], BaseInstructDataset]]] = {
