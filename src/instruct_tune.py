@@ -65,6 +65,19 @@ def create_train_tasks( sft_mix: list ) -> TaskList:
 
 def create_validation_zeroshot_tasks() -> list[BaseChoiceInstructDataset]:
     return [
+        # Hellaswag multiple choice
+        DIRECTORY_CHOICE[ 'hellaswag' ][ 'choice' ]( HF_CACHE_DIR ),
+
+        # GPT 4 ALL
+        DIRECTORY_CHOICE[ 'hellaswag' ][ 'no_choice' ]( HF_CACHE_DIR ),
+        DIRECTORY_CHOICE[ 'obqa' ][ 'main' ]( HF_CACHE_DIR ),
+        DIRECTORY_CHOICE[ 'winogrande' ][ 'no_choice' ]( HF_CACHE_DIR ),
+        DIRECTORY_CHOICE[ 'arc' ][ 'challenge' ]( HF_CACHE_DIR ),
+        DIRECTORY_CHOICE[ 'arc' ][ 'easy' ]( HF_CACHE_DIR ),
+        DIRECTORY_CHOICE[ 'super_glue' ][ 'boolq' ]( HF_CACHE_DIR ),
+        DIRECTORY_CHOICE[ 'piqa' ][ 'no_choice' ]( HF_CACHE_DIR ),
+
+        # Glue Benchmark
         DIRECTORY_CHOICE[ 'glue' ][ 'cola' ]( HF_CACHE_DIR ),
         DIRECTORY_CHOICE[ 'glue' ][ 'mnli_matched' ]( HF_CACHE_DIR ),
         DIRECTORY_CHOICE[ 'glue' ][ 'mnli_mismatched' ]( HF_CACHE_DIR ),
@@ -75,10 +88,10 @@ def create_validation_zeroshot_tasks() -> list[BaseChoiceInstructDataset]:
         DIRECTORY_CHOICE[ 'glue' ][ 'sst2' ]( HF_CACHE_DIR ),
         DIRECTORY_CHOICE[ 'glue' ][ 'stsb' ]( HF_CACHE_DIR ),
         DIRECTORY_CHOICE[ 'glue' ][ 'wnli' ]( HF_CACHE_DIR ),
+
+        # Race multiple choice
         DIRECTORY_CHOICE[ 'race' ][ 'middle' ]( HF_CACHE_DIR ),
         DIRECTORY_CHOICE[ 'race' ][ 'high' ]( HF_CACHE_DIR ),
-        DIRECTORY_CHOICE[ 'hellaswag' ][ 'choice' ]( HF_CACHE_DIR ),
-        DIRECTORY_CHOICE[ 'hellaswag' ][ 'no_choice' ]( HF_CACHE_DIR ),
     ]
 
 def create_validation_fewshot_tasks() -> list[BaseChoiceInstructDataset]:
@@ -216,17 +229,15 @@ def instruct_tune(
             for task in validation_zeroshot_tasks:
                 task_ds = task.get_validation_docs()
                 assert task_ds is not None
-
                 val_metrics = batcher.evaluate_dataset( task, task_ds, False, False )
-                curr_metrics = f'{task.task_name}/{task.task_subset}={val_metrics}'
-                validation_lines.append( curr_metrics )
+
+                task_name = f'{task.task_name}/{task.task_subset}'
+                curr_metrics = f'{task_name}={val_metrics}'
                 rich.print( curr_metrics )
 
+                validation_lines.append( curr_metrics )
                 validation_dict.update(
-                    **train_utils.compute_validation_metric_dict(
-                        val_metrics,
-                        f'{task.task_name}/{task.task_subset}'
-                    )
+                    **train_utils.compute_validation_metric_dict( val_metrics, task_name )
                 )
 
             # Zero shot + few shot validation
@@ -234,28 +245,28 @@ def instruct_tune(
                 task_ds = task.get_validation_docs()
                 assert task_ds is not None
 
+                # Zero shot
                 val_zs_metrics = batcher.evaluate_dataset( task, task_ds, False, False )
-                curr_metrics = f'{task.task_name}/{task.task_subset}/ZS={val_zs_metrics}'
-                validation_lines.append( curr_metrics )
+
+                task_name = f'{task.task_name}/{task.task_subset}/ZS'
+                curr_metrics = f'{task_name}={val_zs_metrics}'
                 rich.print( curr_metrics )
 
+                validation_lines.append( curr_metrics )
                 validation_dict.update(
-                    **train_utils.compute_validation_metric_dict(
-                        val_zs_metrics,
-                        f'{task.task_name}/{task.task_subset}/ZS'
-                    )
+                    **train_utils.compute_validation_metric_dict( val_zs_metrics, task_name )
                 )
 
+                # Few shot
                 val_fs_metrics = batcher.evaluate_dataset( task, task_ds, True, False )
-                curr_metrics = f'{task.task_name}/{task.task_subset}/FS={val_fs_metrics}'
-                validation_lines.append( curr_metrics )
+
+                task_name = f'{task.task_name}/{task.task_subset}/FS'
+                curr_metrics = f'{task_name}={val_fs_metrics}'
                 rich.print( curr_metrics )
 
+                validation_lines.append( curr_metrics )
                 validation_dict.update(
-                    **train_utils.compute_validation_metric_dict(
-                        val_fs_metrics,
-                        f'{task.task_name}/{task.task_subset}/FS'
-                    )
+                    **train_utils.compute_validation_metric_dict( val_fs_metrics, task_name )
                 )
 
         log_stats( output_dir, train_metrics, validation_lines, trainer.optimizer_step )
