@@ -152,7 +152,7 @@ def aggregate_mmlu_score( metrics: dict[ str, float ] ) -> dict[ str, float ]:
     return { 'validation/mmlu_avg': 100 * sum( macro_scores ) / len( macro_scores ) }
 
 def evaluate_zero_shot_task( task: BaseChoiceInstructDataset, batcher: ChoiceInstructionBatcher ) -> tuple[ str, dict[ str, float ] ]:
-    with torch.cuda.stream( torch.cuda.Stream() ):
+    with torch.cuda.stream( torch.cuda.Stream() ): # type: ignore # pylance is confused about types again
         task_ds = task.get_validation_docs()
         assert task_ds is not None
         val_metrics = batcher.evaluate_dataset( task, task_ds, False, False )
