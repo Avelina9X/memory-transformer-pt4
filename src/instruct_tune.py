@@ -11,6 +11,7 @@ import wandb
 from wcmatch import glob
 
 import torch
+from torch import multiprocessing as mp
 
 import evaluate
 import datasets
@@ -109,7 +110,7 @@ def aggregate_gpt4all_score( metrics: dict[ str, float ] ) -> dict[ str, float ]
         metrics[ 'arc/ARC-Easy/accuracy' ],
         metrics[ 'arc/ARC-Challenge/accuracy' ],
         metrics[ 'super_glue/boolq/accuracy' ],
-        metrics[ 'winogrande/no_choice/accuracy' ],
+        metrics[ 'piqa/no_choice/accuracy' ],
     ]
     return { 'validation/gpt4all': 100 * sum( macro_scores ) / len( macro_scores ) }
 
@@ -292,6 +293,12 @@ def instruct_tune(
 
         # If validation flag is set (or it's the last epoch) run validation
         if config[ 'meta.validate' ] or i + 1 == trainer.get_total_epochs():
+
+            # with mp.get_context( 'spawn' ).Pool( 4 ) as pool:
+            #     results = pool.map( partial( evaluate_zero_shot_task, batcher=batcher ), validation_zeroshot_tasks )
+            #     for curr_line, curr_dict in results:
+            #         validation_lines.append( curr_line )
+            #         validation_dict.update( **curr_dict )
 
             for task in validation_zeroshot_tasks:
                 curr_line, curr_dict = evaluate_zero_shot_task( task, batcher )
