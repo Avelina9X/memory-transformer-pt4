@@ -1,3 +1,4 @@
+from functools import partial
 import json
 import os
 import argparse
@@ -5,6 +6,7 @@ import typing
 import shortuuid
 
 import rich
+import tqdm
 import wandb
 from wcmatch import glob
 
@@ -99,6 +101,72 @@ def create_validation_fewshot_tasks() -> list[BaseChoiceInstructDataset]:
         DIRECTORY_CHOICE[ 'mmlu' ][ 'all' ]( HF_CACHE_DIR )
     ]
 
+def aggregate_gpt4all_score( metrics: dict[ str, float ] ) -> dict[ str, float ]:
+    macro_scores = [
+        metrics[ 'Hellaswag/no_choice/accuracy' ],
+        metrics[ 'obqa/main/accuracy' ],
+        metrics[ 'winogrande/no_choice/accuracy' ],
+        metrics[ 'arc/ARC-Easy/accuracy' ],
+        metrics[ 'arc/ARC-Challenge/accuracy' ],
+        metrics[ 'super_glue/boolq/accuracy' ],
+        metrics[ 'winogrande/no_choice/accuracy' ],
+    ]
+    return { 'validation/gpt4all': 100 * sum( macro_scores ) / len( macro_scores ) }
+
+def aggregate_glue_score( metrics: dict[ str, float ] ) -> dict[ str, float ]:
+    macro_scores = [
+        metrics[ 'GLUE/cola/matthews_correlation' ],
+        ( metrics[ 'GLUE/mnli_matched/accuracy' ] + metrics[ 'GLUE/mnli_mismatched/accuracy' ] ) / 2,
+        ( metrics[ 'GLUE/mrpc/accuracy' ] + metrics[ 'GLUE/mrpc/f1' ] ) / 2,
+        metrics[ 'GLUE/qnli/accuracy' ],
+        ( metrics[ 'GLUE/qqp/accuracy' ] + metrics[ 'GLUE/qqp/f1' ] ) / 2,
+        metrics[ 'GLUE/rte/accuracy' ],
+        metrics[ 'GLUE/sst2/accuracy' ],
+        ( metrics[ 'GLUE/stsb/pearson' ] + metrics[ 'GLUE/stsb/spearmanr' ] ) / 2,
+    ]
+
+    macro_scores_wnli = [
+        *macro_scores,
+        metrics[ 'GLUE/wnli/accuracy' ],
+    ]
+
+    return {
+        'validation/glue_all': 100 * sum( macro_scores_wnli ) / len( macro_scores_wnli ),
+        'validation/glue_no_wnli': 100 * sum( macro_scores ) / len( macro_scores ),
+    }
+
+def aggregate_race_score( metrics: dict[ str, float ] ) -> dict[ str, float ]:
+    macro_scores = [
+        metrics[ 'race/middle/accuracy' ] * 1.44,
+        metrics[ 'race/high/accuracy' ] * 3.45,
+    ]
+    return {
+        'validation/race_avg': 100 * sum( macro_scores ) / ( 1.44 + 3.45 )
+    }
+
+def aggregate_mmlu_score( metrics: dict[ str, float ] ) -> dict[ str, float ]:
+    macro_scores = [
+        metrics[ 'MMLU/all/ZS/accuracy' ],
+        metrics[ 'MMLU/all/FS/accuracy' ],
+    ]
+    return { 'validation/mmlu_avg': 100 * sum( macro_scores ) / len( macro_scores ) }
+
+def evaluate_zero_shot_task( task: BaseChoiceInstructDataset, batcher: ChoiceInstructionBatcher ) -> tuple[ str, dict[ str, float ] ]:
+    with torch.cuda.stream( torch.cuda.Stream() ):
+        task_ds = task.get_validation_docs()
+        assert task_ds is not None
+        val_metrics = batcher.evaluate_dataset( task, task_ds, False, False )
+        torch.cuda.empty_cache()
+
+        task_name = f'{task.task_name}/{task.task_subset}'
+        curr_metrics = f'{task_name}={val_metrics}'
+        rich.print( curr_metrics )
+
+    return (
+        curr_metrics,
+        train_utils.compute_validation_metric_dict( val_metrics, task_name )
+    )
+
 def instruct_tune(
     config: dict,
     wandb_mode: str | None = None,
@@ -138,9 +206,6 @@ def instruct_tune(
     tokenizer = AutoTokenizer.from_pretrained( model_config.parent_embeddings, use_fast=True, cache_dir=HF_CACHE_DIR )
     train_utils.add_special_tokens( tokenizer )
 
-    # Instantiate trainer for finetuning
-    trainer = Trainer( train_config, model, tokenizer, None )
-
     # Create task mixes
     train_tasks = create_train_tasks( config[ 'finetune.sft_mix' ] )
     validation_zeroshot_tasks = create_validation_zeroshot_tasks()
@@ -167,6 +232,9 @@ def instruct_tune(
         mask_type=mask_type,
     )
 
+    # Instantiate trainer for finetuning
+    trainer = Trainer( train_config, model, tokenizer, None )
+
     # Print out our configs
     rich.print( trainer.train_config )
     rich.print( trainer.model.config )
@@ -192,12 +260,12 @@ def instruct_tune(
         'params.non_trainable': params_non_trainable,
     } )
 
-    # Log bas config
-    log_full_config( output_dir, config )
+    # Log base config
+    if wandb_mode != 'disabled':
+        log_full_config( output_dir, config )
 
     # Create iterator
     iterator = iter( task_loader.as_data_loader() )
-
 
     # Initialise WandB
     wandb.init(
@@ -225,20 +293,10 @@ def instruct_tune(
         # If validation flag is set (or it's the last epoch) run validation
         if config[ 'meta.validate' ] or i + 1 == trainer.get_total_epochs():
 
-            # Zero shot validation
             for task in validation_zeroshot_tasks:
-                task_ds = task.get_validation_docs()
-                assert task_ds is not None
-                val_metrics = batcher.evaluate_dataset( task, task_ds, False, False )
-
-                task_name = f'{task.task_name}/{task.task_subset}'
-                curr_metrics = f'{task_name}={val_metrics}'
-                rich.print( curr_metrics )
-
-                validation_lines.append( curr_metrics )
-                validation_dict.update(
-                    **train_utils.compute_validation_metric_dict( val_metrics, task_name )
-                )
+                curr_line, curr_dict = evaluate_zero_shot_task( task, batcher )
+                validation_lines.append( curr_line )
+                validation_dict.update( **curr_dict )
 
             # Zero shot + few shot validation
             for task in validation_fewshot_tasks:
@@ -269,7 +327,8 @@ def instruct_tune(
                     **train_utils.compute_validation_metric_dict( val_fs_metrics, task_name )
                 )
 
-        log_stats( output_dir, train_metrics, validation_lines, trainer.optimizer_step )
+        if wandb_mode != 'disabled':
+            log_stats( output_dir, train_metrics, validation_lines, trainer.optimizer_step )
 
         train_log = train_utils.compute_metric_dict( train_metrics, 'train' )
         stats_log = train_utils.compute_stats_dict( trainer, i )
@@ -278,7 +337,13 @@ def instruct_tune(
             **train_log,
             **validation_dict,
             **stats_log,
+            **aggregate_gpt4all_score( validation_dict ),
+            **aggregate_glue_score( validation_dict ),
+            **aggregate_race_score( validation_dict ),
+            **aggregate_mmlu_score( validation_dict ),
         } )
+
+        torch.cuda.empty_cache()
 
     model.half().save_pretrained( output_dir )
     tokenizer.save_pretrained( output_dir )
