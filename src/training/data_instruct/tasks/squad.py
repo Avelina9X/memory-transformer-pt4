@@ -86,7 +86,7 @@ class SquadV1InstructDataset( SquadBaseInstructDataset ):
 class SquadV2InstructDataset( SquadBaseInstructDataset ):
     def __init__( self, cache_dir: str ):
         self.metric = load_metric( 'squad_v2' )
-        self._nlp = spacy.load( 'en_core_web_sm' )
+        self._nlp = spacy.load( 'en_core_web_md' )
         super().__init__( cache_dir )
 
     def download( self, cache_dir: str ) -> DatasetDict:
@@ -132,13 +132,14 @@ class SquadV2InstructDataset( SquadBaseInstructDataset ):
             ]
         else:
             document = self._nlp( doc["context"] )
+            chunk_set = set( chunk.text for chunk in document.noun_chunks )
             return [
                 Message(
                     role='assistant',
-                    content=chunk.text,
+                    content=chunk,
                     complete=True,
                 )
-                for chunk in document.noun_chunks
+                for chunk in chunk_set
             ]
 
     def compute_metric( self, predictions=None, references=None ) -> dict:
@@ -168,11 +169,11 @@ def main():
 
     dataset = squad_v2.get_training_docs()
 
-    print( squad_v2.format_user_message( dataset[0] ) )
-    print( squad_v2.format_target_messages( dataset[0] ) )
-    print( squad_v2.format_distractor_messages( dataset[0] ) )
-    print()
-    print( squad_v2.format_user_message( dataset[-1] ) )
-    print( squad_v2.format_target_messages( dataset[-1] ) )
-    print( squad_v2.format_distractor_messages( dataset[-1] ) )
-    print()
+    rich.print( squad_v2.format_user_message( dataset[0] ) )
+    rich.print( squad_v2.format_target_messages( dataset[0] ) )
+    rich.print( squad_v2.format_distractor_messages( dataset[0] ) )
+    rich.print()
+    rich.print( squad_v2.format_user_message( dataset[-10] ) )
+    rich.print( squad_v2.format_target_messages( dataset[-10] ) )
+    rich.print( squad_v2.format_distractor_messages( dataset[-10] ) )
+    rich.print()
