@@ -22,10 +22,27 @@ class LaProp(torch.optim.Optimizer):
     """Implements LaProp algorithm.
     """
 
-    def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-8,
-                 weight_decay=0.0, amsgrad=False, centered = False):
-        defaults = dict(lr=lr, betas=betas, eps=eps,
-                        weight_decay=weight_decay, amsgrad=amsgrad, centered=centered)
+    def __init__(
+        self,
+        params,
+        lr=1e-3,
+        betas=(0.9, 0.999),
+        eps=1e-8,
+        weight_decay=0.0,
+        amsgrad=False,
+        centered=False,
+        decay_init=False,
+    ):
+        defaults = dict(
+            lr=lr,
+            betas=betas,
+            eps=eps,
+            weight_decay=weight_decay,
+            amsgrad=amsgrad,
+            centered=centered,
+            decay_init=decay_init,
+        )
+
         super(LaProp, self).__init__(params, defaults)
 
     @property
@@ -70,6 +87,8 @@ class LaProp(torch.optim.Optimizer):
                     if amsgrad:
                         # Maintains max of all exp. moving avg. of sq. grad. values
                         state['max_exp_avg_sq'] = torch.zeros_like(p_data_fp32)
+                    if group['weight_decay'] != 0 and group['decay_init']:
+                        state['original_param'] = p_data_fp32.clone()
 
                 else:
                     state['exp_avg'] = state['exp_avg'].type_as(p_data_fp32)
@@ -116,7 +135,10 @@ class LaProp(torch.optim.Optimizer):
                 exp_avg.mul_(beta1).add_( step_of_this_grad, alpha=(1 - beta1) * group['lr'] )
 
                 if group['weight_decay'] != 0:
-                    p_data_fp32.add_(p_data_fp32, alpha=-group['weight_decay'] * group['lr'])
+                    if group['decay_init']:
+                        p_data_fp32.add_(p_data_fp32 - state['original_param'], alpha=-group['weight_decay'] * group['lr'])
+                    else:
+                        p_data_fp32.add_(p_data_fp32, alpha=-group['weight_decay'] * group['lr'])
 
                 p_data_fp32.add_(exp_avg, alpha=-step_size )
 

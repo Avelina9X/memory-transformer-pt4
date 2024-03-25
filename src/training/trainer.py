@@ -102,6 +102,7 @@ class Trainer(): # pylint: disable=R0902
         return [ None for _ in range( batch_groups ) ]
 
     def _load_optimizer( self ) -> torch.optim.Optimizer:
+        assert not self.train_config.opt_decay_init, 'Decay init not implemented'
         if self.train_config.optimizer == 'Minato':
             return Minato(
                 params=self.model.get_param_groups(),
@@ -113,6 +114,7 @@ class Trainer(): # pylint: disable=R0902
             )
 
         if self.train_config.optimizer == 'AdamW':
+            assert not self.train_config.opt_decay_init, 'Decay init not implemented'
             return AdamW(
                 params=self.model.get_param_groups(),
                 lr=0.0,
@@ -129,6 +131,7 @@ class Trainer(): # pylint: disable=R0902
                 betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
                 eps=self.train_config.opt_eps,
                 weight_decay=( self.train_config.opt_weight_decay ),
+                decay_init=self.train_config.opt_decay_init,
             )
 
         raise ValueError( 'Invalid optimizer' )
@@ -398,9 +401,11 @@ class TrainerDDP( Trainer ):
                 betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
                 eps=self.train_config.opt_eps,
                 weight_decay=( self.train_config.opt_weight_decay ),
+                decay_init=self.train_config.opt_decay_init,
             )
 
         if self.train_config.optimizer == 'Minato':
+            assert not self.train_config.opt_decay_init, 'Decay init not implemented'
             return ZeroRedundancyOptimizer(
                 params=self.model.get_param_groups(),
                 optimizer_class=Minato,
