@@ -251,7 +251,7 @@ class LSWTConfigTraining():
             opt_beta_2 (float): Beta 2 for adaptive optimizers. Defaults to 0.95.
             opt_eps (float): Epsilon factor for Adam optimizers. Defaults to 1e-9.
             opt_weight_decay (float): Weight decay (note that Adam requires half the WD of Sophia). Defaults to 0.2.
-            opt_decay_init (bool): Decay to init params rather than zero. Should be used only for finetuning. Defaults to False.
+            opt_decay_init (bool): Enables Prior Regularization (arxiv:0907.1815). Defaults to False.
             opt_max_grad_norm (float): Max norm for gradient clipping. Set to zero to disable. Defaults to 1.0.
             opt_rho (float): Rho factor for Sophia optimizers. Defaults to 0.05.
 
