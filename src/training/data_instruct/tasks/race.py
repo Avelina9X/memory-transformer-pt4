@@ -1,5 +1,5 @@
 from collections.abc import Callable, Mapping
-from datasets import DatasetDict, Dataset, load_dataset
+from datasets import DatasetDict, Dataset, load_dataset, DownloadConfig
 from evaluate import load as load_metric
 
 from ..task_base import BaseChoiceInstructDataset, InstructionDatasetTask, Message
@@ -7,7 +7,7 @@ from ..task_base import BaseChoiceInstructDataset, InstructionDatasetTask, Messa
 class RaceInstructDataset( BaseChoiceInstructDataset ):
     def __init__( self, split: str, cache_dir: str ):
         self.split = split
-        self.metric = load_metric( 'accuracy' )
+        self.metric = load_metric( 'accuracy', download_config=DownloadConfig( cache_dir=cache_dir ) )
         super().__init__( cache_dir )
 
 

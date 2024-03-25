@@ -1,12 +1,12 @@
 from collections.abc import Callable, Mapping
-from datasets import DatasetDict, Dataset, load_dataset
+from datasets import DatasetDict, Dataset, load_dataset, DownloadConfig
 from evaluate import load as load_metric
 
 from ..task_base import BaseChoiceInstructDataset, InstructionDatasetTask, Message, MessageList
 
 class MMLUInstructDataset( BaseChoiceInstructDataset ):
     def __init__( self, cache_dir: str ):
-        self.metric = load_metric( 'accuracy' )
+        self.metric = load_metric( 'accuracy', download_config=DownloadConfig( cache_dir=cache_dir ) )
         self._fewshot_cache: dict[str, Dataset] = {}
         super().__init__( cache_dir )
 

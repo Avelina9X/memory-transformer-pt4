@@ -1,12 +1,12 @@
 from collections.abc import Callable, Mapping
-from datasets import DatasetDict, Dataset, load_dataset
+from datasets import DatasetDict, Dataset, load_dataset, DownloadConfig
 from evaluate import load as load_metric
 
 from ..task_base import BaseChoiceInstructDataset, InstructionDatasetTask, Message
 
 class HellaswagChoiceInstructDataset( BaseChoiceInstructDataset ):
     def __init__( self, cache_dir: str ):
-        self.metric = load_metric( 'accuracy' )
+        self.metric = load_metric( 'accuracy', download_config=DownloadConfig( cache_dir=cache_dir ) )
         super().__init__( cache_dir )
 
     def download( self, cache_dir: str ) -> DatasetDict:
@@ -92,7 +92,7 @@ class HellaswagChoiceInstructDataset( BaseChoiceInstructDataset ):
 
 class HellaswagNoChoiceInstructDataset( BaseChoiceInstructDataset ):
     def __init__( self, cache_dir: str ):
-        self.metric = load_metric( 'accuracy' )
+        self.metric = load_metric( 'accuracy', download_config=DownloadConfig( cache_dir=cache_dir ) )
         super().__init__( cache_dir )
 
     def download( self, cache_dir: str ) -> DatasetDict:

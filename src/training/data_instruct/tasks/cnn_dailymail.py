@@ -1,12 +1,12 @@
 from collections.abc import Callable, Mapping
-from datasets import DatasetDict, Dataset, load_dataset
+from datasets import DatasetDict, Dataset, load_dataset, DownloadConfig
 from evaluate import load as load_metric
 
 from ..task_base import BaseInstructDataset, InstructionDatasetTask, Message
 
 class CNNDailymailInstructDataset( BaseInstructDataset ):
     def __init__( self, cache_dir: str ):
-        self.metric = load_metric( 'rouge' )
+        self.metric = load_metric( 'rouge', download_config=DownloadConfig( cache_dir=cache_dir ) )
         super().__init__( cache_dir )
 
     def download( self, cache_dir: str ) -> DatasetDict:

@@ -1,6 +1,6 @@
 import functools
 from collections.abc import Callable, Mapping
-from datasets import DatasetDict, Dataset, load_dataset
+from datasets import DatasetDict, Dataset, load_dataset, DownloadConfig
 from evaluate import load as load_metric
 import spacy
 
@@ -49,7 +49,7 @@ class SquadBaseInstructDataset( BaseInstructDataset ):
 
 class SquadV1InstructDataset( SquadBaseInstructDataset ):
     def __init__( self, cache_dir: str ):
-        self.metric = load_metric( 'squad' )
+        self.metric = load_metric( 'squad', download_config=DownloadConfig( cache_dir=cache_dir ) )
         super().__init__( cache_dir )
 
     def download( self, cache_dir: str ) -> DatasetDict:
@@ -86,7 +86,7 @@ class SquadV1InstructDataset( SquadBaseInstructDataset ):
 
 class SquadV2InstructDataset( SquadBaseInstructDataset ):
     def __init__( self, cache_dir: str ):
-        self.metric = load_metric( 'squad_v2' )
+        self.metric = load_metric( 'squad_v2', download_config=DownloadConfig( cache_dir=cache_dir ) )
         self._nlp = spacy.load( 'en_core_web_md' )
         super().__init__( cache_dir )
 
