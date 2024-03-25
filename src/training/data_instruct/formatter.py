@@ -1,3 +1,4 @@
+import functools
 import itertools
 from transformers import PreTrainedTokenizerBase
 
@@ -6,6 +7,8 @@ from .task_base import Message, MessageList
 class InstructionFormatter():
     def __init__( self, tokenizer: PreTrainedTokenizerBase ):
         self.tokenizer = tokenizer
+
+        self.tokenize = functools.cache( self._tokenize )
 
     def _tokenize( self, text: str ) -> list[int]:
         output = self.tokenizer( text, add_special_tokens=False )[ 'input_ids' ]
@@ -21,9 +24,9 @@ class InstructionFormatter():
 
         trainable: bool = role == 'assistant'
 
-        prefix = self._tokenize( f'<|im_start|>{role}\n' )
-        content = self._tokenize( content )
-        suffix = self._tokenize( '<|im_end|>\n' if complete else '' )
+        prefix = self.tokenize( f'<|im_start|>{role}\n' )
+        content = self.tokenize( content )
+        suffix = self.tokenize( '<|im_end|>\n' if complete else '' )
 
         prefix_train_mask = [ False for _ in prefix ]
         content_train_mask = [ trainable for _ in content ]
