@@ -1,3 +1,4 @@
+import functools
 from collections.abc import Callable, Mapping
 from datasets import DatasetDict, Dataset, load_dataset
 from evaluate import load as load_metric
@@ -89,6 +90,12 @@ class SquadV2InstructDataset( SquadBaseInstructDataset ):
         self._nlp = spacy.load( 'en_core_web_md' )
         super().__init__( cache_dir )
 
+        self.get_noun_set = functools.cache( self._get_noun_set )
+
+    def _get_noun_set( self, context: str ) -> set[str]:
+        document = self._nlp( context )
+        return set( chunk.text for chunk in document.noun_chunks )
+
     def download( self, cache_dir: str ) -> DatasetDict:
         dataset = load_dataset( 'rajpurkar/squad_v2', cache_dir=cache_dir )
         assert isinstance( dataset, DatasetDict )
@@ -131,8 +138,7 @@ class SquadV2InstructDataset( SquadBaseInstructDataset ):
                 )
             ]
         else:
-            document = self._nlp( doc["context"] )
-            chunk_set = set( chunk.text for chunk in document.noun_chunks )
+            chunk_set = self.get_noun_set( doc["context"] )
             return [
                 Message(
                     role='assistant',
