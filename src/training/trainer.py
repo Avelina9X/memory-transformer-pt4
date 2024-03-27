@@ -102,10 +102,11 @@ class Trainer(): # pylint: disable=R0902
         return [ None for _ in range( batch_groups ) ]
 
     def _load_optimizer( self ) -> torch.optim.Optimizer:
-        assert not self.train_config.opt_decay_init, 'Decay init not implemented'
+        params = self.model.get_param_groups( self.train_config.opt_decay_mask )
         if self.train_config.optimizer == 'Minato':
+            assert not self.train_config.opt_decay_init, 'Decay init not implemented'
             return Minato(
-                params=self.model.get_param_groups(),
+                params=params,
                 lr=0.0,
                 betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
                 eps=self.train_config.opt_eps,
@@ -116,7 +117,7 @@ class Trainer(): # pylint: disable=R0902
         if self.train_config.optimizer == 'AdamW':
             assert not self.train_config.opt_decay_init, 'Decay init not implemented'
             return AdamW(
-                params=self.model.get_param_groups(),
+                params=params,
                 lr=0.0,
                 betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
                 eps=self.train_config.opt_eps,
@@ -126,7 +127,7 @@ class Trainer(): # pylint: disable=R0902
 
         if self.train_config.optimizer == 'LaProp':
             return LaProp(
-                params=self.model.get_param_groups(),
+                params=params,
                 lr=0.0,
                 betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
                 eps=self.train_config.opt_eps,
@@ -393,9 +394,11 @@ class TrainerDDP( Trainer ):
         ======================================================================== """
 
     def _load_optimizer( self ) -> torch.optim.Optimizer:
+        params = self.model.get_param_groups( self.train_config.opt_decay_mask )
+
         if self.train_config.optimizer == 'LaProp':
             return ZeroRedundancyOptimizer(
-                params=self.model.get_param_groups(),
+                params=params,
                 optimizer_class=LaProp,
                 lr=0.0,
                 betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
@@ -407,7 +410,7 @@ class TrainerDDP( Trainer ):
         if self.train_config.optimizer == 'Minato':
             assert not self.train_config.opt_decay_init, 'Decay init not implemented'
             return ZeroRedundancyOptimizer(
-                params=self.model.get_param_groups(),
+                params=params,
                 optimizer_class=Minato,
                 lr=0.0,
                 betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),

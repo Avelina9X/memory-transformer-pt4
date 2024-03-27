@@ -7,6 +7,7 @@ Contains:
     - LSWTForCausalLM: causal head model containing an LSWTModel instance.
 """
 
+from collections.abc import Sequence
 from transformers import PreTrainedModel
 from transformers.modeling_outputs import BaseModelOutputWithPast, CausalLMOutputWithPast
 import torch
@@ -44,13 +45,16 @@ class LSWTPreTrainedModel( PreTrainedModel ):
             module.bias.data.zero_()
             module.weight.data.fill_( 1.0 )
 
-    def get_param_groups( self ) -> list[dict]:
+    def get_param_groups( self, decay_mask: Sequence[str] ) -> list[dict]:
         """
         Returns optimizer parameter groups with weight decay disabled for certain params.
         Weight decay is disabled for:
             - layer norm
             - bias terms
             - embedding weights
+
+        Args:
+            decay_mask (Sequence[str]): list of string patterns which disable weight decay
 
         Returns:
             List[Dict]: list of param groups to be used by the optimizer
@@ -59,11 +63,9 @@ class LSWTPreTrainedModel( PreTrainedModel ):
         decay_params = []
         non_decay_params = []
 
-        non_decay_names = [ 'norm', 'bias', 'embedding.weight' ]
-
         for name, p in self.named_parameters():
             if p.requires_grad:
-                if any( i in name for i in non_decay_names ):
+                if any( i in name for i in decay_mask ):
                     non_decay_params.append( p )
 
                 else:
