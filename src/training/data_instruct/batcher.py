@@ -144,7 +144,7 @@ class ChoiceInstructionBatcher( BaseInstructionBatcher ):
         agg_logprobs = self.aggregate( masked_logprobs, test_mask )
 
         # Get the top index
-        predicted_index = agg_logprobs.argmax().item()
+        predicted_index = agg_logprobs.argmax().detach()
 
         return {
             'references': correct_index,
@@ -183,5 +183,7 @@ class ChoiceInstructionBatcher( BaseInstructionBatcher ):
             results = self.evaluate_document( task, line, fewshot, fewshot_allsys )
             correct_list.append( results[ 'references' ] )
             answer_list.append( results[ 'predictions' ] )
+
+        answer_list = [ i.item() for i in answer_list ]
 
         return task.compute_metric( references=correct_list, predictions=answer_list )

@@ -1,17 +1,15 @@
-from functools import partial
 import json
 import os
 import argparse
 import typing
-import shortuuid
 
-import rich
+import shortuuid
 import tqdm
+import rich
 import wandb
 from wcmatch import glob
 
 import torch
-from torch import multiprocessing as mp
 
 import evaluate
 import datasets
@@ -153,15 +151,13 @@ def aggregate_mmlu_score( metrics: dict[ str, float ] ) -> dict[ str, float ]:
     return { 'validation/mmlu_avg': 100 * sum( macro_scores ) / len( macro_scores ) }
 
 def evaluate_zero_shot_task( task: BaseChoiceInstructDataset, batcher: ChoiceInstructionBatcher ) -> tuple[ str, dict[ str, float ] ]:
-    with torch.cuda.stream( torch.cuda.Stream() ): # type: ignore # pylance is confused about types again
-        task_ds = task.get_validation_docs()
-        assert task_ds is not None
-        val_metrics = batcher.evaluate_dataset( task, task_ds, False, False )
-        torch.cuda.empty_cache()
+    task_ds = task.get_validation_docs()
+    assert task_ds is not None
+    val_metrics = batcher.evaluate_dataset( task, task_ds, False, False )
 
-        task_name = f'{task.task_name}/{task.task_subset}'
-        curr_metrics = f'{task_name}={val_metrics}'
-        rich.print( curr_metrics )
+    task_name = f'{task.task_name}/{task.task_subset}'
+    curr_metrics = f'{task_name}={val_metrics}'
+    rich.print( curr_metrics )
 
     return (
         curr_metrics,
@@ -210,7 +206,6 @@ def instruct_tune(
     # Create task mixes
     train_tasks = create_train_tasks( config[ 'finetune.sft_mix' ] )
     validation_zeroshot_tasks = create_validation_zeroshot_tasks()
-    validation_fewshot_tasks = create_validation_fewshot_tasks()
 
     # Instantiate instruct helpers
     formatter = InstructionFormatter( tokenizer )
@@ -293,46 +288,11 @@ def instruct_tune(
 
         # If validation flag is set (or it's the last epoch) run validation
         if config[ 'meta.validate' ] or i + 1 == trainer.get_total_epochs():
-
-            # with mp.get_context( 'spawn' ).Pool( 4 ) as pool:
-            #     results = pool.map( partial( evaluate_zero_shot_task, batcher=batcher ), validation_zeroshot_tasks )
-            #     for curr_line, curr_dict in results:
-            #         validation_lines.append( curr_line )
-            #         validation_dict.update( **curr_dict )
-
             for task in validation_zeroshot_tasks:
                 curr_line, curr_dict = evaluate_zero_shot_task( task, batcher )
                 validation_lines.append( curr_line )
                 validation_dict.update( **curr_dict )
-
-            # Zero shot + few shot validation
-            for task in validation_fewshot_tasks:
-                task_ds = task.get_validation_docs()
-                assert task_ds is not None
-
-                # Zero shot
-                val_zs_metrics = batcher.evaluate_dataset( task, task_ds, False, False )
-
-                task_name = f'{task.task_name}/{task.task_subset}/ZS'
-                curr_metrics = f'{task_name}={val_zs_metrics}'
-                rich.print( curr_metrics )
-
-                validation_lines.append( curr_metrics )
-                validation_dict.update(
-                    **train_utils.compute_validation_metric_dict( val_zs_metrics, task_name )
-                )
-
-                # Few shot
-                val_fs_metrics = batcher.evaluate_dataset( task, task_ds, True, False )
-
-                task_name = f'{task.task_name}/{task.task_subset}/FS'
-                curr_metrics = f'{task_name}={val_fs_metrics}'
-                rich.print( curr_metrics )
-
-                validation_lines.append( curr_metrics )
-                validation_dict.update(
-                    **train_utils.compute_validation_metric_dict( val_fs_metrics, task_name )
-                )
+            torch.cuda.empty_cache()
 
         if wandb_mode != 'disabled':
             log_stats( output_dir, train_metrics, validation_lines, trainer.optimizer_step )
@@ -347,10 +307,8 @@ def instruct_tune(
             **aggregate_gpt4all_score( validation_dict ),
             **aggregate_glue_score( validation_dict ),
             **aggregate_race_score( validation_dict ),
-            **aggregate_mmlu_score( validation_dict ),
         } )
 
-        torch.cuda.empty_cache()
 
     model.half().save_pretrained( output_dir )
     tokenizer.save_pretrained( output_dir )
