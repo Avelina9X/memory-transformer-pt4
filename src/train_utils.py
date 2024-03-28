@@ -1,11 +1,13 @@
 """ Utilities and helper functions for training and pretraining """
 
+from collections.abc import Sequence
 import os
 import pathlib
 import yaml
 
 import wandb
 import numpy as np
+import torch
 
 from transformers import PreTrainedTokenizerBase
 
@@ -118,6 +120,7 @@ def get_model_artifact( run_name: str ):
     ][0]
 
 
+@torch.no_grad
 def set_backbone_trainable( model: LSWTForCausalLM, trainable: bool ):
     """ Sets the trainable flag of decoder layers for a model.
     Note that if layers are set as non-trainable their weights will be cast to FP16.
@@ -130,6 +133,26 @@ def set_backbone_trainable( model: LSWTForCausalLM, trainable: bool ):
     model.model.blocks.requires_grad_( trainable )
     if not trainable:
         model.model.blocks = model.model.blocks.half()
+
+
+@torch.no_grad
+def set_training_mask( model: torch.nn.Module, mask_patterns: Sequence[str] ) -> list[str]:
+    """ Freezes parameters that match any mask pattern.
+    If any parameter name contains a substring in the `mask_patterns` it will be frozen.
+
+    Args:
+        model (torch.nn.Module): The model to freeze parameters from.
+        mask_patterns (Sequence[str]): Sequence of string masks.
+
+    Returns:
+        list[str]: list of frozen parameters
+    """
+
+    for name, p in model.named_parameters():
+        if any( pattern in name for pattern in mask_patterns ):
+            p.requires_grad_( False )
+
+    return [ name for name, p in model.named_parameters() if not p.requires_grad ]
 
 
 def compute_metric_dict( inputs: dict[str, float], name: str ) -> dict[str, float]:
