@@ -356,12 +356,17 @@ def run():
     if config[ 'finetune.mode' ] not in [ 'vocab', 'sft', 'dpo_sft', 'dpo' ]:
         raise ValueError( "finetune.mode must be 'vocab', 'sft', 'dpo_sft' or 'dpo'" )
 
+    tags = [ f"finetune_{config[ 'finetune.mode' ]}" ]
+
+    if 'finetune.tags' in config:
+        tags += config[ 'finetune.tags' ]
+
     rich.print( config )
 
     instruct_tune(
         config=config,
         wandb_mode=arguments.wmode,
-        wandb_tags=[ f"finetune_{config[ 'finetune.mode' ]}" ],
+        wandb_tags=tags,
         wandb_run_name=config[ 'meta.run_name' ],
     )
 
