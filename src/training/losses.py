@@ -8,6 +8,7 @@ TODO: move to different package?
 import torch
 from torch import nn
 from torch.nn import CrossEntropyLoss
+from torch.nn import functional as F
 
 """ ========================================================================
     Loss classes
@@ -136,6 +137,175 @@ class SimCTGLoss( nn.Module ):
         assert cosine_scores.size() == torch.Size([bsz, seqlen, seqlen])
         cl_loss = self.contrastive_loss(cosine_scores, input_ids).float()
         return mle_loss, cl_loss
+
+
+class DPOLoss( nn.Module ):
+    """ Implements the Direct Preference Optimization objective function.
+    """
+
+    def __init__(
+        self,
+        beta: float = 0.1,
+        label_smoothing: float = 0.0,
+        average_logprobs: bool = False,
+    ):
+        """ Instantiates the DPO Loss module.
+
+        Slightly based off TRL's DPOTrainer module, but only slightly.
+
+        Args:
+            beta (float, optional): The beta factor in DPO loss. Higher beta means less divergence from the reference policy. Defaults to 0.1.
+            label_smoothing (float, optional): The robust DPO label smoothing parameter from the [cDPO](https://ericmitchell.ai/cdpo.pdf) report that should be between 0 and 0.5. Defaults to 0.0.
+            average_logprobs (bool, optional): Determines if logprobs should be aggregated by averaging rather than sum. Defaults to False.
+        """
+
+        super().__init__()
+
+        self.beta = beta
+        self.label_smoothing = label_smoothing
+        self.average_logprobs = average_logprobs
+
+    def get_logprobs( self, logits: torch.Tensor, targets: torch.LongTensor ) -> torch.Tensor:
+        logprobs = logits.log_softmax( -1, torch.float32 ).gather( -1, targets.unsqueeze( -1 ) ).squeeze( -1 )
+        mask = targets == -100
+        masked_logprobs = logprobs * mask
+
+        if self.average_logprobs:
+            return masked_logprobs.sum( -1 ) / mask.sum( -1 )
+        else:
+            return masked_logprobs.sum( -1 )
+
+    def forward(
+        self,
+        *,
+        policy_pos_logits: torch.Tensor,
+        policy_neg_logits: torch.Tensor,
+        reference_pos_logits: torch.Tensor,
+        reference_neg_logits: torch.Tensor,
+        pos_labels: torch.LongTensor,
+        neg_labels: torch.LongTensor,
+    ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        """ Compute the DPO loss and returns additional auxilary metrics
+
+        Args:
+            policy_pos_logits (torch.Tensor): positive/chosen logits from policy model
+            policy_neg_logits (torch.Tensor): negative/rejected logits from policy model
+            reference_pos_logits (torch.Tensor): positive/chosen logits from reference model
+            reference_neg_logits (torch.Tensor): negative/rejected logits from reference model
+            pos_labels (torch.LongTensor): positive/chosen input labels
+            neg_labels (torch.LongTensor): negative/rejected input labels
+
+        Returns:
+            loss (torch.Tensor): average DPO loss with respect to inputs
+            metrics (dict[str, torch.Tensor]]): detached metrics for DPO loss
+        """
+
+        # Get aggregated log probs
+        policy_pos_logp = self.get_logprobs( policy_pos_logits, pos_labels )
+        policy_neg_logp = self.get_logprobs( policy_neg_logits, neg_labels )
+        reference_pos_logp = self.get_logprobs( reference_pos_logits, pos_labels )
+        reference_neg_logp = self.get_logprobs( reference_neg_logits, neg_labels )
+
+        # Compute the ratios in logspace
+        pi_logratios = policy_pos_logp - policy_neg_logp
+        ref_logratios = reference_pos_logp - reference_neg_logp
+
+        # Get the logits for DPO
+        logits = pi_logratios - ref_logratios
+
+        # Compute DPO on logits
+        losses = (
+            - F.logsigmoid( self.beta * logits ) * ( 1.0 - self.label_smoothing ) # pylint: disable=E1102
+            - F.logsigmoid( - self.beta * logits ) * ( self.label_smoothing ) # pylint: disable=E1102
+        )
+
+        # Get reward metrics
+        pos_rewards = self.beta * ( policy_pos_logp - reference_pos_logp ).detach()
+        neg_rewards = self.beta * ( policy_neg_logp - reference_neg_logp ).detach()
+        reward_margins = pos_rewards - neg_rewards
+        reward_accuracy = ( pos_rewards > neg_rewards ).float()
+
+        # Grab metric dict and detach
+        metrics = {}
+        metrics[ 'rewards/chosen' ] = pos_rewards.mean().detach()
+        metrics[ 'rewards/rejected' ] = neg_rewards.mean().detach()
+        metrics[ 'rewards/accuracy' ] = reward_accuracy.mean().detach()
+        metrics[ 'rewards/margin' ] = reward_margins.mean().detach()
+
+        return losses.mean(), metrics
+
+
+class DPHLoss( nn.Module ):
+    """ Implements the Direct Preference Head objective function.
+
+    DPH differs from DPO in that an auxilary classification head is used rather than sequence logprobs.
+    And unlike DPO, DPH does not use a reference model, and instead relies on label smoothing to avoid overfitting.
+    """
+
+    def __init__(
+        self,
+        label_smoothing: float = 0.0,
+        contrastive: bool = False,
+    ):
+        """ Instantiates the DPH Loss module.
+
+        Args:
+            label_smoothing (float, optional): Label smoothing coeficient, should be between 0.0 and 0.5. Defaults to 0.0.
+            contrastive (bool, optional): When true computes the loss using logit deltas, but is otherwise identical. Defaults to False.
+        """
+
+        super().__init__()
+
+        self.label_smoothing = label_smoothing
+        self.contrastive = contrastive
+
+    def forward(
+        self,
+        *,
+        pos_logits: torch.Tensor,
+        neg_logits: torch.Tensor,
+    ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        """ Compute the DPH loss and returns additional auxilary metrics
+
+        Args:
+            pos_logits (torch.Tensor): positive/chosen logits from the preference head
+            neg_logits (torch.Tensor): negitive/rejected logits from the preference head
+
+        Returns:
+            loss (torch.Tensor): average DPO loss with respect to inputs
+            metrics (dict[str, torch.Tensor]]): detached metrics for DPO loss
+        """
+
+        # Cast to float for stability
+        pos_logits = pos_logits.float()
+        neg_logits = neg_logits.float()
+
+        # Compute the contrastive loss
+        con_logits = pos_logits - neg_logits
+        con_loss = (
+            - F.logsigmoid( con_logits ) * ( 1.0 - self.label_smoothing ) # pylint: disable=E1102
+            - F.logsigmoid( - con_logits ) * ( self.label_smoothing ) # pylint: disable=E1102
+        ).mean()
+
+        # Compute the individual losses
+        pos_loss = F.binary_cross_entropy_with_logits( pos_logits, torch.ones_like( pos_logits ) - self.label_smoothing, reduction='mean' )
+        neg_loss = F.binary_cross_entropy_with_logits( neg_logits, torch.zeros_like( neg_logits ) + self.label_smoothing, reduction='mean' )
+        sep_loss = pos_loss + neg_loss
+
+        # Select the desired loss
+        loss = con_loss if self.contrastive else sep_loss
+
+        # Get accuracy of preference head
+        accuracy = ( pos_logits > neg_logits ).float()
+
+        # Grab metrics and detach
+        metrics = {}
+        metrics[ 'head/chosen' ] = pos_loss.detach()
+        metrics[ 'head/rejected' ] = pos_loss.detach()
+        metrics[ 'head/accuracy' ] = accuracy.mean().detach()
+        metrics[ 'head/margin' ] = con_logits.mean().detach()
+
+        return loss, metrics
 
 
 """ ========================================================================
