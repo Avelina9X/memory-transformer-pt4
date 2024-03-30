@@ -358,8 +358,8 @@ def run():
 
     tags = [ f"finetune_{config[ 'finetune.mode' ]}" ]
 
-    if 'finetune.tags' in config:
-        tags += config[ 'finetune.tags' ]
+    if 'meta.tags' in config:
+        tags += config[ 'meta.tags' ]
 
     rich.print( config )
 
