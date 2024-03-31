@@ -28,6 +28,7 @@ class TaskLoader( IterableDataset ):
         sub_batch_size: int,
         shuffle_seed: int | bool,
         mask_type: str,
+        max_tokens: int | None = None,
         shard_mode: str = 'shuffle',
     ):
         """ Creates a task loader for a single task.
@@ -41,6 +42,7 @@ class TaskLoader( IterableDataset ):
             sub_batch_size (int): Number of sequences per batch
             shuffle_seed (int | bool): Dataset pre-shuffling seed, or True for random seed, or False for no shuffle.
             mask_type (str): Must be 'all', 'train' or 'test'
+            max_tokens (int | None): Max number of tokens in a message before dropping. Defaults to None.
             shard_mode (str): 'split' uses exclusive sharding, 'shuffle' shards by shuffling. Defaults to 'shuffle'.
 
         Raises:
@@ -69,6 +71,7 @@ class TaskLoader( IterableDataset ):
         self.seq_length = seq_length
         self.sub_batch_size = sub_batch_size
         self.mask_type = mask_type
+        self.max_tokens = max_tokens
         self.shard_mode = shard_mode
 
         dataset = self.task.get_training_docs()
@@ -106,6 +109,12 @@ class TaskLoader( IterableDataset ):
             targets = token_dict[ 'targets' ]
             train_mask = token_dict[ 'train_mask' ]
             test_mask = token_dict[ 'test_mask' ]
+
+            if self.max_tokens:
+                if len( tokens ) > self.max_tokens:
+                    continue
+
+            # TODO: add limiter to max length of task
 
             match self.mask_type:
                 case 'all':
@@ -168,6 +177,7 @@ class MultiTaskLoader( IterableDataset ):
         batch_size: int,
         shuffle_seed: int | bool,
         mask_type: str,
+        max_tokens: int | None = None,
     ):
         sub_batch_size = batch_size // len( task_list )
 
@@ -183,7 +193,8 @@ class MultiTaskLoader( IterableDataset ):
                 seq_length=seq_length,
                 sub_batch_size=sub_batch_size,
                 shuffle_seed=shuffle_seed,
-                mask_type=mask_type
+                mask_type=mask_type,
+                max_tokens=max_tokens,
             )
             for task, fewshot_count, fewshot_allsys
             in task_list
@@ -225,6 +236,7 @@ class MixedTaskLoader( IterableDataset ):
         batch_size: int,
         shuffle_seed: int | bool,
         mask_type: str,
+        max_tokens: int | None = None,
     ):
         self.batch_size = batch_size
         self.seq_length = seq_length
@@ -238,7 +250,8 @@ class MixedTaskLoader( IterableDataset ):
                 seq_length=seq_length,
                 sub_batch_size=batch_size,
                 shuffle_seed=shuffle_seed,
-                mask_type=mask_type
+                mask_type=mask_type,
+                max_tokens=max_tokens,
             )
             for task, fewshot_count, fewshot_allsys
             in task_list
@@ -303,6 +316,7 @@ class ParallelMixedTaskLoader( IterableDataset ):
         seq_length: int,
         batch_size: int,
         mask_type: str,
+        max_tokens: int | None = None,
     ):
 
         self.mixed_tasks = [
@@ -313,6 +327,7 @@ class ParallelMixedTaskLoader( IterableDataset ):
                 batch_size=1,
                 shuffle_seed=i,
                 mask_type=mask_type,
+                max_tokens=max_tokens,
             ) for i in range( batch_size )
         ]
 
