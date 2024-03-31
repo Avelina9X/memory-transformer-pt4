@@ -4,7 +4,7 @@ from datasets import DatasetDict, Dataset, load_dataset, DownloadConfig
 from evaluate import load as load_metric
 import spacy
 
-from ..task_base import BaseInstructDataset, InstructionDatasetTask, Message
+from ..task_base import BaseInstructDataset, InstructionDatasetTask, Message, MessageList
 
 class SquadBaseInstructDataset( BaseInstructDataset ):
     @property
@@ -45,6 +45,9 @@ class SquadBaseInstructDataset( BaseInstructDataset ):
 
     def create_unlabelled_message_target( self, doc: dict ) -> None:
         return None
+
+    def create_unlabelled_message_list(self, doc: dict) -> list[MessageList]:
+        return self.create_target_message_list( doc ) + self.create_distractor_message_list( doc )
 
 
 class SquadV1InstructDataset( SquadBaseInstructDataset ):
