@@ -1,11 +1,9 @@
 from collections.abc import Sequence
-import json
 import os
 import argparse
 import typing
 
 import shortuuid
-import tqdm
 import rich
 import wandb
 from wcmatch import glob
@@ -20,7 +18,7 @@ from transformers import AutoTokenizer
 from training.trainer import DPHTrainer
 
 from training.data_instruct.task_base import BaseChoiceInstructDataset, BaseInstructDataset
-from training.data_instruct.tasks import DIRECTORY_ALL, DIRECTORY_CHOICE
+from training.data_instruct.tasks import DIRECTORY_ALL
 from training.data_instruct.formatter import InstructionFormatter
 from training.data_instruct.task_loader import DPHMultiTaskLoader
 from training.data_instruct.batcher import DPHChoiceInstructionBatcher
@@ -263,3 +261,59 @@ def instruct_align(
             **aggregate_glue_score( validation_dict, 'log' ),
             **aggregate_race_score( validation_dict, 'log' ),
         } )
+
+    dph_model.half().save_pretrained( output_dir )
+    tokenizer.save_pretrained( output_dir )
+
+    model_artifact = wandb.Artifact( name=dph_model.config.model_type, type="model" )
+    model_artifact.add_dir( output_dir )
+
+    assert wandb.run is not None
+    wandb.run.log_artifact( model_artifact )
+
+    wandb.finish()
+
+def run():
+    argparser = argparse.ArgumentParser()
+
+    argparser.add_argument(
+        '-c',
+        '--config',
+        type=lambda x: glob.glob( x, flags=glob.BRACE ),
+        required=True
+    )
+
+    argparser.add_argument(
+        '-w',
+        '--wmode',
+        default='disabled',
+        choices=[ 'online', 'offline', 'disabled' ]
+    )
+
+    arguments = argparser.parse_args()
+
+    config = train_utils.parse_yaml_config( arguments.config )
+    config[ 'meta.run_name' ] += f'_{shortuuid.uuid()[:4]}'
+
+    if os.path.exists( f"./checkpoints/{config['meta.run_name']}" ):
+        raise ValueError( f"Cannot create run '{config['meta.run_name']}' because it already exists!" )
+
+    if config[ 'finetune.mode' ] not in [ 'dph' ]:
+        raise ValueError( "finetune.mode must be 'dph'" )
+
+    tags = [ f"finetune_{config[ 'finetune.mode' ]}" ]
+
+    if 'meta.tags' in config:
+        tags += config[ 'meta.tags' ]
+
+    rich.print( config )
+
+    instruct_align(
+        config=config,
+        wandb_mode=arguments.wmode,
+        wandb_tags=tags,
+        wandb_run_name=config[ 'meta.run_name' ],
+    )
+
+if __name__ == '__main__':
+    run()
