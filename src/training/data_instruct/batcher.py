@@ -187,3 +187,79 @@ class ChoiceInstructionBatcher( BaseInstructionBatcher ):
         answer_list = [ i.item() for i in answer_list ]
 
         return task.compute_metric( references=correct_list, predictions=answer_list )
+
+class DPHChoiceInstructionBatcher( ChoiceInstructionBatcher ):
+    def __init__(
+        self,
+        model: PreTrainedModel,
+        formatter: InstructionFormatter,
+        reward_head_key: str,
+        aggregation: str = 'mean',
+        pad_rounding: int = 16
+    ):
+        super().__init__( model, formatter, aggregation, pad_rounding )
+        self.reward_head_key = reward_head_key
+
+    def compute_batch_dph(
+        self,
+        rewards: torch.Tensor
+    ) -> dict:
+        predicted_index = rewards.squeeze( -1 ).argmax().detach()
+        return {
+            'predictions': predicted_index,
+        }
+
+    def evaluate_document(
+        self,
+        task: BaseChoiceInstructDataset,
+        doc: dict,
+        fewshot: bool = False,
+        fewshot_allsys: bool = True,
+    ) -> dict:
+        with torch.inference_mode():
+            self.model.eval()
+            device = self.model.get_input_embeddings().weight.device
+            prepared_batch = self.prepare_batch( task, doc, device, fewshot, fewshot_allsys )
+
+            with torch.autocast( device_type='cuda', dtype=torch.float16 ):
+                outputs = self.model( prepared_batch.tokens )
+
+                cls_id = self.formatter.tokenizer.cls_token_id
+
+                logits = outputs.logits
+                states = outputs.hidden_states[-1]
+                rewards = self.model.compute_rewards( states, prepared_batch.tokens, cls_id )[ self.reward_head_key ]
+
+            log_results = self.compute_batch( prepared_batch, logits )
+            dph_results = self.compute_batch_dph( rewards )
+
+        return {
+            'references': log_results[ 'references' ],
+            'log_predictions': log_results[ 'predictions' ],
+            'dph_predictions': dph_results[ 'predictions' ],
+        }
+
+    def evaluate_dataset(
+        self,
+        task: BaseChoiceInstructDataset,
+        dataset: Iterable,
+        fewshot: bool = False,
+        fewshot_allsys: bool = True,
+    ):
+        correct_list = []
+        log_answer_list = []
+        dph_answer_list = []
+
+        for line in dataset:
+            results = self.evaluate_document( task, line, fewshot, fewshot_allsys )
+            correct_list.append( results[ 'references' ] )
+            log_answer_list.append( results[ 'log_predictions' ] )
+            dph_answer_list.append( results[ 'dph_predictions' ] )
+
+        log_answer_list = [ i.item() for i in log_answer_list ]
+        dph_answer_list = [ i.item() for i in dph_answer_list ]
+
+        return {
+            'log': task.compute_metric( references=correct_list, predictions=log_answer_list ),
+            'dph': task.compute_metric( references=correct_list, predictions=dph_answer_list ),
+        }
