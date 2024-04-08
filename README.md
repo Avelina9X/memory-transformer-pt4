@@ -6,17 +6,18 @@ A public repo for the LSWTransformer, codename `memory-transformer-pt4`.
 
 ## Features
 - **Transformer-XL style cache** for long sequence modelling.
-- **Reversed RoPE** with adjusted base frequency to help extrapolate to longer sequences.
-- **Attention Registers** to provide sinks for unwanted attention.
+- **Reversed RoPE** for better EOS stability and an adjusted base frequency to help extrapolate to longer sequences.
+- ~~**Attention Registers** to provide sinks for unwanted attention.~~ Included, but no longer used.
 - **Flash Attention** for IO aware accelerated attention.
 - **SwiGLU Activation** in the FFN layers for higher model capacity.
 - **HuggingFace Model Format** for integration with the 🤗 ecosystem.
 - **Warmstart Word Embeddings** taken from `facebook/opt-125m` to accelerate convergence.
 - **Input/Output Projections** to decouple embedding matrix dimension from model dimension.
-- **SimCTG Loss (optional)** to encourage embedding diversity.
+- ~~**SimCTG Loss (optional)** to encourage embedding diversity.~~ Included, but no longer used.
 - **LaProp Optimizer** for faster convergence.
 - ~~**QK RMSNorm** grouped per head, suggested in multiple works to improve performance.~~ Added, but hasn't improved performance.
 - **KV Recompute** during training for additional memory gradients. Can be disabled in config and is disabled when in eval mode.
+- **Direct Preference Heads** for alignment without degredation.
 
 ### Planned Features
 - **Partial RoPE** applying positional information to only a fraction of each head, suggested in GPT-Neo and GPT-J to improve performance.
