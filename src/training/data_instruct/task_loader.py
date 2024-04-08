@@ -357,3 +357,118 @@ class ParallelMixedTaskLoader( IterableDataset ):
 
     def __getitem__( self, index ):
         raise NotImplementedError( "This dataset does not support random access using __getitem__" )
+
+class DPHMultiTaskLoader( IterableDataset ):
+    def __init__(
+        self,
+        task_list: list[BaseInstructDataset],
+        formatter: InstructionFormatter,
+        seq_length: int,
+        batch_size: int,
+        mask_type: str,
+    ):
+        self.task_list = [ ( task, task.get_training_docs().shuffle() ) for task in task_list ] # type: ignore
+
+        self.formatter = formatter
+        self.seq_length = seq_length
+        self.batch_size = batch_size
+        self.mask_type = mask_type
+
+        if mask_type not in [ 'all', 'train', 'test' ]:
+            raise ValueError( 'mask_type must be `all`, `train` or `test`' )
+
+    def pad_doc_single( self, line: dict ):
+        curr_len = len( line[ 'tokens' ] )
+        pad_len = self.seq_length - curr_len
+
+        if pad_len < 0:
+            raise ValueError( 'Sequence too long!' )
+
+        pad_token_id = self.formatter.tokenizer.pad_token_id
+
+        tokens = line[ 'tokens' ] + [ pad_token_id ] * pad_len
+        targets = line[ 'targets' ] + [ pad_token_id ] * pad_len
+        train_mask = line[ 'train_mask' ] + [ False ] * pad_len
+        test_mask = line[ 'test_mask' ] + [ False ] * pad_len
+
+        match self.mask_type:
+            case 'all':
+                return tokens, targets
+            case 'train':
+                return tokens, [ t if m else -100 for t, m in zip( targets, train_mask ) ]
+            case 'test':
+                return tokens, [ t if m else -100 for t, m in zip( targets, test_mask ) ]
+            case _:
+                assert False, 'We should not be here!'
+
+    def pad_doc_pair( self, task: BaseInstructDataset, doc: dict ):
+        pos_list = task.create_target_message_list( doc )
+        neg_list = task.create_distractor_message_list( doc )
+
+        pos_candidate = random.choice( pos_list )
+        neg_candidate = random.choice( neg_list )
+
+        pos_messages = self.formatter.tokenize_chat( pos_candidate )
+        neg_messages = self.formatter.tokenize_chat( neg_candidate )
+
+        pos_tokens, pos_targets = self.pad_doc_single( pos_messages )
+        neg_tokens, neg_targets = self.pad_doc_single( neg_messages )
+
+        return (
+            torch.LongTensor( pos_tokens ),
+            torch.LongTensor( pos_targets ),
+            torch.LongTensor( neg_tokens ),
+            torch.LongTensor( neg_targets )
+        )
+
+    def example_generator( self ):
+        iterators = [ ( task, iter( generate_forever( ds ) ) ) for task, ds in self.task_list ]
+
+        while True:
+            task, ds = random.choice( iterators )
+            doc = next( ds )
+
+            try:
+                yield self.pad_doc_pair( task, doc )
+            except ValueError:
+                continue
+
+    def batch_generator( self ):
+        iterator = iter( self.example_generator() )
+
+        try:
+            while True:
+                pos_x_list = []
+                pos_y_list = []
+                neg_x_list = []
+                neg_y_list = []
+                for _ in range( self.batch_size ):
+                    pos_tokens, pos_targets, neg_tokens, neg_targets = next( iterator )
+                    pos_x_list.append( pos_tokens )
+                    pos_y_list.append( pos_targets )
+                    neg_x_list.append( neg_tokens )
+                    neg_y_list.append( neg_targets )
+                yield (
+                    torch.stack( pos_x_list ),
+                    torch.stack( pos_y_list ),
+                    torch.stack( neg_x_list ),
+                    torch.stack( neg_y_list ),
+                )
+        except StopIteration:
+            return
+
+    def __iter__( self ):
+        return iter( self.batch_generator() )
+
+    def as_data_loader( self ):
+        return DataLoader(
+            self,
+            num_workers=1,
+            batch_size=None,
+            prefetch_factor=4,
+            pin_memory=True,
+            pin_memory_device='cuda',
+        )
+
+    def __getitem__( self, index ):
+        raise NotImplementedError( "This dataset does not support random access using __getitem__" )

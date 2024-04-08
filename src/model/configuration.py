@@ -326,3 +326,74 @@ class LSWTConfigTraining():
 
     def __repr__( self ):
         return f'{self.__class__.__name__} {self.to_json_string()}'
+
+class LSWTConfigTrainingDPH():
+    def __init__(
+        self,
+
+        dpo_beta=0.1,
+        dpo_epsilon=0.1,
+        dpo_average_logprobs=False,
+        dpo_weight=1.0,
+
+        dph_contrastive=False,
+        dph_epsilon=0.1,
+        dph_weight=1.0,
+    ):
+        """ LSW Transformer config class
+
+        Args:
+            dpo_beta (float, optional): Beta parameter for DPO objective. Defaults to 0.1.
+            dpo_epsilon (float, optional): Label smoothing parameter for DPO objective. Defaults to 0.1.
+            dpo_average_logprobs (bool, optional): When True uses average logprobs instead of sum. Defaults to False.
+            dpo_weight (float, optional): Loss strength of DPO. Defaults to 1.0.
+
+            dph_contrastive (bool, optional): When true uses ConDPH instead of SepDPH. Defaults to False.
+            dph_epsilon (float, optional): Label smoothing parameter for DPH objective. Defaults to 0.1.
+            dph_weight (float, optional): Loss strength of DPH. Defaults to 1.0.
+        """
+
+        self.dpo_beta = dpo_beta
+        self.dpo_epsilon = dpo_epsilon
+        self.dpo_average_logprobs = dpo_average_logprobs
+        self.dpo_weight = dpo_weight
+
+        self.dph_contrastive = dph_contrastive
+        self.dph_epsilon = dph_epsilon
+        self.dph_weight = dph_weight
+
+        # DPO Assertions
+        if self.dpo_beta < 0:
+            raise ValueError( f'DPO beta must be at least 0.0, but received {self.dpo_beta}' )
+        if not ( 0.0 <= self.dpo_epsilon <= 0.5 ):
+            raise ValueError( f'DPO epsilon must be in range [0.0,0.5], but received {self.dpo_epsilon}' )
+        if self.dpo_weight < 0:
+            raise ValueError( f'DPO weight must be at least 0.0, but received {self.dpo_weight}' )
+
+        # DPH Assertions
+        if not ( 0.0 <= self.dph_epsilon <= 0.5 ):
+            raise ValueError( f'DPH epsilon must be in range [0.0,0.5], but received {self.dph_epsilon}' )
+        if self.dph_weight < 0:
+            raise ValueError( f'DPH weight must be at least 0.0, but received {self.dph_weight}' )
+
+    def to_json_string( self ) -> str:
+        """ Serializes this instance to a JSON string.
+
+        Returns:
+            str: JSON string of the attributes that make up this configuration instance.
+        """
+        return json.dumps( self.__dict__, indent=2 )
+
+    def to_wandb_dict( self, prefix='dph' ) -> dict[str, Any]:
+        """ Serializes this instance to WandB style dict.
+
+        Args:
+            prefix (str, optional): Prefix for all attributes. Defaults to 'train'.
+
+        Returns:
+            dict[str, Any]: Dict of all attributes that make up this configuration instance
+        """
+        return { f'{prefix}.{key}': value for key, value in self.__dict__.items() }
+
+    def __repr__( self ):
+        return f'{self.__class__.__name__} {self.to_json_string()}'

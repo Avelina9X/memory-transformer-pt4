@@ -11,7 +11,7 @@ import torch
 
 from transformers import PreTrainedTokenizerBase
 
-from model.configuration import LSWTConfigTraining, LSWTConfig
+from model.configuration import LSWTConfigTraining, LSWTConfig, LSWTConfigTrainingDPH
 from model.modeling import LSWTForCausalLM
 from training.trainer import Trainer
 from constants import WANDB_PROJECT_NAME
@@ -32,17 +32,19 @@ def find_and_extract( source: str, prefix: str ) -> str | None:
     return source[ len( prefix ) + 1 : ]
 
 
-def modify_dicts( config: dict, model_config: LSWTConfig, train_config: LSWTConfigTraining ):
+def modify_dicts( config: dict, model_config: LSWTConfig, train_config: LSWTConfigTraining, dph_config: LSWTConfigTrainingDPH | None = None ):
     """ Updates Model and Training config given a wandb dict
 
     Args:
         config (dict): wandb dict source
         model_config (LSWTConfig): model config destination
         train_config (LSWTConfigTraining): train config destination
+        dph_config (LSWTConfigTrainingDPH | None): dph config destination
     """
     for key, value in config.items():
         model_key = find_and_extract( key, 'model' )
         train_key = find_and_extract( key, 'train' )
+        dph_key = find_and_extract( key, 'dph' )
 
         if model_key is not None:
             getattr( model_config, model_key )
@@ -51,6 +53,10 @@ def modify_dicts( config: dict, model_config: LSWTConfig, train_config: LSWTConf
         if train_key is not None:
             getattr( train_config, train_key )
             setattr( train_config, train_key, value )
+
+        if dph_key is not None and dph_config is not None:
+            getattr( dph_config, dph_key )
+            setattr( dph_config, dph_key, value )
 
 
 def get_checkpoint_path( name: str | None=None ) -> tuple[ pathlib.Path, pathlib.Path, pathlib.Path ]:

@@ -227,10 +227,10 @@ class DPOLoss( nn.Module ):
 
         # Grab metric dict and detach
         metrics = {}
-        metrics[ 'rewards/chosen' ] = pos_rewards.mean().detach()
-        metrics[ 'rewards/rejected' ] = neg_rewards.mean().detach()
-        metrics[ 'rewards/accuracy' ] = reward_accuracy.mean().detach()
-        metrics[ 'rewards/margin' ] = reward_margins.mean().detach()
+        metrics[ 'dpo/chosen' ] = pos_rewards.mean().detach()
+        metrics[ 'dpo/rejected' ] = neg_rewards.mean().detach()
+        metrics[ 'dpo/accuracy' ] = reward_accuracy.mean().detach()
+        metrics[ 'dpo/margin' ] = reward_margins.mean().detach()
 
         return losses.mean(), metrics
 
@@ -300,10 +300,10 @@ class DPHLoss( nn.Module ):
 
         # Grab metrics and detach
         metrics = {}
-        metrics[ 'head/chosen' ] = pos_loss.detach()
-        metrics[ 'head/rejected' ] = neg_loss.detach()
-        metrics[ 'head/accuracy' ] = accuracy.mean().detach()
-        metrics[ 'head/margin' ] = con_logits.mean().detach()
+        metrics[ 'dph/chosen' ] = pos_loss.detach()
+        metrics[ 'dph/rejected' ] = neg_loss.detach()
+        metrics[ 'dph/accuracy' ] = accuracy.mean().detach()
+        metrics[ 'dph/margin' ] = con_logits.mean().detach()
 
         return loss, metrics
 
