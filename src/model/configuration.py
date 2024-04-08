@@ -80,6 +80,8 @@ class LSWTConfig( PretrainedConfig ):
 
         parent_embeddings='facebook/opt-125m',
 
+        reward_heads: Sequence[str] | None = None,
+
         **kwargs,
     ):
         """LSW Transformer Configuration
@@ -127,6 +129,8 @@ class LSWTConfig( PretrainedConfig ):
             recompute_kv (bool): Recompute keys and values during training for additional gradients. Defaults to False.
 
             parent_embeddings (str): Parent embeddings and tokenizer vocab. Defaults to 'facebook/opt-125m'.
+
+            reward_heads (Sequence[str] | None): The names of reward heads used by the model if in DPH mode. Defaults to None.
         """
         super().__init__(
             pad_token_id=pad_token_id,
@@ -184,6 +188,9 @@ class LSWTConfig( PretrainedConfig ):
 
         # Parent embeddings
         self.parent_embeddings = parent_embeddings
+
+        # Reward heads
+        self.reward_heads = reward_heads
 
         # Assertions
         if d_model % n_heads != 0:

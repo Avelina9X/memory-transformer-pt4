@@ -382,3 +382,64 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
                 tuple(past_state.index_select(0, beam_idx.to(past_state.device)) for past_state in layer_past),
             )
         return reordered_past
+
+class LSWTForDPH( LSWTForCausalLM ):
+    """
+    Causal LM model class with DPH for the LSW Transformer.
+
+    Inherits from LSWTForCausalLM and adds one or more DPHs.
+    """
+
+    def __init__( self, config: LSWTConfig, parent_embeddings: torch.Tensor | None=None ):
+        """
+        Constructs a new LSWTForDPH.
+
+        Args:
+            config (LSWTConfig): Config for the LSWT architecture
+            parent_embeddings (Optional[torch.Tensor], optional): Optinal warm start embeddings.
+        """
+
+        super().__init__( config, parent_embeddings )
+
+        if config.reward_heads is None or len( config.reward_heads ) == 0:
+            raise ValueError( 'At least one reward head must be defined when initializing a DPH model.' )
+
+        self.reward_heads = torch.nn.ModuleDict( {
+            name: torch.nn.Linear( config.d_model, 1, bias=False )
+            for name in config.reward_heads
+        } )
+
+        self.post_init()
+
+    def compute_rewards(
+        self,
+        last_hidden_states: torch.Tensor,
+        input_ids: torch.LongTensor,
+        cls_id: int,
+    ) -> dict[str, torch.Tensor]:
+        """ Computes the rewards of all sequences in a batch.
+
+        Args:
+            last_hidden_states (torch.Tensor): Hidden states of size [Batch x Seq x Dim].
+            input_ids (torch.LongTensor): Input ids of size [Batch x Seq].
+            cls_id (int): id of the token used to aggregate rewards from. If multiple exist in the sequence the last one is used.
+
+        Returns:
+            dict[str, torch.Tensor]: Dict of reward head names -> reward tensors of size [Batch x 1]
+        """
+
+        batch_size, seq_lengths = input_ids.shape[:2]
+        batch_ids = torch.arange( batch_size, device=last_hidden_states.device )
+        seq_ids = torch.arange( seq_lengths, device=input_ids.device )
+        cls_idx = torch.where( input_ids == cls_id, seq_ids, -1 ).max( -1 )[0]
+
+        # TODO: some sort of assertion that there at least is a CLS ID somewhere
+        assert torch.all( cls_idx != -1 )
+
+        pooled_states = last_hidden_states[ batch_ids, cls_idx ]
+
+        return {
+            name: module( pooled_states )
+            for name, module
+            in self.reward_heads.items()
+        }
