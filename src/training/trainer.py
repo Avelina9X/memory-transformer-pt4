@@ -748,6 +748,8 @@ class DPHTrainer():
         self.optimizer.zero_grad()
 
     def train_batch_step( self, batch ):
+        self.model_dph.train()
+        self.model_ref.eval()
 
         tokens_xs_w, tokens_ys_w, tokens_xs_l, tokens_ys_l = batch
 
