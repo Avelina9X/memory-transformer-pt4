@@ -222,7 +222,6 @@ def instruct_tune(
     mask_type = {
         'vocab': 'train',
         'sft': 'train',
-        'sft_dpo': 'test',
     }[ config[ 'finetune.mode' ] ]
 
     # Create dataset
@@ -353,8 +352,8 @@ def run():
     if os.path.exists( f"./checkpoints/{config['meta.run_name']}" ):
         raise ValueError( f"Cannot create run '{config['meta.run_name']}' because it already exists!" )
 
-    if config[ 'finetune.mode' ] not in [ 'vocab', 'sft', 'dpo_sft', 'dpo' ]:
-        raise ValueError( "finetune.mode must be 'vocab', 'sft', 'dpo_sft' or 'dpo'" )
+    if config[ 'finetune.mode' ] not in [ 'vocab', 'sft' ]:
+        raise ValueError( "finetune.mode must be 'vocab' or 'sft'" )
 
     tags = [ f"finetune_{config[ 'finetune.mode' ]}" ]
 
