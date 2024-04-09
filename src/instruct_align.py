@@ -1,3 +1,5 @@
+""" Module for performing Direct Preference Head optimization. """
+
 from collections.abc import Sequence
 import os
 import argparse
@@ -31,42 +33,104 @@ import train_utils
 from instruct_tune import create_validation_zeroshot_tasks, log_full_config, log_stats
 
 def create_align_tasks( dph_mix: list[str] ) -> list[BaseInstructDataset]:
+    """ Creates a list of tasks for alignment from the dph mix list.
+
+    Args:
+        dph_mix (list[str]): List of strings corresponding to tasks in te directory.
+
+    Returns:
+        list[BaseInstructDataset]: List of instantiated tasks.
+    """
+
+    # Create list of task/subtask tuples from the mix
     dph_list = [ i.split( '/' ) for i in dph_mix ]
+
+    # Instatiate list of tasks using the task factory
     return [ DIRECTORY_ALL[task[0]][task[1]]( HF_CACHE_DIR ) for task in dph_list ]
 
-def evaluate_zero_shot_task( task: BaseChoiceInstructDataset, batcher: DPHChoiceInstructionBatcher ) -> tuple[ str, dict[ str, float ] ]:
+def evaluate_zero_shot_task(
+    task: BaseChoiceInstructDataset,
+    batcher: DPHChoiceInstructionBatcher
+) -> tuple[str, dict[str, float]]:
+    """ Evaluates a task and returns the logp and dph metrics.
+
+    Args:
+        task (BaseChoiceInstructDataset): Task to evaluate. Must have a validation split.
+        batcher (DPHChoiceInstructionBatcher): Batcher used to evaluate tasks.
+
+    Returns:
+        log line (str): string suitable for file logging.
+        metrics (dict[str, float]): dict suitable for WandB logging.
+    """
+
+    # Get the task dataset and assert it's not None
     task_ds = task.get_validation_docs()
     assert task_ds is not None
+
+    # Perform evaluation and aggregate into the logprob and dph metrics
     val_metrics_both = batcher.evaluate_dataset( task, task_ds, False, False )
     val_metrics_log = val_metrics_both[ 'log' ]
     val_metrics_dph = val_metrics_both[ 'dph' ]
 
+    # Create an empty dict and populate with anotated versions of the base metrics
     val_metrics = {}
     val_metrics.update( { f'log_{name}': metric for name, metric in val_metrics_log.items() } )
     val_metrics.update( { f'dph_{name}': metric for name, metric in val_metrics_dph.items() } )
 
+    # Format metric for logging and print
     task_name = f'{task.task_name}/{task.task_subset}'
     curr_metrics = f'{task_name}={val_metrics}'
     rich.print( curr_metrics )
 
+    # Return logged string and annotated dict
     return (
         curr_metrics,
         train_utils.compute_validation_metric_dict( val_metrics, task_name )
     )
 
-def aggregate_gpt4all_score( metrics: dict[ str, float ], prefix: str ) -> dict[ str, float ]:
+def aggregate_gpt4all_score(
+    metrics: dict[str, float],
+    prefix: str
+) -> dict[str, float]:
+    """ Computes the aggreagted GPT4All scores.
+
+    Args:
+        metrics (dict[str, float]): list of all validation metrics to aggregate from.
+        prefix (str): prefix to select the metric type ('log' or 'dph')
+
+    Returns:
+        dict[str, float]: dict suitable for WandB logging.
+    """
+
+    # Create list of scores, selected by prefix
     macro_scores = [
         metrics[ f'Hellaswag/no_choice/{prefix}_accuracy' ],
         metrics[ f'obqa/main/{prefix}_accuracy' ],
         metrics[ f'winogrande/no_choice/{prefix}_accuracy' ],
-        metrics[ f'arc/ARC-{prefix}_Easy/accuracy' ],
-        metrics[ f'arc/ARC-{prefix}_Challenge/accuracy' ],
+        metrics[ f'arc/ARC-Easy/{prefix}_accuracy' ],
+        metrics[ f'arc/ARC-Challenge/{prefix}_accuracy' ],
         metrics[ f'super_glue/boolq/{prefix}_accuracy' ],
         metrics[ f'piqa/no_choice/{prefix}_accuracy' ],
     ]
+
+    # Compute aggregated score with specified prefix
     return { f'validation/{prefix}_gpt4all': 100 * sum( macro_scores ) / len( macro_scores ) }
 
-def aggregate_glue_score( metrics: dict[ str, float ], prefix: str ) -> dict[ str, float ]:
+def aggregate_glue_score(
+    metrics: dict[str, float],
+    prefix: str
+) -> dict[str, float]:
+    """ Computes the aggregated GLUE scores (both with and without WNLI).
+
+    Args:
+        metrics (dict[str, float]): list of all validation metrics to aggregate from.
+        prefix (str): prefix to select the metric type ('log' or 'dph')
+
+    Returns:
+        dict[str, float]: dict suitable for WandB logging.
+    """
+
+    # Create list of scores, aggreagted by task and selected by prefix
     macro_scores = [
         metrics[ f'GLUE/cola/{prefix}_matthews_correlation' ],
         ( metrics[ f'GLUE/mnli_matched/{prefix}_accuracy' ] + metrics[ f'GLUE/mnli_mismatched/{prefix}_accuracy' ] ) / 2,
@@ -78,21 +142,39 @@ def aggregate_glue_score( metrics: dict[ str, float ], prefix: str ) -> dict[ st
         ( metrics[ f'GLUE/stsb/{prefix}_pearson' ] + metrics[ f'GLUE/stsb/{prefix}_spearmanr' ] ) / 2,
     ]
 
+    # Bolt on WNLI for extra calc
     macro_scores_wnli = [
         *macro_scores,
         metrics[ f'GLUE/wnli/{prefix}_accuracy' ],
     ]
 
+    # Compute aggregated scores for both varients with specified prefix
     return {
         f'validation/{prefix}_glue_all': 100 * sum( macro_scores_wnli ) / len( macro_scores_wnli ),
         f'validation/{prefix}_glue_no_wnli': 100 * sum( macro_scores ) / len( macro_scores ),
     }
 
-def aggregate_race_score( metrics: dict[ str, float ], prefix: str ) -> dict[ str, float ]:
+def aggregate_race_score(
+    metrics: dict[str, float],
+    prefix: str
+) -> dict[str, float]:
+    """ Computes the weighted RACE score average.
+
+    Args:
+        metrics (dict[str, float]): list of all validation metrics to aggregate from.
+        prefix (str): prefix to select the metric type ('log' or 'dph')
+
+    Returns:
+        dict[str, float]: dict suitable for WandB logging.
+    """
+
+    # Create list of scores, weighted by dataset size and selected by prefix
     macro_scores = [
         metrics[ f'race/middle/{prefix}_accuracy' ] * 1.44,
         metrics[ f'race/high/{prefix}_accuracy' ] * 3.45,
     ]
+
+    # Compute weighted aggregation with specified prefix
     return {
         f'validation/{prefix}_race_avg': 100 * sum( macro_scores ) / ( 1.44 + 3.45 )
     }
@@ -103,6 +185,15 @@ def instruct_align(
     wandb_tags: list[str] | None = None,
     wandb_run_name: str | None = None
 ):
+    """ Runs the DPH optimization pipeline.
+
+    Args:
+        config (dict): Aggregated config of all sub-dicts (meta, dph, model, train, finetune)
+        wandb_mode (str | None): WandB run mode. Defaults to None.
+        wandb_tags (list[str] | None): WandB run tags. Defaults to None.
+        wandb_run_name (str | None): WandB run name. Defaults to None.
+    """
+
     # Log in to wandb
     wandb.login( key=WANDB_API_KEY )
 
@@ -281,6 +372,15 @@ def instruct_align(
     wandb.finish()
 
 def run():
+    """ Runs the DPH optimization pipeline using command-line arguments.
+
+    TODO: add support for passing commands via method call.
+
+    Raises:
+        ValueError: Thrown when a run name collision occurs (local only)
+        ValueError: Thrown when an invalid finetuning mode is passed
+    """
+
     argparser = argparse.ArgumentParser()
 
     # YAML config file(s) argument
