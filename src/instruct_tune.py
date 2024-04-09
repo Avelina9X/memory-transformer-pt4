@@ -1,10 +1,11 @@
+""" Module for SFT optimization. """
+
 import json
 import os
 import argparse
 import typing
 
 import shortuuid
-import tqdm
 import rich
 import wandb
 from wcmatch import glob
@@ -170,6 +171,15 @@ def instruct_tune(
     wandb_tags: list[str] | None = None,
     wandb_run_name: str | None = None
 ):
+    """ Runs the DPH optimization pipeline.
+
+    Args:
+        config (dict): Aggregated config of all sub-dicts (meta, model, train, finetune)
+        wandb_mode (str | None): WandB run mode. Defaults to None.
+        wandb_tags (list[str] | None): WandB run tags. Defaults to None.
+        wandb_run_name (str | None): WandB run name. Defaults to None.
+    """
+
     # Log in to wandb
     wandb.login( key=WANDB_API_KEY )
 
@@ -328,8 +338,19 @@ def instruct_tune(
     wandb.finish()
 
 def run():
+    """ Runs the SFT optimization pipeline using command-line arguments.
+
+    TODO: add support for passing commands via method call.
+    TODO: add --params flag.
+
+    Raises:
+        ValueError: Thrown when a run name collision occurs (local only)
+        ValueError: Thrown when an invalid finetuning mode is passed
+    """
+
     argparser = argparse.ArgumentParser()
 
+    # YAML config file(s) argument
     argparser.add_argument(
         '-c',
         '--config',
@@ -337,6 +358,7 @@ def run():
         required=True
     )
 
+    # WandB mode argument
     argparser.add_argument(
         '-w',
         '--wmode',
@@ -344,24 +366,34 @@ def run():
         choices=[ 'online', 'offline', 'disabled' ]
     )
 
+    # Parse the command line args
     arguments = argparser.parse_args()
 
+    # Parse the YAML file(s)
     config = train_utils.parse_yaml_config( arguments.config )
+
+    # Add a UUID to run name
     config[ 'meta.run_name' ] += f'_{shortuuid.uuid()[:4]}'
 
+    # If we have a UUID collision throw an error. TODO: maybe try and fix the collision instead?
     if os.path.exists( f"./checkpoints/{config['meta.run_name']}" ):
         raise ValueError( f"Cannot create run '{config['meta.run_name']}' because it already exists!" )
 
+    # Check we're using a valid finetune mode
     if config[ 'finetune.mode' ] not in [ 'vocab', 'sft' ]:
         raise ValueError( "finetune.mode must be 'vocab' or 'sft'" )
 
+    # Add the finetune mode to the tags list
     tags = [ f"finetune_{config[ 'finetune.mode' ]}" ]
 
+    # If we have other tags, add them to the list
     if 'meta.tags' in config:
         tags += config[ 'meta.tags' ]
 
+    # Print the config to stdout
     rich.print( config )
 
+    # Launch program with our settings
     instruct_tune(
         config=config,
         wandb_mode=arguments.wmode,
