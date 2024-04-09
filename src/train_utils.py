@@ -239,3 +239,20 @@ def parse_yaml_config( files: list[str] ) -> dict:
             config.update( obj )
 
     return config
+
+def parse_options( options: str ) -> dict:
+    """ Parses strings in the format "<key>:<value>,<key>:<value>,.."
+
+    Keys are stripped of whitespace, and values are parsed as YAML literals.
+
+    Args:
+        options (str): String of comma seperated KV pairs, delimited by colons.
+
+    Returns:
+        dict: The parsed dict.
+    """
+    option_list = [ tuple( i.split( ':' ) ) for i in options.split( ',' ) ]
+    return {
+        key.strip(): yaml.load( value, yaml.FullLoader )
+        for key, value in option_list
+    }

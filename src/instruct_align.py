@@ -245,11 +245,14 @@ def instruct_align(
                 validation_dict.update( **curr_dict )
             torch.cuda.empty_cache()
 
+        # If we're not in debug mode log the metrics etc to the output dir
         if wandb_mode != 'disabled':
             log_stats( output_dir, train_metrics, validation_lines, trainer.optimizer_step )
 
+        # Compute the running stats log
         stats_log = train_utils.compute_stats_dict( trainer, i ) # type: ignore
 
+        # Log to WandB
         wandb.log( {
             **{ f'train/{name}': metric for name, metric in train_metrics.items() },
             **validation_dict,
@@ -262,20 +265,25 @@ def instruct_align(
             **aggregate_race_score( validation_dict, 'log' ),
         } )
 
+    # Cast the model to half, save the model and tokenizer
     dph_model.half().save_pretrained( output_dir )
     tokenizer.save_pretrained( output_dir )
 
+    # Create artifact for the model
     model_artifact = wandb.Artifact( name=dph_model.config.model_type, type="model" )
     model_artifact.add_dir( output_dir )
 
+    # Link the model artificat (if we're even a real run)
     assert wandb.run is not None
     wandb.run.log_artifact( model_artifact )
 
+    # Aaand we're done!
     wandb.finish()
 
 def run():
     argparser = argparse.ArgumentParser()
 
+    # YAML config file(s) argument
     argparser.add_argument(
         '-c',
         '--config',
@@ -283,6 +291,7 @@ def run():
         required=True
     )
 
+    # WandB mode argument
     argparser.add_argument(
         '-w',
         '--wmode',
@@ -290,24 +299,44 @@ def run():
         choices=[ 'online', 'offline', 'disabled' ]
     )
 
+    # Additional parameter(s) argument
+    argparser.add_argument(
+        '--params',
+        type=train_utils.parse_options
+    )
+
+    # Parse the command line args
     arguments = argparser.parse_args()
 
+    # Parse the YAML file(s)
     config = train_utils.parse_yaml_config( arguments.config )
+
+    # If params are passed, update config
+    if arguments.params is not None:
+        config.update( arguments.params )
+
+    # Add a UUID to run name
     config[ 'meta.run_name' ] += f'_{shortuuid.uuid()[:4]}'
 
+    # If we have a UUID collision throw an error. TODO: maybe try and fix the collision instead?
     if os.path.exists( f"./checkpoints/{config['meta.run_name']}" ):
         raise ValueError( f"Cannot create run '{config['meta.run_name']}' because it already exists!" )
 
+    # Check we're using a valid finetune mode
     if config[ 'finetune.mode' ] not in [ 'dph' ]:
         raise ValueError( "finetune.mode must be 'dph'" )
 
+    # Add the finetune mode to the tags list
     tags = [ f"finetune_{config[ 'finetune.mode' ]}" ]
 
+    # If we have other tags, add them to the list
     if 'meta.tags' in config:
         tags += config[ 'meta.tags' ]
 
+    # Print the config to stdout
     rich.print( config )
 
+    # Launch program with our settings
     instruct_align(
         config=config,
         wandb_mode=arguments.wmode,
