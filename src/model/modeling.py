@@ -409,6 +409,8 @@ class LSWTForDPH( LSWTForCausalLM ):
             for name in config.reward_heads
         } )
 
+        self.reward_dropout = torch.nn.Dropout( p=config.reward_dropout )
+
         self.post_init()
 
     def compute_rewards(
@@ -437,6 +439,7 @@ class LSWTForDPH( LSWTForCausalLM ):
         assert torch.all( cls_idx != -1 )
 
         pooled_states = last_hidden_states[ batch_ids, cls_idx ]
+        pooled_states = self.reward_dropout( pooled_states )
 
         return {
             name: module( pooled_states )
