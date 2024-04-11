@@ -388,7 +388,8 @@ def run():
         '-c',
         '--config',
         type=lambda x: glob.glob( x, flags=glob.BRACE ),
-        required=True
+        required=True,
+        help='List of YAML files to use for configuration. Supports globbing. File order overwrite parameters.'
     )
 
     # WandB mode argument
@@ -396,13 +397,15 @@ def run():
         '-w',
         '--wmode',
         default='disabled',
-        choices=[ 'online', 'offline', 'disabled' ]
+        choices=[ 'online', 'offline', 'disabled' ],
+        help='Chooses the mode WandB will run in. `disabled` also disabled local logging.'
     )
 
     # Additional parameter(s) argument
     argparser.add_argument(
         '--params',
-        type=train_utils.parse_options
+        type=train_utils.parse_options,
+        help='Key value pairs to overwrite config parameters. Uses format `<key>:<value>,<key>:<value>,...`'
     )
 
     # Parse the command line args
