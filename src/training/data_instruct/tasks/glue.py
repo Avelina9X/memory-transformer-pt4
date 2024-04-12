@@ -166,7 +166,10 @@ class GlueMNLIMismatchedInstructDataset( GlueMNLIInstructDataset ):
         return self.dataset[ 'test' ]
 
 class GlueAXInstructDataset( GlueMNLIInstructDataset ):
-    # TODO: metric=MCC!!!!!
+    def __init__( self, cache_dir: str ):
+        self.metric = None
+        super( BaseChoiceInstructDataset, self ).__init__( cache_dir )
+
     @property
     def task_subset( self ) -> str:
         return 'ax'
