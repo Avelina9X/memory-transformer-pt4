@@ -81,6 +81,7 @@ class LSWTConfig( PretrainedConfig ):
         parent_embeddings='facebook/opt-125m',
 
         reward_heads: Sequence[str] | None = None,
+        reward_pooler='identity',
         reward_dropout=0.0,
 
         **kwargs,
@@ -132,6 +133,7 @@ class LSWTConfig( PretrainedConfig ):
             parent_embeddings (str): Parent embeddings and tokenizer vocab. Defaults to 'facebook/opt-125m'.
 
             reward_heads (Sequence[str] | None): The names of reward heads used by the model if in DPH mode. Defaults to None.
+            reward_pooler (str): The pooler type used on the final CLS token. Defaults to 'identity'.
             reward_dropout (float): The probability of applying dropout to the inputs of the reward head. Deafults to 0.0.
         """
         super().__init__(
@@ -193,6 +195,7 @@ class LSWTConfig( PretrainedConfig ):
 
         # Reward heads
         self.reward_heads = reward_heads
+        self.reward_pooler = reward_pooler
         self.reward_dropout = reward_dropout
 
         # Assertions
@@ -342,6 +345,9 @@ class LSWTConfigTrainingDPH():
         dph_contrastive=False,
         dph_epsilon=0.1,
         dph_weight=1.0,
+
+        dph_decay_init=False,
+        dph_weight_decay=0.1,
     ):
         """ LSW Transformer config class
 
@@ -364,6 +370,9 @@ class LSWTConfigTrainingDPH():
         self.dph_contrastive = dph_contrastive
         self.dph_epsilon = dph_epsilon
         self.dph_weight = dph_weight
+
+        self.dph_decay_init = dph_decay_init
+        self.dph_weight_decay = dph_weight_decay
 
         # DPO Assertions
         if self.dpo_beta < 0:

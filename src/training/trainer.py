@@ -588,7 +588,12 @@ class DPHTrainer():
         )
 
     def _load_optimizer( self ) -> torch.optim.Optimizer:
-        params = self.model_dph.get_param_groups( self.train_config.opt_decay_mask )
+        params = self.model_dph.get_param_groups(
+            self.train_config.opt_decay_mask,
+            self.dph_config.dph_decay_init,
+            self.dph_config.dph_weight_decay,
+        )
+        for group in params: print( len( group['params'] ) )
         if self.train_config.optimizer == 'LaProp':
             return LaProp(
                 params=params,

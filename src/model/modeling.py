@@ -404,10 +404,19 @@ class LSWTForDPH( LSWTForCausalLM ):
         if config.reward_heads is None or len( config.reward_heads ) == 0:
             raise ValueError( 'At least one reward head must be defined when initializing a DPH model.' )
 
+        if config.reward_pooler not in [ 'identity' ]: # TODO: add BERT style pooling support
+            raise ValueError( 'Invalid pooler type.' )
+
         self.reward_heads = torch.nn.ModuleDict( {
             name: torch.nn.Linear( config.d_model, 1, bias=False )
             for name in config.reward_heads
         } )
+
+        self.pooler_pipeline = torch.nn.Sequential()
+
+        match config.reward_pooler:
+            case 'identity':
+                self.pooler_pipeline.append( torch.nn.Identity() )
 
         self.reward_dropout = torch.nn.Dropout( p=config.reward_dropout )
 
@@ -446,3 +455,50 @@ class LSWTForDPH( LSWTForCausalLM ):
             for name, module
             in self.reward_heads.items()
         }
+
+    def get_param_groups(
+        self,
+        decay_mask: Sequence[str],
+        dph_decay_init=False,
+        dph_weight_decay=0.0,
+    ) -> list[dict]:
+        """
+        Returns optimizer parameter groups with weight decay disabled for certain params.
+
+        Args:
+            decay_mask (Sequence[str]): list of string patterns which disable weight decay
+            dph_decay_init (bool): if prior regularization should be enabled for DPH weights. Defaults to False.
+            dph_weight_decay (float): the weight/prior decay amount. Defaults to 0.0.
+
+        Returns:
+            List[Dict]: list of param groups to be used by the optimizer
+        """
+
+        decay_params = []
+        non_decay_params = []
+
+        dph_decay_params = []
+        dph_non_decay_params = []
+
+        for name, p in self.named_parameters():
+            if p.requires_grad:
+                if any( i in name for i in decay_mask ):
+
+                    if p in self.reward_heads.parameters() or p in self.pooler_pipeline.parameters():
+                        dph_non_decay_params.append( p )
+                    else:
+                        non_decay_params.append( p )
+
+                else:
+                    if p in self.reward_heads.parameters() or p in self.pooler_pipeline.parameters():
+                        dph_decay_params.append( p )
+                    else:
+                        decay_params.append( p )
+
+        return [
+            { 'params': decay_params },
+            { 'params': non_decay_params, 'weight_decay': 0.0 },
+
+            { 'params': dph_decay_params, 'decay_init': dph_decay_init, 'weight_decay': dph_weight_decay },
+            { 'params': dph_non_decay_params, 'decay_init': dph_decay_init, 'weight_decay': 0.0 },
+        ]
