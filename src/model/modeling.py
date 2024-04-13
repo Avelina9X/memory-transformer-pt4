@@ -404,7 +404,7 @@ class LSWTForDPH( LSWTForCausalLM ):
         if config.reward_heads is None or len( config.reward_heads ) == 0:
             raise ValueError( 'At least one reward head must be defined when initializing a DPH model.' )
 
-        if config.reward_pooler not in [ 'identity' ]: # TODO: add BERT style pooling support
+        if config.reward_pooler not in [ 'identity', 'bert' ]: # TODO: add BERT style pooling support
             raise ValueError( 'Invalid pooler type.' )
 
         self.reward_heads = torch.nn.ModuleDict( {
@@ -417,6 +417,9 @@ class LSWTForDPH( LSWTForCausalLM ):
         match config.reward_pooler:
             case 'identity':
                 self.pooler_pipeline.append( torch.nn.Identity() )
+            case 'bert':
+                self.pooler_pipeline.append( torch.nn.Linear( config.d_model, config.d_model ) )
+                self.pooler_pipeline.append( torch.nn.Tanh() )
 
         self.reward_dropout = torch.nn.Dropout( p=config.reward_dropout )
 
@@ -448,6 +451,7 @@ class LSWTForDPH( LSWTForCausalLM ):
         assert torch.all( cls_idx != -1 )
 
         pooled_states = last_hidden_states[ batch_ids, cls_idx ]
+        pooled_states = self.pooler_pipeline( pooled_states )
         pooled_states = self.reward_dropout( pooled_states )
 
         return {
