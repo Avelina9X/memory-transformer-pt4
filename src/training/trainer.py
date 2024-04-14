@@ -593,7 +593,7 @@ class DPHTrainer():
             self.dph_config.dph_decay_init,
             self.dph_config.dph_weight_decay,
         )
-        for group in params: print( len( group['params'] ) )
+
         if self.train_config.optimizer == 'LaProp':
             return LaProp(
                 params=params,
