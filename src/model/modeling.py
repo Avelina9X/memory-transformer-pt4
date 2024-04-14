@@ -484,17 +484,26 @@ class LSWTForDPH( LSWTForCausalLM ):
         dph_decay_params = []
         dph_non_decay_params = []
 
+        # TODO: improve this
+        def check_dph( p ):
+            for pp in self.reward_heads.parameters():
+                if p is pp:
+                    return True
+            for pp in self.pooler_pipeline.parameters():
+                if p is pp:
+                    return True
+
         for name, p in self.named_parameters():
             if p.requires_grad:
                 if any( i in name for i in decay_mask ):
 
-                    if p in self.reward_heads.parameters() or p in self.pooler_pipeline.parameters():
+                    if check_dph( p ):
                         dph_non_decay_params.append( p )
                     else:
                         non_decay_params.append( p )
 
                 else:
-                    if p in self.reward_heads.parameters() or p in self.pooler_pipeline.parameters():
+                    if check_dph( p ):
                         dph_decay_params.append( p )
                     else:
                         decay_params.append( p )
