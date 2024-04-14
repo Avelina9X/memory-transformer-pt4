@@ -10,7 +10,7 @@ Contains:
 
 from collections.abc import Sequence
 import json
-from typing import Any
+from typing import Any, Literal
 
 from transformers import PretrainedConfig
 
@@ -81,7 +81,7 @@ class LSWTConfig( PretrainedConfig ):
         parent_embeddings='facebook/opt-125m',
 
         reward_heads: Sequence[str] | None = None,
-        reward_pooler='identity',
+        reward_pooler: Literal['identity', 'bert'] = 'identity',
         reward_dropout=0.0,
 
         **kwargs,
@@ -233,7 +233,7 @@ class LSWTConfigTraining():
         lr_cooldown_tokens=30_000_000_000,
         lr_cooldown_ratio=0.1,
 
-        optimizer='LaProp',
+        optimizer: Literal['LaProp'] = 'LaProp',
         opt_beta_1=0.9,
         opt_beta_2=0.95,
         opt_eps=1e-8,
@@ -243,7 +243,7 @@ class LSWTConfigTraining():
         opt_max_grad_norm=1.0,
         opt_rho=0.1,
 
-        loss_objective='MLE',
+        loss_objective: Literal['MLE', 'SimCTG'] = 'MLE',
         loss_sim_margin=0.5,
     ):
         """LSW Transformer Training Configuration
@@ -271,7 +271,7 @@ class LSWTConfigTraining():
             opt_max_grad_norm (float): Max norm for gradient clipping. Set to zero to disable. Defaults to 1.0.
             opt_rho (float): Rho factor for Sophia optimizers. Defaults to 0.05.
 
-            loss_objective (str): Loss objective, supports MLE (standard loss) and SimCTG (MLE + contrastive). Defaults to 'SimCTG'.
+            loss_objective (str): Loss objective, supports MLE (standard loss) and SimCTG (MLE + contrastive). Defaults to 'MLE'.
             loss_sim_margin (float): Loss margin for SimCTG. Defaults to 0.5.
         """
 
