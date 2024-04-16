@@ -575,7 +575,7 @@ class DPHTrainer():
         Internal Utility functions
         ======================================================================== """
 
-    def _bar_format( self, iter_n, iter_total, elapsed, epoch, dpo_loss, dph_loss ) -> str:
+    def _bar_format( self, iter_n, iter_total, elapsed, epoch, dpo_loss, dph_loss, dpo_acc, dph_acc ) -> str:
         return tqdm.tqdm.format_meter(
             n=iter_n,
             total=iter_total,
@@ -583,7 +583,7 @@ class DPHTrainer():
             ncols=80,
             unit='it',
             bar_format='{desc}: {percentage:.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}, {rate_fmt}{postfix}]',
-            postfix=f'dpo={dpo_loss:.3f}, dph={dph_loss:.3f}',
+            postfix=f'dpo={dpo_loss:.3f}, dph={dph_loss:.3f}, dpo_acc={dpo_acc:.3f}, dph_acc={dph_acc:.3f}',
             prefix=f'Epoch {epoch}',
         )
 
@@ -791,6 +791,8 @@ class DPHTrainer():
                 epoch=epoch,
                 dpo_loss=self.metrics[ 'loss_dpo' ].compute(),
                 dph_loss=self.metrics[ 'loss_dph' ].compute(),
+                dpo_acc=self.metrics[ 'dpo/accuracy' ].compute(),
+                dph_acc=self.metrics[ 'dph/accuracy' ].compute(),
             )
 
             print( '\r' + bar, end='', flush=True )
