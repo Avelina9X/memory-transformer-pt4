@@ -580,7 +580,7 @@ class DPHTrainer():
             n=iter_n,
             total=iter_total,
             elapsed=elapsed,
-            ncols=80,
+            ncols=100,
             unit='it',
             bar_format='{desc}: {percentage:.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}, {rate_fmt}{postfix}]',
             postfix=f'dpo={dpo_loss:.3f}, dph={dph_loss:.3f}, dpo_acc={dpo_acc:.3f}, dph_acc={dph_acc:.3f}',
