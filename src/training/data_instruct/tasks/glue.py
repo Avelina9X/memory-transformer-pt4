@@ -35,7 +35,7 @@ class GlueBaseInstructDataset( BaseChoiceInstructDataset ):
         return None
 
     def create_unlabelled_message_target( self, doc: dict ) -> int | float | None:
-        return None if doc['label'] < 0 else doc['label']
+        return doc['label']
 
     def _get_label_key( self ) -> str:
         return 'label'
