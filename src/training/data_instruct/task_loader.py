@@ -387,7 +387,7 @@ class DPHMultiTaskLoader( IterableDataset ):
         pad_token_id = self.formatter.tokenizer.pad_token_id
 
         tokens = line[ 'tokens' ] + [ pad_token_id ] * pad_len
-        targets = line[ 'targets' ] + [ pad_token_id ] * pad_len
+        targets = line[ 'targets' ] + [ -100 ] * pad_len
         train_mask = line[ 'train_mask' ] + [ False ] * pad_len
         test_mask = line[ 'test_mask' ] + [ False ] * pad_len
 

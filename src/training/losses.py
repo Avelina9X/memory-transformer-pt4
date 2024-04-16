@@ -167,7 +167,7 @@ class DPOLoss( nn.Module ):
 
     def get_logprobs( self, logits: torch.Tensor, targets: torch.LongTensor ) -> torch.Tensor:
         logprobs = logits.log_softmax( -1, torch.float32 ).gather( -1, targets.unsqueeze( -1 ) ).squeeze( -1 )
-        mask = targets == -100
+        mask = targets != -100
         masked_logprobs = logprobs * mask
 
         if self.average_logprobs:

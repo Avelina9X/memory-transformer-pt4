@@ -668,11 +668,11 @@ class DPHTrainer():
         reward_pos_logits: torch.Tensor
         reward_neg_logits: torch.Tensor
 
-    def forward_pass( self, tokens_w: torch.LongTensor, tokens_l: torch.LongTensor ) -> ForwardPassOutputs:
+    def forward_pass( self, pos_tokens: torch.LongTensor, neg_tokens: torch.LongTensor ) -> ForwardPassOutputs:
 
         torch._inductor.cudagraph_mark_step_begin() # type: ignore # pylint: disable=W0212
 
-        tokens_combined = torch.cat( [ tokens_w, tokens_l ], dim=0 )
+        tokens_combined = torch.cat( [ pos_tokens, neg_tokens ], dim=0 )
 
         dph_outputs = self.model_dph(
             input_ids=tokens_combined,
@@ -683,12 +683,12 @@ class DPHTrainer():
         dph_logits = dph_outputs.logits
         dph_states = dph_outputs.hidden_states[-1]
 
-        dph_w_logits, dph_l_logits = dph_logits.chunk( 2, dim=0 )
-        dph_w_states, dph_l_states = dph_states.chunk( 2, dim=0 )
+        dph_pos_logits, dph_neg_logits = dph_logits.chunk( 2, dim=0 )
+        dph_pos_states, dph_neg_states = dph_states.chunk( 2, dim=0 )
 
         assert self.tokenizer.cls_token_id is not None
-        w_rewards = self.model_dph.compute_rewards( dph_w_states, tokens_w, self.tokenizer.cls_token_id )
-        l_rewards = self.model_dph.compute_rewards( dph_l_states, tokens_l, self.tokenizer.cls_token_id )
+        pos_rewards = self.model_dph.compute_rewards( dph_pos_states, pos_tokens, self.tokenizer.cls_token_id )
+        neg_rewards = self.model_dph.compute_rewards( dph_neg_states, neg_tokens, self.tokenizer.cls_token_id )
 
         with torch.no_grad():
             ref_outputs = self.model_ref(
@@ -698,15 +698,15 @@ class DPHTrainer():
             )
 
             ref_logits = ref_outputs.logits
-            ref_w_logits, ref_l_logits = ref_logits.chunk( 2, dim=0 )
+            ref_pos_logits, ref_neg_logits = ref_logits.chunk( 2, dim=0 )
 
         return self.ForwardPassOutputs(
-            policy_pos_logits=dph_w_logits,
-            policy_neg_logits=dph_l_logits,
-            reference_pos_logits=ref_w_logits,
-            reference_neg_logits=ref_l_logits,
-            reward_pos_logits=w_rewards[ self.reward_head_key ],
-            reward_neg_logits=l_rewards[ self.reward_head_key ],
+            policy_pos_logits=dph_pos_logits,
+            policy_neg_logits=dph_neg_logits,
+            reference_pos_logits=ref_pos_logits,
+            reference_neg_logits=ref_neg_logits,
+            reward_pos_logits=pos_rewards[ self.reward_head_key ],
+            reward_neg_logits=neg_rewards[ self.reward_head_key ],
         )
 
 
@@ -715,9 +715,9 @@ class DPHTrainer():
         ======================================================================== """
 
     @torch.compile( **TORCH_COMPILE_OPTIONS )
-    def train_sub_step( self, tokens_x_w, tokens_y_w, tokens_x_l, tokens_y_l ):
+    def train_sub_step( self, pos_tokens, pos_target, neg_tokens, neg_target ):
         with torch.autocast( device_type='cuda', dtype=torch.float16 ):
-            outputs = self.forward_pass( tokens_x_w, tokens_x_l )
+            outputs = self.forward_pass( pos_tokens, neg_tokens )
 
             dph_loss, dph_metrics = self.dph_loss(
                 pos_logits=outputs.reward_pos_logits,
@@ -729,8 +729,8 @@ class DPHTrainer():
                 policy_neg_logits=outputs.policy_neg_logits,
                 reference_pos_logits=outputs.reference_pos_logits,
                 reference_neg_logits=outputs.reference_neg_logits,
-                pos_labels=tokens_y_w,
-                neg_labels=tokens_y_l,
+                pos_labels=pos_target,
+                neg_labels=neg_target,
             )
 
             accu_loss = ( dph_loss * self.dph_config.dph_weight + dpo_loss * self.dph_config.dpo_weight ) / self.batch_groups
@@ -756,16 +756,16 @@ class DPHTrainer():
         self.model_dph.train()
         self.model_ref.eval()
 
-        tokens_xs_w, tokens_ys_w, tokens_xs_l, tokens_ys_l = batch
+        pos_tokens, pos_target, neg_tokens, neg_target = batch
 
-        tokens_xs_w = torch.split( tokens_xs_w.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
-        tokens_ys_w = torch.split( tokens_ys_w.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
+        pos_tokens = torch.split( pos_tokens.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
+        pos_target = torch.split( pos_target.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
 
-        tokens_xs_l = torch.split( tokens_xs_l.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
-        tokens_ys_l = torch.split( tokens_ys_l.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
+        neg_tokens = torch.split( neg_tokens.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
+        neg_target = torch.split( neg_target.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
 
         for idx in range( self.batch_groups ):
-            dph_loss, dpo_loss, dph_metrics, dpo_metrics = self.train_sub_step( tokens_xs_w[idx], tokens_ys_w[idx], tokens_xs_l[idx], tokens_ys_l[idx] )
+            dph_loss, dpo_loss, dph_metrics, dpo_metrics = self.train_sub_step( pos_tokens[idx], pos_target[idx], neg_tokens[idx], neg_target[idx] )
 
             self.metrics[ 'loss_dpo' ].update( dpo_loss )
             self.metrics[ 'loss_dph' ].update( dph_loss )
