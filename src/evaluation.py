@@ -65,7 +65,7 @@ def evaluate_glue(
     ]
 
     # Iterate through all tasks
-    for out_file, task in tqdm.tqdm( tasks_map ):
+    for out_file, task in tqdm.tqdm( tasks_map, smoothing=0.0 ):
         # Create task paths
         task_dir_log = os.path.join( eval_dir_log, out_file )
         task_dir_dph = os.path.join( eval_dir_dph, out_file ) if eval_dir_dph else None
@@ -79,7 +79,10 @@ def evaluate_glue(
 
         # Create the label2id lambdas TODO: don't do this. there's a better way
         if hasattr( label_features, 'names' ):
-            label2id = label_features.names.__getitem__
+            if out_file in [ 'AX.tsv', 'MNLI-m.tsv', 'MNLI-mm.tsv', 'RTE.tsv', 'QNLI.tsv' ]:
+                label2id = label_features.names.__getitem__
+            else:
+                label2id = int
         elif hasattr( label_features, 'dtype' ):
             label2id = float
         else:
@@ -89,7 +92,7 @@ def evaluate_glue(
         results_list = []
 
         # Iterate through dataset and get predictions
-        for line in test_ds:
+        for line in tqdm.tqdm( test_ds, smoothing=0.0 ):
             result = batcher.evaluate_document( task, line, False, False )
             result[ 'id' ] = line[ 'idx' ]
             results_list.append( result )
@@ -116,12 +119,13 @@ def evaluate_glue(
                     f_log.write( f'{result["id"]}\t{label2id(result["log_predictions"].item())}\n' )
                     f_dph.write( f'{result["id"]}\t{label2id(result["dph_predictions"].item())}\n' )
 
-    # Zip log prob predictions
-    shutil.make_archive( os.path.join( eval_dir_log, 'submission' ), 'zip', eval_dir_log )
+    # Something is wrong here
+    # # Zip log prob predictions
+    # shutil.make_archive( os.path.join( eval_dir_log, 'submission' ), 'zip', eval_dir_log )
 
-    # Zip dph predictions if they exist
-    if eval_dir_dph:
-        shutil.make_archive( os.path.join( eval_dir_dph, 'submission' ), 'zip', eval_dir_dph )
+    # # Zip dph predictions if they exist
+    # if eval_dir_dph:
+    #     shutil.make_archive( os.path.join( eval_dir_dph, 'submission' ), 'zip', eval_dir_dph )
 
 
 def weighted_score( metrics: dict[str, float], weights: dict[str, float] ) -> float:
@@ -175,7 +179,7 @@ def evaluate_generic(
     metrics_weights: dict[str, float] = {}
 
     # Iterate through tasks
-    for task_name, use_test, task, weight in tqdm.tqdm( task_map ):
+    for task_name, use_test, task, weight in tqdm.tqdm( task_map, smoothing=0.0 ):
         # Get the dataset type according to LM Eval Harness
         test_ds = task.get_test_docs() if use_test else task.get_validation_docs()
         assert test_ds
