@@ -251,7 +251,7 @@ def instruct_align(
 
     # Instantiate instruct helpers
     formatter = InstructionFormatter( tokenizer )
-    batcher = DPHChoiceInstructionBatcher( dph_model, formatter, 'mean', reward_head_name )
+    batcher = DPHChoiceInstructionBatcher( dph_model, formatter, reward_head_name, 'mean' )
 
     # Create dataset
     task_loader = DPHMultiTaskLoader(
