@@ -1,5 +1,6 @@
 """ Module for benchmarking models. """
 
+from collections.abc import Callable
 import os
 import typing
 import argparse
@@ -265,6 +266,11 @@ def evaluate_race(
 
     evaluate_generic( batcher, eval_dir, is_dph, 'race.tsv', task_map )
 
+BENCHMARK_MAP: dict[str, Callable[[ChoiceInstructionBatcher | DPHChoiceInstructionBatcher, str, bool], None]] = {
+    'glue': evaluate_glue,
+    'gpt4all': evaluate_gpt4all,
+    'race': evaluate_race,
+}
 
 def evaluate( model_dir: str, benchmark: str ):
     """ Evaluates a model using a specific benchmark
@@ -307,12 +313,11 @@ def evaluate( model_dir: str, benchmark: str ):
     batcher = batch_cls( model, formatter, 'mean' )
 
     match benchmark:
-        case 'glue':
-            evaluate_glue( batcher, eval_dir, is_dph )
-        case 'gpt4all':
-            evaluate_gpt4all( batcher, eval_dir, is_dph )
-        case 'race':
-            evaluate_race( batcher, eval_dir, is_dph )
+        case 'all':
+            for b in BENCHMARK_MAP.values():
+                b( batcher, eval_dir, is_dph )
+        case _:
+            BENCHMARK_MAP[benchmark]( batcher, eval_dir, is_dph )
 
 
 def run():
@@ -334,7 +339,7 @@ def run():
         '--benchmark',
         type=str.lower,
         required=True,
-        choices=[ 'glue', 'gpt4all', 'race' ],
+        choices=[ 'all', *BENCHMARK_MAP.keys() ],
         help='Name of benchmark to perform',
     )
 
