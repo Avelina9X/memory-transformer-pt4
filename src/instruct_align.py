@@ -25,6 +25,8 @@ from training.data_instruct.formatter import InstructionFormatter
 from training.data_instruct.task_loader import DPHMultiTaskLoader
 from training.data_instruct.batcher import DPHChoiceInstructionBatcher
 
+from evaluation import evaluate as evaluate_fn
+
 from model.configuration import LSWTConfigTraining, LSWTConfig, LSWTConfigTrainingDPH
 from model.modeling import LSWTForCausalLM, LSWTForDPH
 
@@ -367,6 +369,9 @@ def instruct_align(
     # Link the model artificat (if we're even a real run)
     assert wandb.run is not None
     wandb.run.log_artifact( model_artifact )
+
+    if config[ 'meta.evaluate' ]:
+        evaluate_fn( output_dir, 'all' )
 
     # Aaand we're done!
     wandb.finish()
