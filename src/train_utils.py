@@ -253,6 +253,6 @@ def parse_options( options: str ) -> dict:
     """
     option_list = [ tuple( i.split( ':' ) ) for i in options.split( ',' ) ]
     return {
-        key.strip(): yaml.load( value, yaml.FullLoader )
+        key.strip(): yaml.load( value.strip(), yaml.FullLoader )
         for key, value in option_list
     }
