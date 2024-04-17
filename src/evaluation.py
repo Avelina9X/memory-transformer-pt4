@@ -4,7 +4,6 @@ from collections.abc import Callable
 import os
 import typing
 import argparse
-import shutil
 
 import torch
 import tqdm
@@ -119,13 +118,6 @@ def evaluate_glue(
                     f_log.write( f'{result["id"]}\t{label2id(result["log_predictions"].item())}\n' )
                     f_dph.write( f'{result["id"]}\t{label2id(result["dph_predictions"].item())}\n' )
 
-    # Something is wrong here
-    # # Zip log prob predictions
-    # shutil.make_archive( os.path.join( eval_dir_log, 'submission' ), 'zip', eval_dir_log )
-
-    # # Zip dph predictions if they exist
-    # if eval_dir_dph:
-    #     shutil.make_archive( os.path.join( eval_dir_dph, 'submission' ), 'zip', eval_dir_dph )
 
 
 def weighted_score( metrics: dict[str, float], weights: dict[str, float] ) -> float:
