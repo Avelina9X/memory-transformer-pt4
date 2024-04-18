@@ -13,7 +13,7 @@ from transformers.modeling_outputs import BaseModelOutputWithPast, CausalLMOutpu
 import torch
 
 from .configuration import LSWTConfig
-from .layers import SharedEmbeddings, RotaryEmbedding, LSWTBlock
+from .layers import SharedEmbeddings, RotaryEmbedding, LSWTBlock, SwiGLU
 
 class LSWTPreTrainedModel( PreTrainedModel ):
     """
@@ -404,9 +404,6 @@ class LSWTForDPH( LSWTForCausalLM ):
         if config.reward_heads is None or len( config.reward_heads ) == 0:
             raise ValueError( 'At least one reward head must be defined when initializing a DPH model.' )
 
-        if config.reward_pooler not in [ 'identity', 'bert' ]: # TODO: add BERT style pooling support
-            raise ValueError( 'Invalid pooler type.' )
-
         self.reward_heads = torch.nn.ModuleDict( {
             name: torch.nn.Linear( config.d_model, 1, bias=False )
             for name in config.reward_heads
@@ -416,12 +413,31 @@ class LSWTForDPH( LSWTForCausalLM ):
 
         match config.reward_pooler:
             case 'identity':
-                self.pooler_pipeline.append( torch.nn.Identity() )
+                self.pooler_pipeline.append( torch.nn.Dropout( p=config.reward_dropout ) )
             case 'bert':
                 self.pooler_pipeline.append( torch.nn.Linear( config.d_model, config.d_model ) )
                 self.pooler_pipeline.append( torch.nn.Tanh() )
-
-        self.reward_dropout = torch.nn.Dropout( p=config.reward_dropout )
+                self.pooler_pipeline.append( torch.nn.Dropout( p=config.reward_dropout ) )
+            case 't5':
+                self.pooler_pipeline.append( torch.nn.Dropout( p=config.reward_dropout ) )
+                self.pooler_pipeline.append( torch.nn.Linear( config.d_model, config.d_model ) )
+                self.pooler_pipeline.append( torch.nn.Tanh() )
+                self.pooler_pipeline.append( torch.nn.Dropout( p=config.reward_dropout ) )
+            case 'swiglu_bert':
+                self.pooler_pipeline.append( torch.nn.Linear( config.d_model, config.d_ffn * 2 ) )
+                self.pooler_pipeline.append( SwiGLU() )
+                self.pooler_pipeline.append( torch.nn.Linear( config.d_ffn, config.d_model ) )
+                self.pooler_pipeline.append( torch.nn.Tanh() )
+                self.pooler_pipeline.append( torch.nn.Dropout( p=config.reward_dropout ) )
+            case 'swiglu_t5':
+                self.pooler_pipeline.append( torch.nn.Dropout( p=config.reward_dropout ) )
+                self.pooler_pipeline.append( torch.nn.Linear( config.d_model, config.d_ffn * 2 ) )
+                self.pooler_pipeline.append( SwiGLU() )
+                self.pooler_pipeline.append( torch.nn.Linear( config.d_ffn, config.d_model ) )
+                self.pooler_pipeline.append( torch.nn.Tanh() )
+                self.pooler_pipeline.append( torch.nn.Dropout( p=config.reward_dropout ) )
+            case _:
+                raise ValueError( 'Invalid pooler type.' )
 
         self.post_init()
 
@@ -452,7 +468,6 @@ class LSWTForDPH( LSWTForCausalLM ):
 
         pooled_states = last_hidden_states[ batch_ids, cls_idx ]
         pooled_states = self.pooler_pipeline( pooled_states )
-        pooled_states = self.reward_dropout( pooled_states )
 
         return {
             name: module( pooled_states )

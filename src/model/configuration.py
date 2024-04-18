@@ -81,7 +81,7 @@ class LSWTConfig( PretrainedConfig ):
         parent_embeddings='facebook/opt-125m',
 
         reward_heads: Sequence[str] | None = None,
-        reward_pooler: Literal['identity', 'bert'] = 'identity',
+        reward_pooler: Literal['identity', 'bert', 't5', 'swiglu_bert', 'swiglu_t5'] = 'identity',
         reward_dropout=0.0,
 
         **kwargs,
