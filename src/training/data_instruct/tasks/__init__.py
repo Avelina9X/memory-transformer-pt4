@@ -15,6 +15,7 @@ from . import (
     squad,
     super_glue,
     tiny,
+    ultrafeedback,
     winogrande
 )
 
@@ -44,6 +45,7 @@ DIRECTORY_GENERATIVE: dict[str, Mapping[str, Callable[[str], BaseInstructDataset
     'alpaca': alpaca.DIRECTORY,
     'orca': orca.DIRECTORY,
     'tiny': tiny.DIRECTORY,
+    'ultrafeedback': ultrafeedback.DIRECTORY,
 }
 
 DIRECTORY_CONVERSATIONAL: dict[str, Mapping[str, Callable[[str], BaseInstructDataset]]] = {
