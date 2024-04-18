@@ -73,8 +73,34 @@ class OpenOrcaInstructDataset( BaseInstructDataset ):
         # TODO: add warning for using compute
         return {}
 
+class OpenOrcaPairsInstructDataset( OpenOrcaInstructDataset ):
+    def download( self, cache_dir: str ) -> DatasetDict:
+        dataset = load_dataset( 'Intel/orca_dpo_pairs', cache_dir=cache_dir )
+        assert isinstance( dataset, DatasetDict )
+        return dataset
+
+    @property
+    def task_subset( self ) -> str:
+        return 'orca_dpo_pairs'
+
+    def format_target_messages( self, doc: dict ) -> list[Message]:
+        return [ Message(
+            role='assistant',
+            content=doc['chosen'],
+            complete=True,
+        ) ]
+
+    def format_distractor_messages( self, doc: dict ) -> list[Message]:
+        return [ Message(
+            role='assistant',
+            content=doc['rejected'],
+            complete=True,
+        ) ]
+
+
 DIRECTORY: Mapping[str, Callable[[str], BaseInstructDataset]] = {
-    'OpenOrca': OpenOrcaInstructDataset
+    'OpenOrca': OpenOrcaInstructDataset,
+    'orca_dpo_pairs': OpenOrcaPairsInstructDataset,
 }
 
 def main():
