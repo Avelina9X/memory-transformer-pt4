@@ -29,7 +29,7 @@ class SquadBaseInstructDataset( BaseInstructDataset ):
             f'\n'
             f'Background: {doc["context"]}\n'
             f'\n'
-            f'Question: {doc["question"]}\n'
+            f'Question: {doc["question"].strip()}\n'
             f'\n'
             f'Answer:'
         )
