@@ -230,7 +230,7 @@ def instruct_tune(
 
     # Get mask type for this training variant
     mask_type = {
-        'vocab': 'all',
+        'vocab': 'train',
         'sft': 'train',
     }[ config[ 'finetune.mode' ] ]
 
@@ -310,6 +310,12 @@ def instruct_tune(
                 validation_dict.update( **curr_dict )
             torch.cuda.empty_cache()
 
+            validation_dict.update( {
+                **aggregate_gpt4all_score( validation_dict ),
+                **aggregate_glue_score( validation_dict ),
+                **aggregate_race_score( validation_dict ),
+            } )
+
         if wandb_mode != 'disabled':
             log_stats( output_dir, train_metrics, validation_lines, trainer.optimizer_step )
 
@@ -318,11 +324,8 @@ def instruct_tune(
 
         wandb.log( {
             **train_log,
-            **validation_dict,
             **stats_log,
-            **aggregate_gpt4all_score( validation_dict ),
-            **aggregate_glue_score( validation_dict ),
-            **aggregate_race_score( validation_dict ),
+            **validation_dict,
         } )
 
 

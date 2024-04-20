@@ -338,6 +338,15 @@ def instruct_align(
                 validation_dict.update( **curr_dict )
             torch.cuda.empty_cache()
 
+            validation_dict.update( {
+                **aggregate_gpt4all_score( validation_dict, 'dph' ),
+                **aggregate_glue_score( validation_dict, 'dph' ),
+                **aggregate_race_score( validation_dict, 'dph' ),
+                **aggregate_gpt4all_score( validation_dict, 'log' ),
+                **aggregate_glue_score( validation_dict, 'log' ),
+                **aggregate_race_score( validation_dict, 'log' ),
+            } )
+
         # If we're not in debug mode log the metrics etc to the output dir
         if wandb_mode != 'disabled':
             log_stats( output_dir, train_metrics, validation_lines, trainer.optimizer_step )
@@ -348,14 +357,8 @@ def instruct_align(
         # Log to WandB
         wandb.log( {
             **{ f'train/{name}': metric for name, metric in train_metrics.items() },
-            **validation_dict,
             **stats_log,
-            **aggregate_gpt4all_score( validation_dict, 'dph' ),
-            **aggregate_glue_score( validation_dict, 'dph' ),
-            **aggregate_race_score( validation_dict, 'dph' ),
-            **aggregate_gpt4all_score( validation_dict, 'log' ),
-            **aggregate_glue_score( validation_dict, 'log' ),
-            **aggregate_race_score( validation_dict, 'log' ),
+            **validation_dict,
         } )
 
     # Cast the model to half, save the model and tokenizer
