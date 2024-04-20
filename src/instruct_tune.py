@@ -230,7 +230,7 @@ def instruct_tune(
 
     # Get mask type for this training variant
     mask_type = {
-        'vocab': 'train',
+        'vocab': 'all',
         'sft': 'train',
     }[ config[ 'finetune.mode' ] ]
 
@@ -341,7 +341,6 @@ def run():
     """ Runs the SFT optimization pipeline using command-line arguments.
 
     TODO: add support for passing commands via method call.
-    TODO: add --params flag.
 
     Raises:
         ValueError: Thrown when a run name collision occurs (local only)
@@ -366,11 +365,22 @@ def run():
         choices=[ 'online', 'offline', 'disabled' ]
     )
 
+    # Additional parameter(s) argument
+    argparser.add_argument(
+        '--params',
+        type=train_utils.parse_options,
+        help='Key value pairs to overwrite config parameters. Uses format `<key>:<value>,<key>:<value>,...`'
+    )
+
     # Parse the command line args
     arguments = argparser.parse_args()
 
     # Parse the YAML file(s)
     config = train_utils.parse_yaml_config( arguments.config )
+
+    # If params are passed, update config
+    if arguments.params is not None:
+        config.update( arguments.params )
 
     # Add a UUID to run name
     config[ 'meta.run_name' ] += f'_{shortuuid.uuid()[:4]}'
