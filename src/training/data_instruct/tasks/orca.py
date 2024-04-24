@@ -83,6 +83,19 @@ class OpenOrcaPairsInstructDataset( OpenOrcaInstructDataset ):
     def task_subset( self ) -> str:
         return 'orca_dpo_pairs'
 
+    def format_system_message( self, doc: dict ) -> Message:
+        noprompt = (
+            'Below is an instruction that describes a task. '
+            'Write a response that appropriately completes the request.'
+        )
+        prompt = doc[ 'system' ]
+
+        return Message(
+            role='system',
+            content=prompt if len( prompt ) > 0 else noprompt,
+            complete=True,
+        )
+
     def format_target_messages( self, doc: dict ) -> list[Message]:
         return [ Message(
             role='assistant',
