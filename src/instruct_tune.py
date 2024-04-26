@@ -229,10 +229,10 @@ def instruct_tune(
     batcher = ChoiceInstructionBatcher( model, formatter, 'mean' )
 
     # Get mask type for this training variant
-    mask_type = {
+    mask_type = config.get( 'finetune.mask_override', {
         'vocab': 'train',
         'sft': 'train',
-    }[ config[ 'finetune.mode' ] ]
+    }[ config[ 'finetune.mode' ] ] )
 
     # Create dataset
     # TODO: add support for multitask vs mixedtask training
