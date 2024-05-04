@@ -791,7 +791,8 @@ class DPHTrainer():
         for idx in range( self.batch_groups ):
             dph_loss, dpo_loss, dph_metrics, dpo_metrics = self.train_sub_step( pos_tokens[idx], pos_target[idx], neg_tokens[idx], neg_target[idx] )
 
-            self.metrics[ 'loss_dpo' ].update( dpo_loss )
+            if self.dph_config.dpo_enabled:
+                self.metrics[ 'loss_dpo' ].update( dpo_loss )
             self.metrics[ 'loss_dph' ].update( dph_loss )
 
             for name, value in dph_metrics.items():
