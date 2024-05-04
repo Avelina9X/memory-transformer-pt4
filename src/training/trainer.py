@@ -554,19 +554,22 @@ class DPHTrainer():
         self.dataset = dataset
 
         self.metrics = {
-            'loss_dpo': metrics.Mean().to( 'cuda' ),
             'loss_dph': metrics.Mean().to( 'cuda' ),
-
-            'dpo/chosen': metrics.Mean().to( 'cuda' ),
-            'dpo/rejected': metrics.Mean().to( 'cuda' ),
-            'dpo/accuracy': metrics.Mean().to( 'cuda' ),
-            'dpo/margin': metrics.Mean().to( 'cuda' ),
 
             'dph/chosen': metrics.Mean().to( 'cuda' ),
             'dph/rejected': metrics.Mean().to( 'cuda' ),
             'dph/accuracy': metrics.Mean().to( 'cuda' ),
             'dph/margin': metrics.Mean().to( 'cuda' ),
         }
+
+        self.metrics.update( {
+            'loss_dpo': metrics.Mean().to( 'cuda' ),
+
+            'dpo/chosen': metrics.Mean().to( 'cuda' ),
+            'dpo/rejected': metrics.Mean().to( 'cuda' ),
+            'dpo/accuracy': metrics.Mean().to( 'cuda' ),
+            'dpo/margin': metrics.Mean().to( 'cuda' ),
+        } )
 
         self.optimizer_step = 0
 
@@ -575,7 +578,20 @@ class DPHTrainer():
         Internal Utility functions
         ======================================================================== """
 
-    def _bar_format( self, iter_n, iter_total, elapsed, epoch, dpo_loss, dph_loss, dpo_acc, dph_acc ) -> str:
+    def _bar_format( self, iter_n, iter_total, elapsed, epoch ) -> str:
+        if self.dph_config.dpo_enabled:
+            postfix = 'dpo={0:.3f}, dph={1:.3f}, dpo_acc={2:.3f}, dph_acc={3:.3f}'.format(
+                self.metrics[ 'loss_dpo' ].compute(),
+                self.metrics[ 'loss_dph' ].compute(),
+                self.metrics[ 'dpo/accuracy' ].compute(),
+                self.metrics[ 'dph/accuracy' ].compute(),
+            )
+        else:
+            postfix = 'dph={0:.3f}, dph_acc={1:.3f}'.format(
+                self.metrics[ 'loss_dph' ].compute(),
+                self.metrics[ 'dph/accuracy' ].compute(),
+            )
+
         return tqdm.tqdm.format_meter(
             n=iter_n,
             total=iter_total,
@@ -583,7 +599,7 @@ class DPHTrainer():
             ncols=100,
             unit='it',
             bar_format='{desc}: {percentage:.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}, {rate_fmt}{postfix}]',
-            postfix=f'dpo={dpo_loss:.3f}, dph={dph_loss:.3f}, dpo_acc={dpo_acc:.3f}, dph_acc={dph_acc:.3f}',
+            postfix=postfix,
             prefix=f'Epoch {epoch}',
         )
 
@@ -663,8 +679,8 @@ class DPHTrainer():
     class ForwardPassOutputs:
         policy_pos_logits: torch.Tensor
         policy_neg_logits: torch.Tensor
-        reference_pos_logits: torch.Tensor
-        reference_neg_logits: torch.Tensor
+        reference_pos_logits: torch.Tensor | None
+        reference_neg_logits: torch.Tensor | None
         reward_pos_logits: torch.Tensor
         reward_neg_logits: torch.Tensor
 
@@ -691,14 +707,18 @@ class DPHTrainer():
         neg_rewards = self.model_dph.compute_rewards( dph_neg_states, neg_tokens, self.tokenizer.cls_token_id )
 
         with torch.no_grad():
-            ref_outputs = self.model_ref(
-                input_ids=tokens_combined,
-                past_key_values=None,
-                use_cache=False,
-            )
+            if self.dph_config.dpo_enabled:
+                ref_outputs = self.model_ref(
+                    input_ids=tokens_combined,
+                    past_key_values=None,
+                    use_cache=False,
+                )
 
-            ref_logits = ref_outputs.logits
-            ref_pos_logits, ref_neg_logits = ref_logits.chunk( 2, dim=0 )
+                ref_logits = ref_outputs.logits
+                ref_pos_logits, ref_neg_logits = ref_logits.chunk( 2, dim=0 )
+            else:
+                ref_pos_logits = None
+                ref_neg_logits = None
 
         return self.ForwardPassOutputs(
             policy_pos_logits=dph_pos_logits,
@@ -724,14 +744,18 @@ class DPHTrainer():
                 neg_logits=outputs.reward_neg_logits
             )
 
-            dpo_loss, dpo_metrics = self.dpo_loss(
-                policy_pos_logits=outputs.policy_pos_logits,
-                policy_neg_logits=outputs.policy_neg_logits,
-                reference_pos_logits=outputs.reference_pos_logits,
-                reference_neg_logits=outputs.reference_neg_logits,
-                pos_labels=pos_target,
-                neg_labels=neg_target,
-            )
+            if self.dph_config.dpo_enabled:
+                dpo_loss, dpo_metrics = self.dpo_loss(
+                    policy_pos_logits=outputs.policy_pos_logits,
+                    policy_neg_logits=outputs.policy_neg_logits,
+                    reference_pos_logits=outputs.reference_pos_logits,
+                    reference_neg_logits=outputs.reference_neg_logits,
+                    pos_labels=pos_target,
+                    neg_labels=neg_target,
+                )
+            else:
+                dpo_loss = torch.zeros_like( dph_loss )
+                dpo_metrics = {}
 
             accu_loss = ( dph_loss * self.dph_config.dph_weight + dpo_loss * self.dph_config.dpo_weight ) / self.batch_groups
         self.optimizer_scaler.scale( accu_loss ).backward()
@@ -784,18 +808,14 @@ class DPHTrainer():
         for batch in range( self.train_config.batches_per_epoch ):
             self.train_batch_step( next( iterator ) )
 
-            bar = self._bar_format(
+            bar_string = self._bar_format(
                 iter_n=batch + 1,
                 iter_total=self.train_config.batches_per_epoch,
                 elapsed=time.time() - start_time,
-                epoch=epoch,
-                dpo_loss=self.metrics[ 'loss_dpo' ].compute(),
-                dph_loss=self.metrics[ 'loss_dph' ].compute(),
-                dpo_acc=self.metrics[ 'dpo/accuracy' ].compute(),
-                dph_acc=self.metrics[ 'dph/accuracy' ].compute(),
+                epoch=epoch
             )
 
-            print( '\r' + bar, end='', flush=True )
+            print( '\r' + bar_string, end='', flush=True )
         print()
 
         torch.cuda.empty_cache()

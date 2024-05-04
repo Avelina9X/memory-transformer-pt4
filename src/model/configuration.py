@@ -337,6 +337,7 @@ class LSWTConfigTrainingDPH():
     def __init__(
         self,
 
+        dpo_enabled=True,
         dpo_beta=0.1,
         dpo_epsilon=0.1,
         dpo_average_logprobs=False,
@@ -352,6 +353,7 @@ class LSWTConfigTrainingDPH():
         """ LSW Transformer config class
 
         Args:
+            dpo_enabeld (bool): If DPO should be enabled. Defaults to True.
             dpo_beta (float, optional): Beta parameter for DPO objective. Defaults to 0.1.
             dpo_epsilon (float, optional): Label smoothing parameter for DPO objective. Defaults to 0.1.
             dpo_average_logprobs (bool, optional): When True uses average logprobs instead of sum. Defaults to False.
@@ -362,6 +364,7 @@ class LSWTConfigTrainingDPH():
             dph_weight (float, optional): Loss strength of DPH. Defaults to 1.0.
         """
 
+        self.dpo_enabled = dpo_enabled
         self.dpo_beta = dpo_beta
         self.dpo_epsilon = dpo_epsilon
         self.dpo_average_logprobs = dpo_average_logprobs
