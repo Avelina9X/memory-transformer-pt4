@@ -4,6 +4,7 @@ from collections.abc import Sequence
 import os
 import argparse
 import typing
+import math
 
 import shortuuid
 import rich
@@ -52,7 +53,8 @@ def create_align_tasks( dph_mix: list[str] ) -> list[BaseInstructDataset]:
 
 def evaluate_zero_shot_task(
     task: BaseChoiceInstructDataset,
-    batcher: DPHChoiceInstructionBatcher
+    batcher: DPHChoiceInstructionBatcher,
+    zero_nan=False,
 ) -> tuple[str, dict[str, float]]:
     """ Evaluates a task and returns the logp and dph metrics.
 
@@ -78,6 +80,11 @@ def evaluate_zero_shot_task(
     val_metrics = {}
     val_metrics.update( { f'log_{name}': metric for name, metric in val_metrics_log.items() } )
     val_metrics.update( { f'dph_{name}': metric for name, metric in val_metrics_dph.items() } )
+
+    if zero_nan:
+        for key in val_metrics:
+            value = val_metrics[key]
+            val_metrics[key] = 0.0 if math.isnan( value ) else value
 
     # Format metric for logging and print
     task_name = f'{task.task_name}/{task.task_subset}'
