@@ -288,11 +288,9 @@ def evaluate( model_dir: str, benchmark: str ):
     match architecture:
         case 'LSWTForCausalLM':
             model_cls = LSWTForCausalLM
-            batch_cls = ChoiceInstructionBatcher
             is_dph = False
         case 'LSWTForDPH':
             model_cls = LSWTForDPH
-            batch_cls = DPHChoiceInstructionBatcher
             is_dph = True
         case _:
             raise ValueError( f'Model has an invalid architecture: {architecture}' )
@@ -306,7 +304,11 @@ def evaluate( model_dir: str, benchmark: str ):
 
     # Create formatter and batcher
     formatter = InstructionFormatter( tokenizer )
-    batcher = batch_cls( model, formatter, 'mean' )
+    if is_dph:
+        assert model_config.reward_heads
+        batcher = DPHChoiceInstructionBatcher( model, formatter, model_config.reward_heads[0], 'mean' )
+    else:
+        batcher = ChoiceInstructionBatcher( model, formatter, 'mean' )
 
     match benchmark:
         case 'all':
