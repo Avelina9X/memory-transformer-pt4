@@ -105,7 +105,7 @@ class GlueMNLIInstructDataset( GlueBaseInstructDataset ):
 
     def format_user_message( self, doc: dict ) -> Message:
         prompt = (
-            f'Given a premise statement and a hypothesis statment, '
+            f'Given a premise statement and a hypothesis statement, '
             f'respond with "True" if the premise entails the hypothesis, '
             f'respond with "False" if the premise contradicts the hypothesis, '
             f'or respond with "Neither" if the statements are neurtral.\n'
