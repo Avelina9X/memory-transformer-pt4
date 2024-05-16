@@ -54,13 +54,12 @@ def instruct_align( model_name: str ):
         torch_dtype=source_config.torch_dtype,
         device_map='cuda',
         output_hidden_states=True,
-
     ).eval().requires_grad_( False )
 
     # Create the wrapped model config
     wrapped_config = LSWTConfig(
         reward_pooler='swiglu_bert',
-        reward_dropout=0.1,
+        reward_dropout=0.0,
         reward_heads=[ 'reward_head' ],
 
         n_layers=0,
@@ -73,10 +72,11 @@ def instruct_align( model_name: str ):
     # Create monkey-patch class
     class WrappedForDPH( LSWTForDPH ):
         def forward( self, *args, **kwargs ):
-            return source_model( *args, **kwargs )
+            with torch.no_grad():
+                return source_model.eval()( *args, **kwargs )
 
     # Wrap the model
-    wrapped_model = WrappedForDPH( wrapped_config ).cuda()
+    wrapped_model = WrappedForDPH( wrapped_config ).cuda() # type: ignore
 
     # Create train config
     train_config = LSWTConfigTraining(
@@ -85,7 +85,7 @@ def instruct_align( model_name: str ):
         batches_per_epoch=512,
         length_sequence=2048,
         length_cache=2048,
-        lr_cooldown_tokens=1000000000,
+        lr_cooldown_tokens=3000000000,
         lr_warmup_steps=200,
         lr_max=3.0e-6,
         opt_max_grad_norm=1.0,
@@ -173,7 +173,7 @@ def instruct_align( model_name: str ):
         validation_dict = {}
 
         # If validation flag is set (or it's the last epoch) run validation
-        if True:
+        if ( i + 1 ) % 4 == 0 or i + 1 == trainer.get_total_epochs():
             for task in validation_zeroshot_tasks:
                 curr_line, curr_dict = evaluate_zero_shot_task( task, batcher, True )
                 validation_lines.append( curr_line )
