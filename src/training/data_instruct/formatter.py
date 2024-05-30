@@ -5,10 +5,10 @@ from transformers import PreTrainedTokenizerBase
 from .task_base import Message, MessageList
 
 class InstructionFormatter():
-    def __init__( self, tokenizer: PreTrainedTokenizerBase ):
+    def __init__( self, tokenizer: PreTrainedTokenizerBase, max_cache_size=4096 ):
         self.tokenizer = tokenizer
 
-        self.tokenize = functools.cache( self._tokenize )
+        self.tokenize = functools.lru_cache( max_cache_size )( self._tokenize )
 
     def _tokenize( self, text: str ) -> list[int]:
         output = self.tokenizer( text, add_special_tokens=False )[ 'input_ids' ]
