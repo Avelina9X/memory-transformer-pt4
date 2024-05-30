@@ -6,6 +6,7 @@ from . import (
     cnn_dailymail,
     coqa,
     glue,
+    gsm8k,
     hellaswag,
     mmlu,
     obqa,
@@ -16,6 +17,8 @@ from . import (
     sciq,
     super_glue,
     tiny,
+    tulu,
+    ultrachat,
     ultrafeedback,
     winogrande
 )
@@ -45,13 +48,16 @@ DIRECTORY_SUMMARY: dict[str, Mapping[str, Callable[[str], BaseInstructDataset]]]
 
 DIRECTORY_GENERATIVE: dict[str, Mapping[str, Callable[[str], BaseInstructDataset]]] = {
     'alpaca': alpaca.DIRECTORY,
+    'gsm8k': gsm8k.DIRECTORY,
     'orca': orca.DIRECTORY,
     'tiny': tiny.DIRECTORY,
+    'tulu': tulu.DIRECTORY,
     'ultrafeedback': ultrafeedback.DIRECTORY,
 }
 
 DIRECTORY_CONVERSATIONAL: dict[str, Mapping[str, Callable[[str], BaseInstructDataset]]] = {
     'coqa': coqa.DIRECTORY,
+    'ultrachat': ultrachat.DIRECTORY,
 }
 
 DIRECTORY_ALL: dict[str, Mapping[str, Callable[[str], BaseInstructDataset]]] = {
