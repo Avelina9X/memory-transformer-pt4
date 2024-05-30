@@ -5,6 +5,7 @@ from . import (
     arc,
     cnn_dailymail,
     coqa,
+    drop,
     glue,
     gsm8k,
     hellaswag,
@@ -40,6 +41,7 @@ DIRECTORY_CHOICE: dict[str, Mapping[str, Callable[[str], BaseChoiceInstructDatas
 
 DIRECTORY_EXTRACT: dict[str, Mapping[str, Callable[[str], BaseInstructDataset]]] = {
     'squad': squad.DIRECTORY,
+    'drop': drop.DIRECTORY,
 }
 
 DIRECTORY_SUMMARY: dict[str, Mapping[str, Callable[[str], BaseInstructDataset]]] = {
