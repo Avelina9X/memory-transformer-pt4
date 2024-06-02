@@ -128,7 +128,7 @@ class CopaInstructDataset( BaseChoiceInstructDataset ): # TODO: refactor as part
         }[ doc["question"] ]
 
         prompt = (
-            f"{doc['premise'].strip()[:-1]} {connector}"
+            f"Complete the following senetence:\n{doc['premise'].strip()[:-1]} {connector}"
         )
 
         return Message(
