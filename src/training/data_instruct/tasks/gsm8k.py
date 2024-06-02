@@ -38,10 +38,16 @@ class GSM8KInstructDataset( BaseInstructDataset ):
         return None
 
     def format_system_message( self, doc: dict ) -> Message:
-        prompt = (
-            'Below is an instruction that describes a math problem. '
-            'Think about the problem and then respond with the answer after "####".'
-        )
+        if self.split == 'main':
+            prompt = (
+                'Below is an instruction that describes a math problem. '
+                'Think about the problem and then respond with the answer after "####".'
+            )
+        else:
+            prompt = (
+                'Below is an instruction that describes a math problem. '
+                'Think about the problem in a socratic maner and then respond with the answer after "####".'
+            )
 
         return Message(
             role='system',
