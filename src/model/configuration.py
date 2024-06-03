@@ -337,11 +337,16 @@ class LSWTConfigTrainingDPH():
     def __init__(
         self,
 
-        dpo_enabled=True,
+        dpo_enabled=False,
         dpo_beta=0.1,
         dpo_epsilon=0.1,
         dpo_average_logprobs=False,
         dpo_weight=1.0,
+        
+        orpo_enabled=True,
+        orpo_alpha_orpo=0.25,
+        orpo_alpha_mle=1.0,
+        orpo_weight=1.0,
 
         dph_contrastive=False,
         dph_epsilon=0.1,
@@ -369,6 +374,11 @@ class LSWTConfigTrainingDPH():
         self.dpo_epsilon = dpo_epsilon
         self.dpo_average_logprobs = dpo_average_logprobs
         self.dpo_weight = dpo_weight
+        
+        self.orpo_enabled = orpo_enabled
+        self.orpo_alpha_orpo = orpo_alpha_orpo
+        self.orpo_alpha_mle = orpo_alpha_mle
+        self.orpo_weight = orpo_weight
 
         self.dph_contrastive = dph_contrastive
         self.dph_epsilon = dph_epsilon
@@ -412,3 +422,7 @@ class LSWTConfigTrainingDPH():
 
     def __repr__( self ):
         return f'{self.__class__.__name__} {self.to_json_string()}'
+    
+    @property
+    def requires_reference_model( self ):
+        return self.dpo_enabled
