@@ -25,7 +25,7 @@ from optimizer.minato import Minato
 from optimizer.laprop import LaProp
 from .data_instruct.task_loader import DPHMultiTaskLoader
 from .data import PileDataset, OpenOrcaDataset, HFDatasetConfig, HFBatchDataset
-from .losses import DPOLoss, DPHLoss, MLELoss, SimCTGLoss, AccuracyMetric
+from .losses import DPOLoss, DPHLoss, MLELoss, ORPOLoss, SimCTGLoss, AccuracyMetric
 
 PILE_PATH_PATTERN = os.environ[ 'PILE_PATH_PATTERN' ]
 PILE_SHARDS = int( os.environ[ 'PILE_SHARDS' ] )
@@ -545,6 +545,12 @@ class DPHTrainer():
             label_smoothing=dph_config.dpo_epsilon,
             average_logprobs=dph_config.dpo_average_logprobs
         )
+        
+        self.orpo_loss = ORPOLoss(
+            alpha_orpo=dph_config.orpo_alpha_orpo,
+            alpha_mle=dph_config.orpo_alpha_mle,
+            vocab_size=model_dph.config.vocab_size,
+        )
 
         self.dph_loss = DPHLoss(
             label_smoothing=dph_config.dph_epsilon,
@@ -562,14 +568,26 @@ class DPHTrainer():
             'dph/margin': metrics.Mean().to( 'cuda' ),
         }
 
-        self.metrics.update( {
-            'loss_dpo': metrics.Mean().to( 'cuda' ),
+        if dph_config.dpo_enabled:
+            self.metrics.update( {
+                'loss_dpo': metrics.Mean().to( 'cuda' ),
 
-            'dpo/chosen': metrics.Mean().to( 'cuda' ),
-            'dpo/rejected': metrics.Mean().to( 'cuda' ),
-            'dpo/accuracy': metrics.Mean().to( 'cuda' ),
-            'dpo/margin': metrics.Mean().to( 'cuda' ),
-        } )
+                'dpo/chosen': metrics.Mean().to( 'cuda' ),
+                'dpo/rejected': metrics.Mean().to( 'cuda' ),
+                'dpo/accuracy': metrics.Mean().to( 'cuda' ),
+                'dpo/margin': metrics.Mean().to( 'cuda' ),
+            } )
+        
+        if dph_config.orpo_enabled:
+            self.metrics.update( {
+                'loss_orpo': metrics.Mean().to( 'cuda' ),
+
+                'orpo/pos_mean': metrics.Mean().to( 'cuda' ),
+                'orpo/neg_mean': metrics.Mean().to( 'cuda' ),
+                'orpo/log_odds_ratio': metrics.Mean().to( 'cuda' ),
+                'orpo/log_odds': metrics.Mean().to( 'cuda' ),
+                'orpo/accuracy': metrics.Mean().to( 'cuda' ),
+            } )
 
         self.optimizer_step = 0
 
@@ -579,17 +597,21 @@ class DPHTrainer():
         ======================================================================== """
 
     def _bar_format( self, iter_n, iter_total, elapsed, epoch ) -> str:
+        postfix = 'dph={0:.3f}, dph_acc={1:.3f}'.format(
+            self.metrics[ 'loss_dph' ].compute(),
+            self.metrics[ 'dph/accuracy' ].compute(),
+        )
+        
         if self.dph_config.dpo_enabled:
-            postfix = 'dpo={0:.3f}, dph={1:.3f}, dpo_acc={2:.3f}, dph_acc={3:.3f}'.format(
+            postfix += ' | dpo={0:.3f}, dpo_acc={2:.3f}'.format(
                 self.metrics[ 'loss_dpo' ].compute(),
-                self.metrics[ 'loss_dph' ].compute(),
                 self.metrics[ 'dpo/accuracy' ].compute(),
-                self.metrics[ 'dph/accuracy' ].compute(),
             )
-        else:
-            postfix = 'dph={0:.3f}, dph_acc={1:.3f}'.format(
-                self.metrics[ 'loss_dph' ].compute(),
-                self.metrics[ 'dph/accuracy' ].compute(),
+        
+        if self.dph_config.orpo_enabled:
+            postfix += ' | orpo={0:.3f}, orpo_acc={2:.3f}'.format(
+                self.metrics[ 'loss_orpo' ].compute(),
+                self.metrics[ 'orpo/accuracy' ].compute(),
             )
 
         return tqdm.tqdm.format_meter(
@@ -707,7 +729,7 @@ class DPHTrainer():
         neg_rewards = self.model_dph.compute_rewards( dph_neg_states, neg_tokens, self.tokenizer.cls_token_id )
 
         with torch.no_grad():
-            if self.dph_config.dpo_enabled:
+            if self.dph_config.requires_reference_model:
                 ref_outputs = self.model_ref(
                     input_ids=tokens_combined,
                     past_key_values=None,
@@ -756,11 +778,35 @@ class DPHTrainer():
             else:
                 dpo_loss = torch.zeros_like( dph_loss )
                 dpo_metrics = {}
+            
+            if self.dph_config.orpo_enabled:
+                orpo_loss, orpo_metrics = self.orpo_loss(
+                    policy_pos_logits=outputs.policy_pos_logits,
+                    policy_neg_logits=outputs.policy_neg_logits,
+                    pos_labels=pos_target,
+                    neg_labels=neg_target,
+                )
+            else:
+                orpo_loss = torch.zeros_like( dph_loss )
+                orpo_metrics = {}
 
-            accu_loss = ( dph_loss * self.dph_config.dph_weight + dpo_loss * self.dph_config.dpo_weight ) / self.batch_groups
+            accu_loss = (
+                dph_loss * self.dph_config.dph_weight +
+                dpo_loss * self.dph_config.dpo_weight +
+                orpo_loss * self.dph_config.orpo_weight
+            ) / self.batch_groups
+            
         self.optimizer_scaler.scale( accu_loss ).backward()
 
-        return dph_loss.detach(), dpo_loss.detach(), dph_metrics, dpo_metrics
+        return {
+            'dph': dph_loss.detach(),
+            'dpo': dpo_loss.detach(),
+            'orpo': orpo_loss.detach()
+        }, {
+            **dph_metrics,
+            **dpo_metrics,
+            **orpo_metrics
+        }
 
     def train_optim_step( self ):
         self.optimizer_step += 1
@@ -789,16 +835,17 @@ class DPHTrainer():
         neg_target = torch.split( neg_target.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
 
         for idx in range( self.batch_groups ):
-            dph_loss, dpo_loss, dph_metrics, dpo_metrics = self.train_sub_step( pos_tokens[idx], pos_target[idx], neg_tokens[idx], neg_target[idx] )
+            losses, metrics_dict = self.train_sub_step( pos_tokens[idx], pos_target[idx], neg_tokens[idx], neg_target[idx] )
 
             if self.dph_config.dpo_enabled:
-                self.metrics[ 'loss_dpo' ].update( dpo_loss )
-            self.metrics[ 'loss_dph' ].update( dph_loss )
+                self.metrics[ 'loss_dpo' ].update( losses[ 'dpo' ] )
+            
+            if self.dph_config.orpo_enabled:
+                self.metrics[ 'loss_orpo' ].update( losses[ 'orpo' ] )
+            
+            self.metrics[ 'loss_dph' ].update( losses[ 'dph' ] )
 
-            for name, value in dph_metrics.items():
-                self.metrics[ name ].update( value )
-
-            for name, value in dpo_metrics.items():
+            for name, value in metrics_dict.items():
                 self.metrics[ name ].update( value )
 
         self.train_optim_step()
