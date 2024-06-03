@@ -308,6 +308,98 @@ class DPHLoss( nn.Module ):
         return loss, metrics
 
 
+class ORPOLoss( nn.Module ):
+    """ Implements the Odds Ratio Preference Optimization algorithm.
+    
+    @misc{hong2024orpo,
+        title={ORPO: Monolithic Preference Optimization without Reference Model}, 
+        author={Jiwoo Hong and Noah Lee and James Thorne},
+        year={2024},
+        eprint={2403.07691},
+        archivePrefix={arXiv},
+        primaryClass={cs.CL}
+    }
+    """
+    
+    def __init__(
+        self,
+        alpha_orpo: float,
+        alpha_mle: float,
+        vocab_size: int,
+    ):
+        """ Instantiates the DPO Loss module.
+
+        Args:
+            alpha_orpo (float): Strength of the odds ratio loss component.
+            alpha_mle (float): Strength of the MLE loss component.
+            vocab_size (int): Size of vocabulary.
+        """
+        
+        super().__init__()
+        
+        self.alpha_orpo = alpha_orpo
+        self.alpha_mle = alpha_mle
+        self.vocab_size = vocab_size
+        
+        self.mle_fct = CrossEntropyLoss( ignore_index=-100 )
+    
+    def get_logprobs( self, logits: torch.Tensor, targets: torch.LongTensor ) -> torch.Tensor:
+        logprobs = logits.log_softmax( -1, torch.float32 ).gather( -1, targets.unsqueeze( -1 ) ).squeeze( -1 )
+        mask = targets != -100
+        masked_logprobs = logprobs * mask
+        
+        return masked_logprobs.sum( -1 ) / mask.sum( -1 )
+    
+    def forward(
+        self,
+        *,
+        policy_pos_logits: torch.Tensor,
+        policy_neg_logits: torch.Tensor,
+        pos_labels: torch.LongTensor,
+        neg_labels: torch.LongTensor,
+    ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        """ Compute the ORPO loss and returns additional auxilary metrics
+
+        Args:
+            policy_pos_logits (torch.Tensor): positive/chosen logits from policy model
+            policy_neg_logits (torch.Tensor): negative/rejected logits from policy model
+            pos_labels (torch.LongTensor): positive/chosen input labels
+            neg_labels (torch.LongTensor): negative/rejected input labels
+
+        Returns:
+            loss (torch.Tensor): average DPO loss with respect to inputs
+            metrics (dict[str, torch.Tensor]]): detached metrics for DPO loss
+        """        
+        
+        # Calculate MLE loss
+        mle_loss = self.train_fct(
+            policy_pos_logits.float().view( -1, self.vocab_size ),
+            pos_labels.view( -1 )
+        )
+        
+        # Get aggregated log probs
+        policy_pos_logp = self.get_logprobs( policy_pos_logits, pos_labels )
+        policy_neg_logp = self.get_logprobs( policy_neg_logits, neg_labels )
+        
+        # Calculate log odds
+        log_odds_n = policy_pos_logp - policy_neg_logp
+        log_odds_d = torch.log1p( - torch.exp( policy_pos_logp ) ) - torch.log1p( - torch.exp( policy_neg_logp ) )
+        log_odds = log_odds_n - log_odds_d
+        
+        ratio = F.logsigmoid( log_odds ).mean() # pylint: disable=E1102
+        
+        # Compute final loss
+        loss = mle_loss * self.alpha_mle - ratio * self.alpha_orpo
+        
+        metrics = {}
+        metrics[ 'orpo/pos_mean' ] = torch.mean( policy_pos_logp ).item()
+        metrics[ 'orpo/neg_mean' ] = torch.mean( policy_neg_logp ).item()
+        metrics[ 'orpo/log_odds_ratio' ] = torch.mean( ratio ).item()
+        metrics[ 'orpo/log_odds' ] = torch.mean( log_odds ).item()
+        
+        return loss, metrics
+
+
 """ ========================================================================
     Metric classes
     ======================================================================== """
