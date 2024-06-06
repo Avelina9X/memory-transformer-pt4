@@ -93,7 +93,7 @@ class SquadV2InstructDataset( SquadBaseInstructDataset ):
         self._nlp = spacy.load( 'en_core_web_md' )
         super().__init__( cache_dir )
 
-        self.get_noun_set = functools.cache( self._get_noun_set )
+        self.get_noun_set = self._get_noun_set # functools.cache( self._get_noun_set )
 
     def _get_noun_set( self, context: str ) -> set[str]:
         document = self._nlp( context )
