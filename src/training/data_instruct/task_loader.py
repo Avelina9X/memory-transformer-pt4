@@ -95,9 +95,10 @@ class TaskLoader( IterableDataset ):
                 ]
 
     def message_list_generator( self, shard_idx: int ) -> Generator[list[MessageList], None, None]:
-        for elem in generate_forever( self._dataset_shards[shard_idx] ):
+        iterator = iter( generate_forever( self._dataset_shards[shard_idx] ) )
+        while True:
             yield [
-                random.choice( self.task.create_target_message_list( elem ) )
+                random.choice( self.task.create_target_message_list( next( iterator ) ) )
                 for _ in range( self.fewshot_count )
             ]
 
@@ -248,7 +249,7 @@ class MixedTaskLoader( IterableDataset ):
                 fewshot_count=fewshot_count,
                 fewshot_allsys=fewshot_allsys,
                 seq_length=seq_length,
-                sub_batch_size=1,
+                sub_batch_size=batch_size,
                 shuffle_seed=shuffle_seed,
                 mask_type=mask_type,
                 max_tokens=max_tokens,
@@ -279,7 +280,7 @@ class MixedTaskLoader( IterableDataset ):
                 ys.append( [] )
             return count, xs, ys
         count, xs, ys = reset()
-        generators = [ iter( self.token_generator( 0 ) ) for i in range( self.batch_size ) ]
+        generators = [ iter( self.token_generator( i ) ) for i in range( self.batch_size ) ]
         try:
             while True:
                 for g_idx, generator in enumerate( generators ):
