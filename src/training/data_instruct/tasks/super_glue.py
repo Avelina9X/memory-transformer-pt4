@@ -10,7 +10,7 @@ class BoolQInstructDataset( BaseChoiceInstructDataset ): # TODO: refactor as par
         super().__init__( cache_dir )
 
     def download( self, cache_dir: str ) -> DatasetDict:
-        dataset = load_dataset( 'super_glue', 'boolq', cache_dir=cache_dir )
+        dataset = load_dataset( 'super_glue', 'boolq', cache_dir=cache_dir, trust_remote_code=True )
         assert isinstance( dataset, DatasetDict )
         return dataset
 
@@ -89,7 +89,7 @@ class CopaInstructDataset( BaseChoiceInstructDataset ): # TODO: refactor as part
         super().__init__( cache_dir )
 
     def download( self, cache_dir: str ) -> DatasetDict:
-        dataset = load_dataset( 'super_glue', 'copa', cache_dir=cache_dir )
+        dataset = load_dataset( 'super_glue', 'copa', cache_dir=cache_dir, trust_remote_code=True )
         assert isinstance( dataset, DatasetDict )
         return dataset
 

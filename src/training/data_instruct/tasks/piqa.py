@@ -10,7 +10,7 @@ class PIQAInstructDataset( BaseChoiceInstructDataset ):
         super().__init__( cache_dir )
 
     def download( self, cache_dir: str ) -> DatasetDict:
-        dataset = load_dataset( 'piqa', cache_dir=cache_dir )
+        dataset = load_dataset( 'piqa', cache_dir=cache_dir, trust_remote_code=True )
         assert isinstance( dataset, DatasetDict )
         return dataset
 
