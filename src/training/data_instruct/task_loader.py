@@ -279,7 +279,7 @@ class MixedTaskLoader( IterableDataset ):
                 ys.append( [] )
             return count, xs, ys
         count, xs, ys = reset()
-        generators = [ iter( self.token_generator( i ) ) for i in range( self.batch_size ) ]
+        generators = [ iter( self.token_generator( 0 ) ) for i in range( self.batch_size ) ]
         try:
             while True:
                 for g_idx, generator in enumerate( generators ):

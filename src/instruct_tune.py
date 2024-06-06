@@ -11,13 +11,14 @@ import wandb
 from wcmatch import glob
 
 import torch
+import torch.multiprocessing as mp
 
 import evaluate
 import datasets
 import transformers
 from transformers import AutoTokenizer
 
-from training.trainer import Trainer
+from training.trainer import Trainer, TrainerDDP
 
 from training.data_instruct.task_base import BaseChoiceInstructDataset
 from training.data_instruct.tasks import DIRECTORY_ALL, DIRECTORY_CHOICE
@@ -30,6 +31,8 @@ from model.modeling import LSWTForCausalLM
 
 from constants import HF_CACHE_DIR, WANDB_API_KEY, WANDB_PROJECT_NAME
 import train_utils
+
+from pretrain import ddp_setup, ddp_cleanup, MyDDP
 
 def log_full_config( output_dir: str, config: dict ):
     os.makedirs( output_dir, mode=0o777, exist_ok=True )
@@ -166,7 +169,9 @@ def evaluate_zero_shot_task( task: BaseChoiceInstructDataset, batcher: ChoiceIns
     )
 
 def instruct_tune(
-    config: dict,
+    rank: int = 0,
+    world_size: int = 1,
+    config: dict | None = None,
     wandb_mode: str | None = None,
     wandb_tags: list[str] | None = None,
     wandb_run_name: str | None = None
@@ -174,11 +179,15 @@ def instruct_tune(
     """ Runs the DPH optimization pipeline.
 
     Args:
-        config (dict): Aggregated config of all sub-dicts (meta, model, train, finetune)
+        rank (int, optional): The DDP process rank. Defaults to 0.
+        world_size (int, optional): The DDP world size. When 1 DDP is disabled. Defulats to 1.
+        config (dict | None): Aggregated config of all sub-dicts (meta, model, train, finetune)
         wandb_mode (str | None): WandB run mode. Defaults to None.
         wandb_tags (list[str] | None): WandB run tags. Defaults to None.
         wandb_run_name (str | None): WandB run name. Defaults to None.
     """
+    
+    assert config
 
     # Log in to wandb
     wandb.login( key=WANDB_API_KEY )
@@ -193,6 +202,10 @@ def instruct_tune(
         evaluate.utils.logging.disable_progress_bar()
         datasets.utils.logging.disable_progress_bar()
         torch._inductor.select_algorithm.PRINT_AUTOTUNE = False # type: ignore # pylint: disable=W0212
+    
+    # Setup ddp if world size is greater than 1
+    if world_size > 1:
+        ddp_setup( rank, world_size )
 
     # Get pretrained run name and checkpoint directory
     pretrained_run_name = config[ 'finetune.checkpoint' ]
@@ -222,12 +235,16 @@ def instruct_tune(
 
     # Create task mixes
     train_tasks = create_train_tasks( config[ 'finetune.sft_mix' ] )
-    validation_zeroshot_tasks = create_validation_zeroshot_tasks()
+    
+    if rank == 0:
+        validation_zeroshot_tasks = create_validation_zeroshot_tasks()
 
     # Instantiate instruct helpers
     train_formatter = InstructionFormatter( tokenizer, 0 )
-    validation_formatter = InstructionFormatter( tokenizer, None )
-    batcher = ChoiceInstructionBatcher( model, validation_formatter, 'mean' )
+    
+    if rank == 0:
+        validation_formatter = InstructionFormatter( tokenizer, None )
+        batcher = ChoiceInstructionBatcher( model, validation_formatter, 'mean' )
 
     # Get mask type for this training variant
     mask_type = config.get( 'finetune.mask_override', {
@@ -241,17 +258,22 @@ def instruct_tune(
         task_list=train_tasks,
         formatter=train_formatter,
         seq_length=train_config.length_sequence,
-        batch_size=train_config.batch_size,
+        batch_size=train_config.batch_size // world_size,
         mask_type=mask_type,
-        micro_batch_size=1,
+        micro_batch_size=train_config.batch_size // world_size,
     )
 
     # Instantiate trainer for finetuning
-    trainer = Trainer( train_config, model, tokenizer, None )
+    if world_size == 1:
+        trainer = Trainer( train_config, model, tokenizer, None )
+    else:
+        model = MyDDP( model, device_ids=[ rank ] )
+        trainer = TrainerDDP( train_config, model, tokenizer, None, rank, world_size ) # type: ignore
 
     # Print out our configs
-    rich.print( trainer.train_config )
-    rich.print( trainer.model.config )
+    if rank == 0:
+        rich.print( trainer.train_config )
+        rich.print( trainer.model.config )
 
     # Compute params
     params_total = sum( p.numel() for p in model.parameters() )
@@ -259,11 +281,12 @@ def instruct_tune(
     params_non_trainable = sum( p.numel() for p in model.parameters() if not p.requires_grad )
 
     # Print parametes
-    print( '\nParameter Count:' )
-    rich.print( f'total         = {params_total}' )
-    rich.print( f'trainable     = {params_trainable}' )
-    rich.print( f'non trainable = {params_non_trainable}' )
-    print()
+    if rank == 0:
+        print( '\nParameter Count:' )
+        rich.print( f'total         = {params_total}' )
+        rich.print( f'trainable     = {params_trainable}' )
+        rich.print( f'non trainable = {params_non_trainable}' )
+        print()
 
     # Update the base config
     config.update( {
@@ -275,72 +298,79 @@ def instruct_tune(
     } )
 
     # Log base config
-    if wandb_mode != 'disabled':
+    if wandb_mode != 'disabled' and rank == 0:
         log_full_config( output_dir, config )
 
     # Create iterator
     iterator = iter( task_loader.as_data_loader() )
 
     # Initialise WandB
-    wandb.init(
-        project=WANDB_PROJECT_NAME,
-        group='finetuning',
-        mode=wandb_mode,
-        config=config,
-        tags=wandb_tags,
-        name=wandb_run_name,
-        settings=wandb.Settings( _disable_stats=True )
-    )
+    if rank == 0:
+        wandb.init(
+            project=WANDB_PROJECT_NAME,
+            group='finetuning',
+            mode=wandb_mode,
+            config=config,
+            tags=wandb_tags,
+            name=wandb_run_name,
+            settings=wandb.Settings( _disable_stats=True )
+        )
 
-    input_artifact = train_utils.get_model_artifact( pretrained_run_name )
-    wandb.use_artifact( input_artifact )
+        input_artifact = train_utils.get_model_artifact( pretrained_run_name )
+        wandb.use_artifact( input_artifact )
 
     # Train loop
     for i in range( trainer.get_total_epochs() ):
         # Train for an epoch and get metrics
         train_metrics = trainer.train_epoch( iterator, i + 1 )
 
-        # Create empty validation metrics list
-        validation_lines = []
-        validation_dict = {}
+        if rank == 0:
+            # Create empty validation metrics list
+            validation_lines = []
+            validation_dict = {}
 
-        # If validation flag is set (or it's the last epoch) run validation
-        if config[ 'meta.validate' ] or i + 1 == trainer.get_total_epochs():
-            for task in validation_zeroshot_tasks:
-                curr_line, curr_dict = evaluate_zero_shot_task( task, batcher )
-                validation_lines.append( curr_line )
-                validation_dict.update( **curr_dict )
-            torch.cuda.empty_cache()
+            # If validation flag is set (or it's the last epoch) run validation
+            if config[ 'meta.validate' ] or i + 1 == trainer.get_total_epochs():
+                for task in validation_zeroshot_tasks:
+                    curr_line, curr_dict = evaluate_zero_shot_task( task, batcher )
+                    validation_lines.append( curr_line )
+                    validation_dict.update( **curr_dict )
+                torch.cuda.empty_cache()
 
-            validation_dict.update( {
-                **aggregate_gpt4all_score( validation_dict ),
-                **aggregate_glue_score( validation_dict ),
-                **aggregate_race_score( validation_dict ),
+                validation_dict.update( {
+                    **aggregate_gpt4all_score( validation_dict ),
+                    **aggregate_glue_score( validation_dict ),
+                    **aggregate_race_score( validation_dict ),
+                } )
+
+            if wandb_mode != 'disabled':
+                log_stats( output_dir, train_metrics, validation_lines, trainer.optimizer_step )
+
+            train_log = train_utils.compute_metric_dict( train_metrics, 'train' )
+            stats_log = train_utils.compute_stats_dict( trainer, i )
+
+            wandb.log( {
+                **train_log,
+                **stats_log,
+                **validation_dict,
             } )
 
-        if wandb_mode != 'disabled':
-            log_stats( output_dir, train_metrics, validation_lines, trainer.optimizer_step )
 
-        train_log = train_utils.compute_metric_dict( train_metrics, 'train' )
-        stats_log = train_utils.compute_stats_dict( trainer, i )
+    if rank == 0:
+        model.half().save_pretrained( output_dir )
+        tokenizer.save_pretrained( output_dir )
 
-        wandb.log( {
-            **train_log,
-            **stats_log,
-            **validation_dict,
-        } )
+        model_artifact = wandb.Artifact( name=model.config.model_type, type="model" )
+        model_artifact.add_dir( output_dir )
 
+        assert wandb.run is not None
+        wandb.run.log_artifact( model_artifact )
 
-    model.half().save_pretrained( output_dir )
-    tokenizer.save_pretrained( output_dir )
-
-    model_artifact = wandb.Artifact( name=model.config.model_type, type="model" )
-    model_artifact.add_dir( output_dir )
-
-    assert wandb.run is not None
-    wandb.run.log_artifact( model_artifact )
-
-    wandb.finish()
+        wandb.finish()
+    
+    # Cleanup ddp if world size is greater than 1
+    if world_size > 1:
+        ddp_cleanup()
 
 def run():
     """ Runs the SFT optimization pipeline using command-line arguments.
@@ -409,12 +439,26 @@ def run():
     rich.print( config )
 
     # Launch program with our settings
-    instruct_tune(
-        config=config,
-        wandb_mode=arguments.wmode,
-        wandb_tags=tags,
-        wandb_run_name=config[ 'meta.run_name' ],
-    )
+    if torch.cuda.device_count() == 1:
+        instruct_tune(
+            config=config,
+            wandb_mode=arguments.wmode,
+            wandb_tags=tags,
+            wandb_run_name=config[ 'meta.run_name' ],
+        )
+    else:
+        mp.spawn( # type: ignore
+            fn=instruct_tune,
+            args=(
+                torch.cuda.device_count(),
+                config,
+                arguments.wmode,
+                tags,
+                config[ 'meta.run_name' ]
+            ),
+            nprocs=torch.cuda.device_count(),
+            join=True,
+        )
 
 if __name__ == '__main__':
     run()
