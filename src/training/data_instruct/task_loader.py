@@ -78,19 +78,19 @@ class TaskLoader( IterableDataset ):
         assert dataset is not None
 
         if shuffle_seed is True:
-            dataset = dataset.shuffle( None, keep_in_memory=True )
+            dataset = dataset.shuffle( None )
         elif shuffle_seed is not False:
-            dataset = dataset.shuffle( shuffle_seed, keep_in_memory=True )
+            dataset = dataset.shuffle( shuffle_seed )
 
         match shard_mode:
             case 'split':
                 self._dataset_shards = [
-                    dataset.shard( sub_batch_size, i, keep_in_memory=True )
+                    dataset.shard( sub_batch_size, i )
                     for i in range( sub_batch_size )
                 ]
             case 'shuffle':
                 self._dataset_shards = [
-                    dataset.shuffle( i, keep_in_memory=True )
+                    dataset.shuffle( i )
                     for i in range( sub_batch_size )
                 ]
 
