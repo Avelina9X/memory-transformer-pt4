@@ -243,6 +243,7 @@ def instruct_tune(
         seq_length=train_config.length_sequence,
         batch_size=train_config.batch_size,
         mask_type=mask_type,
+        micro_batch_size=1,
     )
 
     # Instantiate trainer for finetuning
