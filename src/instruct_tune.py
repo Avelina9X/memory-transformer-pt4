@@ -225,8 +225,9 @@ def instruct_tune(
     validation_zeroshot_tasks = create_validation_zeroshot_tasks()
 
     # Instantiate instruct helpers
-    formatter = InstructionFormatter( tokenizer )
-    batcher = ChoiceInstructionBatcher( model, formatter, 'mean' )
+    train_formatter = InstructionFormatter( tokenizer, 0 )
+    validation_formatter = InstructionFormatter( tokenizer, None )
+    batcher = ChoiceInstructionBatcher( model, validation_formatter, 'mean' )
 
     # Get mask type for this training variant
     mask_type = config.get( 'finetune.mask_override', {
@@ -238,7 +239,7 @@ def instruct_tune(
     # TODO: add support for multitask vs mixedtask training
     task_loader = ParallelMixedTaskLoader(
         task_list=train_tasks,
-        formatter=formatter,
+        formatter=train_formatter,
         seq_length=train_config.length_sequence,
         batch_size=train_config.batch_size,
         mask_type=mask_type,
