@@ -317,18 +317,20 @@ class ParallelMixedTaskLoader( IterableDataset ):
         batch_size: int,
         mask_type: str,
         max_tokens: int | None = None,
+        micro_batch_size: int = 1,
     ):
-
+        assert batch_size % micro_batch_size == 0
+        
         self.mixed_tasks = [
             MixedTaskLoader(
                 task_list=task_list,
                 formatter=formatter,
                 seq_length=seq_length,
-                batch_size=1,
+                batch_size=micro_batch_size,
                 shuffle_seed=i,
                 mask_type=mask_type,
                 max_tokens=max_tokens,
-            ) for i in range( batch_size )
+            ) for i in range( batch_size // micro_batch_size )
         ]
 
     def __iter__( self ):
