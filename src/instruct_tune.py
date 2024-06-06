@@ -1,5 +1,6 @@
 """ Module for SFT optimization. """
 
+from datetime import timedelta
 import json
 import os
 import argparse
@@ -205,7 +206,7 @@ def instruct_tune(
     
     # Setup ddp if world size is greater than 1
     if world_size > 1:
-        ddp_setup( rank, world_size )
+        ddp_setup( rank, world_size, timedelta( hours=1.0 ) )
 
     # Get pretrained run name and checkpoint directory
     pretrained_run_name = config[ 'finetune.checkpoint' ]

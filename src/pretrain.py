@@ -3,6 +3,7 @@
 import copy
 import os
 import argparse
+from datetime import timedelta
 
 import rich
 import wandb
@@ -27,7 +28,7 @@ from model.embedding_loader import embedding_loader
 from constants import HF_CACHE_DIR, WANDB_PROJECT_NAME
 import train_utils
 
-def ddp_setup( rank: int, world_size: int ):
+def ddp_setup( rank: int, world_size: int, timeout: timedelta | None = None ):
     """ Sets up the DDP process group and sets CUDA rank.
     Note this does not support multi-machine DDP, only multi-device DDP.
 
