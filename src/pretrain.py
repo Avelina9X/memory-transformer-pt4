@@ -35,13 +35,14 @@ def ddp_setup( rank: int, world_size: int, timeout: timedelta | None = None ):
     Args:
         rank (int): current device rank
         world_size (int): global world size
+        timeout (timedelta | None): timeout for waiting workers (should be large due to validation)
     """
     torch.cuda.set_device( rank )
 
     os.environ[ 'MASTER_ADDR' ] = 'localhost'
     os.environ[ 'MASTER_PORT' ] = '12355'
 
-    dist.init_process_group( 'nccl', rank=rank, world_size=world_size )
+    dist.init_process_group( 'nccl', rank=rank, world_size=world_size, timeout=timeout )
 
 def ddp_cleanup():
     """ Shuts down the DDP process group. """
