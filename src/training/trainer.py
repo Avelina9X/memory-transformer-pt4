@@ -436,6 +436,9 @@ class TrainerDDP( Trainer ):
                 dir_pattern=PILE_PATH_PATTERN,
                 pile_shards=list( range( self.ddp_rank, self.dataset_shards, self.ddp_world_size ) )
             ).as_data_loader()
+        
+        if dataset is None:
+            return None
 
         raise ValueError( 'Invalid dataset choice' )
 
