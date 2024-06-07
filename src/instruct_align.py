@@ -61,6 +61,7 @@ def evaluate_zero_shot_task(
     Args:
         task (BaseChoiceInstructDataset): Task to evaluate. Must have a validation split.
         batcher (DPHChoiceInstructionBatcher): Batcher used to evaluate tasks.
+        zero_nan (bool): When true returns zero for NaN metrics. Defaults to False.
 
     Returns:
         log line (str): string suitable for file logging.
