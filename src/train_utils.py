@@ -1,6 +1,7 @@
 """ Utilities and helper functions for training and pretraining """
 
 from collections.abc import Sequence
+import json
 import os
 import pathlib
 import yaml
@@ -259,3 +260,40 @@ def parse_options( options: str ) -> dict:
         key.strip(): yaml.load( value.strip(), yaml.FullLoader )
         for key, value in option_list
     }
+
+def log_full_config( output_dir: str, config: dict ):
+    """ Writes the full run config as JSON
+
+    Args:
+        output_dir (str): directory to create the `run_config.json` file
+        config (dict): WandB style dictionary containing all config data
+    """
+    os.makedirs( output_dir, mode=0o777, exist_ok=True )
+
+    json_file = os.path.join( output_dir, 'run_config.json' )
+    json_str = json.dumps( config, indent=2 )
+
+    with open( json_file, 'w', encoding="utf-8" ) as f:
+        f.write( json_str + '\n' )
+
+def log_stats( output_dir: str, train_metrics: dict, valid_list: list, step: int ):
+    """ Creates log file and appends training and validation metrics
+
+    Args:
+        output_dir (str): directory of create the `outputs.log` file
+        train_metrics (dict): train metrics dictionary
+        valid_list (list): list of validation metric strings
+        step (int): current optimizer step
+    """
+    os.makedirs( output_dir, mode=0o777, exist_ok=True )
+
+    log_file = os.path.join( output_dir, 'outputs.log' )
+
+    with open( log_file, 'a', encoding="utf-8" ) as f:
+        f.write( f'Step={step}\n' )
+        f.write( f'Train={train_metrics}\n' )
+
+        for line in valid_list:
+            f.write( f'{line}\n' )
+
+        f.write( '\n' )

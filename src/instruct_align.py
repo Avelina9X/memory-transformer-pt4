@@ -33,7 +33,7 @@ from model.modeling import LSWTForCausalLM, LSWTForDPH
 
 from constants import HF_CACHE_DIR, WANDB_API_KEY, WANDB_PROJECT_NAME
 import train_utils
-from instruct_tune import create_validation_zeroshot_tasks, log_full_config, log_stats
+from instruct_tune import create_validation_zeroshot_tasks
 
 def create_align_tasks( dph_mix: list[str] ) -> list[BaseInstructDataset]:
     """ Creates a list of tasks for alignment from the dph mix list.
@@ -310,7 +310,7 @@ def instruct_align(
 
     # Log base config
     if wandb_mode != 'disabled':
-        log_full_config( output_dir, config )
+        train_utils.log_full_config( output_dir, config )
 
     # Create iterator
     iterator = iter( task_loader.as_data_loader() )
@@ -357,7 +357,7 @@ def instruct_align(
 
         # If we're not in debug mode log the metrics etc to the output dir
         if wandb_mode != 'disabled':
-            log_stats( output_dir, train_metrics, validation_lines, trainer.optimizer_step )
+            train_utils.log_stats( output_dir, train_metrics, validation_lines, trainer.optimizer_step )
 
         # Compute the running stats log
         stats_log = train_utils.compute_stats_dict( trainer, i ) # type: ignore

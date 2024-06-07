@@ -1,7 +1,6 @@
 """ Module for SFT optimization. """
 
 from datetime import timedelta
-import json
 import os
 import argparse
 import typing
@@ -34,29 +33,6 @@ from constants import HF_CACHE_DIR, WANDB_API_KEY, WANDB_PROJECT_NAME
 import train_utils
 
 from pretrain import ddp_setup, ddp_cleanup, MyDDP
-
-def log_full_config( output_dir: str, config: dict ):
-    os.makedirs( output_dir, mode=0o777, exist_ok=True )
-
-    json_file = os.path.join( output_dir, 'run_config.json' )
-    json_str = json.dumps( config, indent=2 )
-
-    with open( json_file, 'w', encoding="utf-8" ) as f:
-        f.write( json_str + '\n' )
-
-def log_stats( output_dir: str, train_metrics: dict, valid_list: list, step: int ):
-    os.makedirs( output_dir, mode=0o777, exist_ok=True )
-
-    log_file = os.path.join( output_dir, 'outputs.log' )
-
-    with open( log_file, 'a', encoding="utf-8" ) as f:
-        f.write( f'Step={step}\n' )
-        f.write( f'Train={train_metrics}\n' )
-
-        for line in valid_list:
-            f.write( f'{line}\n' )
-
-        f.write( '\n' )
 
 def create_train_tasks( sft_mix: list ) -> TaskList:
     sft_mix = [
@@ -300,7 +276,7 @@ def instruct_tune(
 
     # Log base config
     if wandb_mode != 'disabled' and rank == 0:
-        log_full_config( output_dir, config )
+        train_utils.log_full_config( output_dir, config )
 
     # Create iterator
     iterator = iter( task_loader.as_data_loader() )
@@ -345,7 +321,7 @@ def instruct_tune(
                 } )
 
             if wandb_mode != 'disabled':
-                log_stats( output_dir, train_metrics, validation_lines, trainer.optimizer_step )
+                train_utils.log_stats( output_dir, train_metrics, validation_lines, trainer.optimizer_step )
 
             train_log = train_utils.compute_metric_dict( train_metrics, 'train' )
             stats_log = train_utils.compute_stats_dict( trainer, i )
