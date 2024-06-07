@@ -31,8 +31,7 @@ from model.modeling import LSWTForCausalLM
 
 from constants import HF_CACHE_DIR, WANDB_API_KEY, WANDB_PROJECT_NAME
 import train_utils
-
-from pretrain import ddp_setup, ddp_cleanup, MyDDP
+from train_utils import ddp_cleanup, ddp_setup, DDPModelWrapper
 
 def create_train_tasks( sft_mix: list ) -> TaskList:
     sft_mix = [
@@ -244,7 +243,7 @@ def instruct_tune(
     if world_size == 1:
         trainer = Trainer( train_config, model, tokenizer, None )
     else:
-        model = MyDDP( model, device_ids=[ rank ] )
+        model = DDPModelWrapper( model, device_ids=[ rank ] )
         trainer = TrainerDDP( train_config, model, tokenizer, None, rank, world_size ) # type: ignore
 
     # Print out our configs

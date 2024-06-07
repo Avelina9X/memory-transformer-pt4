@@ -1,6 +1,7 @@
 """ Utilities and helper functions for training and pretraining """
 
 from collections.abc import Sequence
+from datetime import timedelta
 import json
 import os
 import pathlib
@@ -9,6 +10,7 @@ import yaml
 import wandb
 import numpy as np
 import torch
+import torch.distributed as dist
 
 from transformers import PreTrainedTokenizerBase
 
@@ -297,3 +299,31 @@ def log_stats( output_dir: str, train_metrics: dict, valid_list: list, step: int
             f.write( f'{line}\n' )
 
         f.write( '\n' )
+
+def ddp_setup( rank: int, world_size: int, timeout: timedelta | None = None ):
+    """ Sets up the DDP process group and sets CUDA rank.
+    Note this does not support multi-machine DDP, only multi-device DDP.
+
+    Args:
+        rank (int): current device rank
+        world_size (int): global world size
+        timeout (timedelta | None): timeout for waiting workers (should be large due to validation)
+    """
+    torch.cuda.set_device( rank )
+
+    os.environ[ 'MASTER_ADDR' ] = 'localhost'
+    os.environ[ 'MASTER_PORT' ] = '12355'
+
+    dist.init_process_group( 'nccl', rank=rank, world_size=world_size, timeout=timeout )
+
+def ddp_cleanup():
+    """ Shuts down the DDP process group. """
+    dist.destroy_process_group()
+
+class DDPModelWrapper( torch.nn.parallel.DistributedDataParallel ):
+    """ Custom DDP wrapper. Defers method and attribute accesses to underlying module. """
+    def __getattr__(self, name):
+        try:
+            return super().__getattr__(name)
+        except AttributeError:
+            return getattr(self.module, name)

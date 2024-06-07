@@ -1,16 +1,13 @@
 """ Main pretraining pipeline module. Pretrain's on The Pile """
 
 import copy
-import os
 import argparse
-from datetime import timedelta
 
 import rich
 import wandb
 from wcmatch import glob
 
 import torch
-import torch.distributed as dist
 import torch.multiprocessing as mp
 
 import datasets
@@ -27,34 +24,7 @@ from model.embedding_loader import embedding_loader
 
 from constants import HF_CACHE_DIR, WANDB_PROJECT_NAME
 import train_utils
-
-def ddp_setup( rank: int, world_size: int, timeout: timedelta | None = None ):
-    """ Sets up the DDP process group and sets CUDA rank.
-    Note this does not support multi-machine DDP, only multi-device DDP.
-
-    Args:
-        rank (int): current device rank
-        world_size (int): global world size
-        timeout (timedelta | None): timeout for waiting workers (should be large due to validation)
-    """
-    torch.cuda.set_device( rank )
-
-    os.environ[ 'MASTER_ADDR' ] = 'localhost'
-    os.environ[ 'MASTER_PORT' ] = '12355'
-
-    dist.init_process_group( 'nccl', rank=rank, world_size=world_size, timeout=timeout )
-
-def ddp_cleanup():
-    """ Shuts down the DDP process group. """
-    dist.destroy_process_group()
-
-class MyDDP( torch.nn.parallel.DistributedDataParallel ):
-    """ Custom DDP wrapper. Defers method and attribute accesses to underlying module. """
-    def __getattr__(self, name):
-        try:
-            return super().__getattr__(name)
-        except AttributeError:
-            return getattr(self.module, name)
+from train_utils import ddp_cleanup, ddp_setup, DDPModelWrapper
 
 def train(
     rank: int = 0,
@@ -140,7 +110,7 @@ def train(
     if world_size == 1:
         trainer = Trainer( train_config, model, tokenizer, 'pile' )
     else:
-        model = MyDDP( model, device_ids=[ rank ] )
+        model = DDPModelWrapper( model, device_ids=[ rank ] )
         trainer = TrainerDDP( train_config, model, tokenizer, 'pile', rank, world_size, 24 ) # type: ignore
     evaluator = Eval( model, tokenizer ) # type: ignore
 
