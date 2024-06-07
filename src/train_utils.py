@@ -17,7 +17,10 @@ from transformers import PreTrainedTokenizerBase
 from model.configuration import LSWTConfigTraining, LSWTConfig, LSWTConfigTrainingDPH
 from model.modeling import LSWTForCausalLM
 from training.trainer import Trainer
-from constants import WANDB_PROJECT_NAME
+from training.data_instruct.tasks import DIRECTORY_ALL
+from training.data_instruct.task_base import BaseInstructDataset
+from training.data_instruct.task_loader import TaskList
+from constants import WANDB_PROJECT_NAME, HF_CACHE_DIR
 
 def find_and_extract( source: str, prefix: str ) -> str | None:
     """ Given a wandb config string and target prefix, return suffix
@@ -327,3 +330,38 @@ class DDPModelWrapper( torch.nn.parallel.DistributedDataParallel ):
             return super().__getattr__(name)
         except AttributeError:
             return getattr(self.module, name)
+
+def create_align_tasks( dph_mix: list[str] ) -> list[BaseInstructDataset]:
+    """ Creates a list of tasks for alignment from the dph mix list.
+
+    Args:
+        dph_mix (list[str]): List of strings corresponding to tasks in te directory.
+
+    Returns:
+        list[BaseInstructDataset]: List of instantiated tasks.
+    """
+
+    # Create list of task/subtask tuples from the mix
+    dph_list = [ i.split( '/' ) for i in dph_mix ]
+
+    # Instatiate list of tasks using the task factory
+    return [ DIRECTORY_ALL[task[0]][task[1]]( HF_CACHE_DIR ) for task in dph_list ]
+
+def create_train_tasks( sft_mix: list[tuple[str, int, bool]] ) -> TaskList:
+    """ Creates a list of tasks for finetuning from the sft mix list
+
+    Args:
+        sft_mix (list[tuple[str, int, bool]]): List of SFT tasks in the correct format (TODO)
+
+    Returns:
+        TaskList: List of instantiated tasks.
+    """
+    sft_list = [
+        ( i[0].split( '/' ), i[1], i[2] )
+        for i in sft_mix
+    ]
+
+    return [
+        ( DIRECTORY_ALL[task[0]][task[1]]( HF_CACHE_DIR ), fewshot_n, fewshot_allsys )
+        for task, fewshot_n, fewshot_allsys in sft_list
+    ]

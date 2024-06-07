@@ -21,9 +21,9 @@ from transformers import AutoTokenizer
 from training.trainer import Trainer, TrainerDDP
 
 from training.data_instruct.task_base import BaseChoiceInstructDataset
-from training.data_instruct.tasks import DIRECTORY_ALL, DIRECTORY_CHOICE
+from training.data_instruct.tasks import DIRECTORY_CHOICE
 from training.data_instruct.formatter import InstructionFormatter
-from training.data_instruct.task_loader import TaskList, ParallelMixedTaskLoader
+from training.data_instruct.task_loader import ParallelMixedTaskLoader
 from training.data_instruct.batcher import ChoiceInstructionBatcher
 
 from model.configuration import LSWTConfigTraining, LSWTConfig
@@ -32,17 +32,6 @@ from model.modeling import LSWTForCausalLM
 from constants import HF_CACHE_DIR, WANDB_API_KEY, WANDB_PROJECT_NAME
 import train_utils
 from train_utils import ddp_cleanup, ddp_setup, DDPModelWrapper
-
-def create_train_tasks( sft_mix: list ) -> TaskList:
-    sft_mix = [
-        ( i[0].split( '/' ), i[1], i[2] )
-        for i in sft_mix
-    ]
-
-    return [
-        ( DIRECTORY_ALL[task[0]][task[1]]( HF_CACHE_DIR ), fewshot_n, fewshot_allsys )
-        for task, fewshot_n, fewshot_allsys in sft_mix
-    ]
 
 def create_validation_zeroshot_tasks() -> list[BaseChoiceInstructDataset]:
     return [
@@ -205,7 +194,7 @@ def instruct_tune(
     train_utils.add_special_tokens( tokenizer )
 
     # Create task mixes
-    train_tasks = create_train_tasks( config[ 'finetune.sft_mix' ] )
+    train_tasks = train_utils.create_train_tasks( config[ 'finetune.sft_mix' ] )
     
     if rank == 0:
         validation_zeroshot_tasks = create_validation_zeroshot_tasks()

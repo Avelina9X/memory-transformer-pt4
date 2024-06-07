@@ -20,8 +20,8 @@ from transformers import AutoTokenizer
 
 from training.trainer import DPHTrainer
 
-from training.data_instruct.task_base import BaseChoiceInstructDataset, BaseInstructDataset
-from training.data_instruct.tasks import DIRECTORY_ALL
+from training.data_instruct.task_base import BaseChoiceInstructDataset
+
 from training.data_instruct.formatter import InstructionFormatter
 from training.data_instruct.task_loader import DPHMultiTaskLoader
 from training.data_instruct.batcher import DPHChoiceInstructionBatcher
@@ -34,22 +34,6 @@ from model.modeling import LSWTForCausalLM, LSWTForDPH
 from constants import HF_CACHE_DIR, WANDB_API_KEY, WANDB_PROJECT_NAME
 import train_utils
 from instruct_tune import create_validation_zeroshot_tasks
-
-def create_align_tasks( dph_mix: list[str] ) -> list[BaseInstructDataset]:
-    """ Creates a list of tasks for alignment from the dph mix list.
-
-    Args:
-        dph_mix (list[str]): List of strings corresponding to tasks in te directory.
-
-    Returns:
-        list[BaseInstructDataset]: List of instantiated tasks.
-    """
-
-    # Create list of task/subtask tuples from the mix
-    dph_list = [ i.split( '/' ) for i in dph_mix ]
-
-    # Instatiate list of tasks using the task factory
-    return [ DIRECTORY_ALL[task[0]][task[1]]( HF_CACHE_DIR ) for task in dph_list ]
 
 def evaluate_zero_shot_task(
     task: BaseChoiceInstructDataset,
@@ -256,7 +240,7 @@ def instruct_align(
     train_utils.add_special_tokens( tokenizer )
 
     # Create task mixes
-    train_tasks = create_align_tasks( config[ 'finetune.dph_mix' ] )
+    train_tasks = train_utils.create_align_tasks( config[ 'finetune.dph_mix' ] )
     validation_zeroshot_tasks = create_validation_zeroshot_tasks()
 
     # Instantiate instruct helpers
