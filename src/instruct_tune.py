@@ -75,11 +75,6 @@ def create_validation_zeroshot_tasks() -> list[BaseChoiceInstructDataset]:
         DIRECTORY_CHOICE[ 'race' ][ 'high' ]( HF_CACHE_DIR ),
     ]
 
-def create_validation_fewshot_tasks() -> list[BaseChoiceInstructDataset]:
-    return [
-        DIRECTORY_CHOICE[ 'mmlu' ][ 'all' ]( HF_CACHE_DIR )
-    ]
-
 def aggregate_gpt4all_score( metrics: dict[ str, float ] ) -> dict[ str, float ]:
     macro_scores = [
         metrics[ 'Hellaswag/no_choice/accuracy' ],
