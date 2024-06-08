@@ -392,13 +392,6 @@ class BaseInstructDataset( ABC ):
             dict: Dictionary with the results of this evaluation module
         """
 
-    # TODO: get evaluation metric from HF hub?
-    # TODO: test - create LLM queries?
-    # TODO: test - process LLM query outputs?
-    # TODO: train - produce SFT sequences?
-    # TODO: actually load documents and retrieve
-    # TODO: tokenization
-
 class BaseChoiceInstructDataset( BaseInstructDataset ):
 
     @abstractmethod

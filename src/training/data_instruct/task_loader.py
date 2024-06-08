@@ -115,8 +115,6 @@ class TaskLoader( IterableDataset ):
                 if len( tokens ) > self.max_tokens:
                     continue
 
-            # TODO: add limiter to max length of task
-
             match self.mask_type:
                 case 'all':
                     yield tokens, targets

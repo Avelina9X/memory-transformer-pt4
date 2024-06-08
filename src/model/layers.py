@@ -263,8 +263,6 @@ class LSWTAttention( torch.nn.Module ):
 
             r_k = ( self.registers_k * rope_scale ).to( dtype=k.dtype ).repeat( batch_size, 1, 1, 1 )
             r_v = ( self.registers_v * rope_scale ).to( dtype=v.dtype ).repeat( batch_size, 1, 1, 1 )
-            
-            # TODO: RMS norm?
 
             k = torch.cat( [ r_k, k ], dim=-2 )
             v = torch.cat( [ r_v, v ], dim=-2 )
