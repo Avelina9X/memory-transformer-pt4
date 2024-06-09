@@ -1,0 +1,31 @@
+meta:
+  run_name: LoveLace-M-sft
+  validate: true
+  tags:
+    - improved_dph
+
+model:
+  trainable_embeddings: true
+  recompute_kv: true
+
+train:
+  batch_size: 64
+  batch_size_step: 0
+  batches_per_epoch: 1024
+  length_sequence: 2048
+  length_cache: 2048
+  lr_max: 3.0e-5
+  lr_warmup_steps: 200
+  lr_cooldown_tokens: 3000000000
+  lr_cooldown_ratio: 0
+
+  opt_weight_decay: 0.1
+  opt_decay_init: true
+  opt_decay_mask:
+    - embedding.weight
+
+finetune:
+  mask_override: train
+  mode: sft
+  checkpoint: CHANGE_ME
+  trainable_backbone: true
