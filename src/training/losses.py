@@ -26,11 +26,16 @@ class MLELoss( nn.Module ):
         self.vocab_size = vocab_size
         self.pad_token_id = pad_token_id
 
-        self.train_fct = CrossEntropyLoss( ignore_index=-100 )
+        self.train_fct = CrossEntropyLoss( ignore_index=-100, reduction='none' )
 
     def forward( self, last_hidden_states, logits, input_ids, labels ):
         # pylint: disable=W0613
-        mle_loss = self.train_fct(logits.float().view(-1, self.vocab_size), labels.view(-1))
+        logits_view = logits.transpose( 2, 1 ).float().contiguous()
+        mle_loss = self.train_fct( logits_view, labels ).sum( -1 )
+        valid_len = torch.maximum( ( labels != -100 ).float().sum( -1 ), torch.tensor( 1.0 ) )
+        
+        mle_loss = ( mle_loss / valid_len ).mean()
+        
 
         return mle_loss, mle_loss * 0.0
 
@@ -420,6 +425,6 @@ class AccuracyMetric( nn.Module ):
 
     def forward( self, logits: torch.Tensor, labels: torch.LongTensor ):
         tp = ( logits.argmax( dim=-1 ) == labels ).sum().float()
-        valid_len = ( labels != self.pad_token_id ).sum().float()
+        valid_len = torch.maximum( ( labels != self.pad_token_id ).sum().float(), torch.tensor( 1.0 ) )
 
         return tp / valid_len
