@@ -1,2 +1,2 @@
 train:
-  batch_size_step: 4
+  batch_size_step: 2

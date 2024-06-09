@@ -6,7 +6,7 @@ meta:
 
 model:
   trainable_embeddings: true
-  recompute_kv: false
+  recompute_kv: true
 
 train:
   batch_size: 64
