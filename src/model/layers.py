@@ -3,13 +3,49 @@ Module containing all the layers required for the LSWTransformer architecture.
 """
 
 import torch
-from flash_attn import flash_attn_func # type: ignore # pylint: disable=E0401
 
 from .configuration import LSWTConfig
 
-@torch._dynamo.disable # type: ignore # pylint: disable=W0212
-def flash_attention( query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, dropout: float ):
-    return flash_attn_func( query, key, value, dropout_p=dropout, causal=True )
+try:
+    from flash_attn import flash_attn_func # type: ignore # pylint: disable=E0401
+
+    @torch._dynamo.disable # type: ignore # pylint: disable=W0212
+    def flash_attention( query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, dropout: float ):
+        return flash_attn_func( query, key, value, dropout_p=dropout, causal=True )
+    
+    attention_func = flash_attention
+    
+except ModuleNotFoundError:
+    def sdpa_attention( query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, dropout: float ):
+        assert dropout == 0.0, 'Dropout is not enabled when using fallback SDPA'
+        
+        # Get full query and key shapes
+        q_shape = query.shape
+        k_shape = key.shape
+        
+        # Get length of sequences
+        q_len = q_shape[1]
+        k_len = k_shape[1]
+        
+        # Build triagonal causal mask
+        mask = torch.ones( q_len, k_len, dtype=query.dtype ).tril( k_len - q_len ).log()
+        mask = mask[ None, None, :, : ]
+        
+        # Get scaling factor
+        scale = q_shape[2] ** -0.5
+        
+        # Compute dot product
+        dpa = torch.einsum( 'bqhd,bkhd->bhqk', query, key * scale ) + mask
+        
+        # Compute softmax
+        dps = torch.softmax( dpa, dim=-1 )
+        
+        # Compute out vector
+        out = torch.einsum( 'bkhd,bhqk->bqhd', value, dps )
+        
+        return out
+    
+    attention_func = sdpa_attention
 
 class RMSHeadNorm( torch.nn.Module ):
     """ RMS Norm layer for query and keys heads.
@@ -273,7 +309,7 @@ class LSWTAttention( torch.nn.Module ):
         v = v.permute( 0, 2, 1, 3 )
 
         # Do attention
-        a = flash_attention( q, k, v, self.att_dropout_p )
+        a = attention_func( q, k, v, self.att_dropout_p )
         a = self.merge_heads( a )
 
         # Apply dropout
