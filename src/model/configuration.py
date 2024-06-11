@@ -374,6 +374,9 @@ class LSWTConfigTrainingDPH():
             dph_epsilon (float, optional): Label smoothing parameter for DPH objective. Defaults to 0.1.
             dph_penalty (float, optional): L2 penalty coefficient for DPH. Defaults to 0.1.
             dph_weight (float, optional): Loss strength of DPH. Defaults to 1.0.
+            
+            dph_decay_init (bool, optional): When true swaps weight decay with prior regularization. Defaults to False.
+            dph_weight_decay (float, optional): The weight decay (or prior regularization) coefficient. Defaults to 0.1.
         """
 
         self.dpo_enabled = dpo_enabled
