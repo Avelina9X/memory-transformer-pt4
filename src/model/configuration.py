@@ -350,6 +350,7 @@ class LSWTConfigTrainingDPH():
 
         dph_contrastive=False,
         dph_epsilon=0.1,
+        dph_penalty=0.1,
         dph_weight=1.0,
 
         dph_decay_init=False,
@@ -358,14 +359,20 @@ class LSWTConfigTrainingDPH():
         """ LSW Transformer config class
 
         Args:
-            dpo_enabeld (bool): If DPO should be enabled. Defaults to True.
+            dpo_enabeld (bool): If DPO should be enabled. Defaults to False.
             dpo_beta (float, optional): Beta parameter for DPO objective. Defaults to 0.1.
             dpo_epsilon (float, optional): Label smoothing parameter for DPO objective. Defaults to 0.1.
             dpo_average_logprobs (bool, optional): When True uses average logprobs instead of sum. Defaults to False.
             dpo_weight (float, optional): Loss strength of DPO. Defaults to 1.0.
+            
+            orpo_enabled (bool, optional): If ORPO should be enabled. Defaults to True.
+            orpo_alpha_orpo (float, optional): ORPO weigh coefficient. Defaults to 0.25.
+            orpo_alpha_mle (float, optional): MLE weight coefficient. Defaults to 1.0.
+            orpo_weight (float, optional): Loss strength for combined ORPO+MLE. Defaults to 1.0.
 
             dph_contrastive (bool, optional): When true uses ConDPH instead of SepDPH. Defaults to False.
             dph_epsilon (float, optional): Label smoothing parameter for DPH objective. Defaults to 0.1.
+            dph_penalty (float, optional): L2 penalty coefficient for DPH. Defaults to 0.1.
             dph_weight (float, optional): Loss strength of DPH. Defaults to 1.0.
         """
 
@@ -382,6 +389,7 @@ class LSWTConfigTrainingDPH():
 
         self.dph_contrastive = dph_contrastive
         self.dph_epsilon = dph_epsilon
+        self.dph_penalty = dph_penalty
         self.dph_weight = dph_weight
 
         self.dph_decay_init = dph_decay_init

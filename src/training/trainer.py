@@ -558,6 +558,7 @@ class DPHTrainer():
         self.dph_loss = DPHLoss(
             label_smoothing=dph_config.dph_epsilon,
             contrastive=dph_config.dph_contrastive,
+            penalty=dph_config.dph_penalty,
         )
 
         self.dataset = dataset

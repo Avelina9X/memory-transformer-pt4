@@ -251,18 +251,21 @@ class DPHLoss( nn.Module ):
         self,
         label_smoothing: float = 0.0,
         contrastive: bool = False,
+        penalty: float = 0.0,
     ):
         """ Instantiates the DPH Loss module.
 
         Args:
             label_smoothing (float, optional): Label smoothing coeficient, should be between 0.0 and 0.5. Defaults to 0.0.
             contrastive (bool, optional): When true computes the loss using logit deltas, but is otherwise identical. Defaults to False.
+            penalty (float, optional): L2 penalty coefficient. Defaults to 0.0.
         """
 
         super().__init__()
 
         self.label_smoothing = label_smoothing
         self.contrastive = contrastive
+        self.penalty = penalty
 
     def forward(
         self,
@@ -284,6 +287,9 @@ class DPHLoss( nn.Module ):
         # Cast to float for stability
         pos_logits = pos_logits.float()
         neg_logits = neg_logits.float()
+        
+        # Penalty
+        penalty = self.penalty * ( pos_logits ** 2 + neg_logits ** 2 )
 
         # Compute the contrastive loss
         con_logits = pos_logits - neg_logits
@@ -298,7 +304,7 @@ class DPHLoss( nn.Module ):
         sep_loss = pos_loss + neg_loss
 
         # Select the desired loss
-        loss = con_loss if self.contrastive else sep_loss
+        loss = ( con_loss if self.contrastive else sep_loss ) + penalty
 
         # Get accuracy of preference head
         accuracy = ( pos_logits > neg_logits ).float()
