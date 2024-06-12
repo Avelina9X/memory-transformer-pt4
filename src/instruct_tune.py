@@ -35,7 +35,11 @@ from train_utils import ddp_cleanup, ddp_setup, DDPModelWrapper
 
 def create_validation_zeroshot_tasks() -> list[BaseChoiceInstructDataset]:
     return [
-        # Hellaswag multiple choice
+        # Auxiliary datasets
+        DIRECTORY_CHOICE[ 'super_glue' ][ 'copa' ]( HF_CACHE_DIR ),
+        DIRECTORY_CHOICE[ 'sciq' ][ 'no_choice' ]( HF_CACHE_DIR ),
+        DIRECTORY_CHOICE[ 'truthful_qa' ][ 'mc1' ]( HF_CACHE_DIR ),
+        DIRECTORY_CHOICE[ 'mmlu' ][ 'all' ]( HF_CACHE_DIR ),
         DIRECTORY_CHOICE[ 'hellaswag' ][ 'choice' ]( HF_CACHE_DIR ),
 
         # GPT 4 ALL
