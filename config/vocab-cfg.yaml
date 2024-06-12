@@ -1,6 +1,7 @@
 meta:
   run_name: LoveLace-M-vocab
   validate: true
+  validate_freq: 4
   tags:
     - improved_dph
 
@@ -11,7 +12,7 @@ model:
 train:
   batch_size: 64
   batch_size_step: 0
-  batches_per_epoch: 1024
+  batches_per_epoch: 256
   length_sequence: 2048
   length_cache: 2048
   lr_max: 6.0e-5

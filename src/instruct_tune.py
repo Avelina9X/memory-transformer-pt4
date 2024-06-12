@@ -288,9 +288,12 @@ def instruct_tune(
             # Create empty validation metrics list
             validation_lines = []
             validation_dict = {}
+            
+            validate_freq = config.get( 'meta.validate_freq', 1 )
+            should_validate = config[ 'meta.validate' ] and ( i % validate_freq == validate_freq - 1 )
 
             # If validation flag is set (or it's the last epoch) run validation
-            if config[ 'meta.validate' ] or i + 1 == trainer.get_total_epochs():
+            if should_validate or i + 1 == trainer.get_total_epochs():
                 for task in validation_zeroshot_tasks:
                     curr_line, curr_dict = evaluate_zero_shot_task( task, batcher )
                     validation_lines.append( curr_line )
