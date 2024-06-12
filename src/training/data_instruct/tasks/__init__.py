@@ -18,6 +18,7 @@ from . import (
     sciq,
     super_glue,
     tiny,
+    truthful_qa,
     tulu,
     ultrachat,
     ultrafeedback,
@@ -33,9 +34,10 @@ DIRECTORY_CHOICE: dict[str, Mapping[str, Callable[[str], BaseChoiceInstructDatas
     'mmlu': mmlu.DIRECTORY,
     'obqa': obqa.DIRECTORY,
     'piqa': piqa.DIRECTORY,
+    'race': race.DIRECTORY,
     'sciq': sciq.DIRECTORY,
     'super_glue': super_glue.DIRECTORY,
-    'race': race.DIRECTORY,
+    'truthful_qa': truthful_qa.DIRECTORY,
     'winogrande': winogrande.DIRECTORY,
 }
 
