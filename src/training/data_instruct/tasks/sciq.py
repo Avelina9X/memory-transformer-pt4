@@ -44,13 +44,21 @@ class SciQNoChoiceInstructDataset( BaseChoiceInstructDataset ):
         return None
 
     def format_user_message( self, doc: dict ) -> Message:
-        prompt = (
-            f"Background: {doc['support'].lstrip()}\n"
-            f"\n"
-            f"Question: {doc['question']}\n"
-            f"\n"
-            f"Answer:"
-        )
+        
+        if len( doc['support'] ) > 0:
+            prompt = (
+                f"Background: {doc['support'].lstrip()}\n"
+                f"\n"
+                f"Question: {doc['question']}\n"
+                f"\n"
+                f"Answer:"
+            )
+        else:
+            prompt = (
+                f"Question: {doc['question']}\n"
+                f"\n"
+                f"Answer:"
+            )
 
         return Message(
             role='user',
