@@ -1,5 +1,5 @@
 finetune:
-  sft_mix_name: sft_mix
+  sft_mix_name: sft_mix_large
   sft_mix:
     - [ glue/cola, 1, false ]
     - [ glue/mnli, 1, false ]
