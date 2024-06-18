@@ -116,7 +116,21 @@ def add_special_tokens( tokenizer: PreTrainedTokenizerBase ):
     tokenizer.add_tokens( [ '<|im_start|>', '<|im_end|>' ], special_tokens=True )
     tokenizer.sep_token = '<|im_start|>'
     tokenizer.cls_token = '<|im_end|>'
-
+    
+    tokenizer.chat_template = (
+        "{% for message in messages %}"
+            "{% if loop.first %}"
+                "{{bos_token}}"
+            "{% endif %}"
+            "{% if loop.first and messages[0]['role'] != 'system' %}"
+                "{{ '<|im_start|>system\nYou are a conversational AI assistant. Write a response that appropriately completes the request.<|im_end|>\n' }}"
+            "{% endif %}"
+            "{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}"
+        "{% endfor %}"
+        "{% if add_generation_prompt %}"
+            "{{ '<|im_start|>assistant\n' }}"
+        "{% endif %}"
+    )
 
 def get_model_artifact( run_name: str ):
     """ TODO: update code for multiple runs with same name """
