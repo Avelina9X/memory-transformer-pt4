@@ -1,0 +1,32 @@
+finetune:
+  dph_mix_name: dph_mix
+  dph_mix:
+      - glue/cola
+      - glue/mnli
+      - glue/mrpc
+      - glue/qnli
+      - glue/qqp
+      - glue/rte
+      - glue/sst2
+      - glue/stsb
+
+      - mmlu/all
+      - race/middle
+      - race/high
+      - hellaswag/choice
+      - squad/v2
+      - sciq/no_choice
+
+      - glue/wnli
+      - super_glue/copa
+
+      - hellaswag/no_choice
+      - obqa/main
+      - winogrande/no_choice
+      - arc/challenge
+      - arc/easy
+      - super_glue/boolq
+      - piqa/no_choice
+
+      - ultrafeedback/binarized
+      - orca/orca_dpo_pairs
