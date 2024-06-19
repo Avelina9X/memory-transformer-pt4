@@ -189,6 +189,7 @@ def instruct_align(
     """
 
     # Log in to wandb
+    wandb.require( 'core' )
     wandb.login( key=WANDB_API_KEY )
 
     # Set some performance flags

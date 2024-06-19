@@ -63,6 +63,7 @@ def train(
 
     # If on first machine init wandb
     if rank == 0:
+        wandb.require( 'core' )
         wandb.init(
             project=WANDB_PROJECT_NAME,
             group='pretraining',
