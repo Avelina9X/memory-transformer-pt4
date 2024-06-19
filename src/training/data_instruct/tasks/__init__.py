@@ -9,6 +9,7 @@ from . import (
     glue,
     gsm8k,
     hellaswag,
+    hh,
     mmlu,
     obqa,
     orca,
@@ -61,6 +62,7 @@ DIRECTORY_GENERATIVE: dict[str, Mapping[str, Callable[[str], BaseInstructDataset
 
 DIRECTORY_CONVERSATIONAL: dict[str, Mapping[str, Callable[[str], BaseInstructDataset]]] = {
     'coqa': coqa.DIRECTORY,
+    'hh': hh.DIRECTORY,
     'ultrachat': ultrachat.DIRECTORY,
 }
 
