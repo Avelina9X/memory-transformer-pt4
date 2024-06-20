@@ -607,13 +607,13 @@ class DPHTrainer():
         )
         
         if self.dph_config.dpo_enabled:
-            postfix += ' | dpo={0:.3f}, dpo_acc={2:.3f}'.format(
+            postfix += ' | dpo={0:.3f}, dpo_acc={1:.3f}'.format(
                 self.metrics[ 'loss_dpo' ].compute(),
                 self.metrics[ 'dpo/accuracy' ].compute(),
             )
         
         if self.dph_config.orpo_enabled:
-            postfix += ' | orpo={0:.3f}, orpo_acc={2:.3f}'.format(
+            postfix += ' | orpo={0:.3f}, orpo_acc={1:.3f}'.format(
                 self.metrics[ 'loss_orpo' ].compute(),
                 self.metrics[ 'orpo/accuracy' ].compute(),
             )
