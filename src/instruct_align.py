@@ -245,16 +245,22 @@ def instruct_align(
     validation_zeroshot_tasks = create_validation_zeroshot_tasks()
 
     # Instantiate instruct helpers
-    formatter = InstructionFormatter( tokenizer )
-    batcher = DPHChoiceInstructionBatcher( dph_model, formatter, reward_head_name, 'mean' )
+    train_formatter = InstructionFormatter( tokenizer, 0 )
+    validation_formatter = InstructionFormatter( tokenizer, None )
+    batcher = DPHChoiceInstructionBatcher( dph_model, validation_formatter, reward_head_name, 'mean' )
+    
+    # Get mask type for this training variant
+    mask_type = config.get( 'finetune.mask_override', {
+        'dph': 'train',
+    }[ config[ 'finetune.mode' ] ] )
 
     # Create dataset
     task_loader = DPHMultiTaskLoader(
         task_list=train_tasks,
-        formatter=formatter,
+        formatter=train_formatter,
         seq_length=train_config.length_sequence,
         batch_size=train_config.batch_size,
-        mask_type='train',
+        mask_type=mask_type,
     )
 
     # Instantiate trainer for alignment
@@ -322,9 +328,12 @@ def instruct_align(
         # Create empty validation metrics list
         validation_lines = []
         validation_dict = {}
+        
+        validate_freq = config.get( 'meta.validate_freq', 1 )
+        should_validate = config[ 'meta.validate' ] and ( i % validate_freq == validate_freq - 1 )
 
         # If validation flag is set (or it's the last epoch) run validation
-        if config[ 'meta.validate' ] or i + 1 == trainer.get_total_epochs():
+        if should_validate or i + 1 == trainer.get_total_epochs():
             for task in validation_zeroshot_tasks:
                 curr_line, curr_dict = evaluate_zero_shot_task( task, batcher )
                 validation_lines.append( curr_line )
@@ -431,7 +440,7 @@ def run():
         raise ValueError( "finetune.mode must be 'dph'" )
 
     # Add the finetune mode to the tags list
-    tags = [ f"finetune_{config[ 'finetune.mode' ]}" ]
+    tags = [ f"finetune_{config[ 'finetune.mode' ]}", torch.cuda.get_device_name() ]
 
     # If we have other tags, add them to the list
     if 'meta.tags' in config:
