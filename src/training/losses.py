@@ -404,11 +404,11 @@ class ORPOLoss( nn.Module ):
         loss = mle_loss * self.alpha_mle - ratio * self.alpha_orpo
         
         metrics = {}
-        metrics[ 'orpo/pos_mean' ] = torch.mean( policy_pos_logp ).item()
-        metrics[ 'orpo/neg_mean' ] = torch.mean( policy_neg_logp ).item()
-        metrics[ 'orpo/log_odds_ratio' ] = torch.mean( ratio ).item()
-        metrics[ 'orpo/log_odds' ] = torch.mean( log_odds ).item()
-        metrics[ 'orpo/accuracy' ] = ( policy_pos_logp > policy_neg_logp ).float().mean().item()
+        metrics[ 'orpo/pos_mean' ] = torch.mean( policy_pos_logp ).detach()
+        metrics[ 'orpo/neg_mean' ] = torch.mean( policy_neg_logp ).detach()
+        metrics[ 'orpo/log_odds_ratio' ] = torch.mean( ratio ).detach()
+        metrics[ 'orpo/log_odds' ] = torch.mean( log_odds ).detach()
+        metrics[ 'orpo/accuracy' ] = ( policy_pos_logp > policy_neg_logp ).float().mean().detach()
         
         return loss, metrics
 
