@@ -1,4 +1,5 @@
 from collections.abc import Callable, Mapping
+import json
 from datasets import DatasetDict, Dataset, load_dataset
 
 from ..task_base import BaseInstructDataset, InstructionDatasetTask, Message
@@ -7,7 +8,7 @@ class UltrafeedbackInstructDataset( BaseInstructDataset ):
     def download( self, cache_dir: str ) -> DatasetDict:
         dataset = load_dataset( 'argilla/ultrafeedback-binarized-preferences-cleaned', cache_dir=cache_dir )
         assert isinstance( dataset, DatasetDict )
-        return dataset
+        return dataset.filter( lambda x: json.dumps( x[ 'rejected' ], sort_keys=True ) == json.dumps( x[ 'chosen' ], sort_keys=True ) )
 
     @property
     def task_type( self ) -> InstructionDatasetTask:
