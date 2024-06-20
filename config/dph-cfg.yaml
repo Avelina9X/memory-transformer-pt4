@@ -1,0 +1,49 @@
+meta:
+  run_name: LoveLace-M-dph
+  validate: true
+  evaluate: false
+  validate_freq: 4
+  tags:
+    - improved_dph
+
+model:
+  trainable_embeddings: true
+  recompute_kv: false
+
+train:
+  batch_size: 64
+  batch_size_step: 0
+  batches_per_epoch: 256
+  length_sequence: 2048
+  length_cache: 2048
+  lr_max: 1.0e-5
+  lr_warmup_steps: 200
+  lr_cooldown_tokens: 5000000000
+  lr_cooldown_ratio: 0
+
+  opt_weight_decay: 0.1
+  opt_decay_init: true
+  opt_decay_mask:
+    - embedding.weight
+
+finetune:
+  mask_override: train
+  mode: dph
+  checkpoint: CHANGE_ME
+  trainable_backbone: true
+
+dph:
+  dph_contrastive: true
+  dph_epsilon: 0.0
+  dph_weight: 1.0
+  dph_penalty: 0.1
+
+  dph_decay_init: false
+  dph_weight_decay: 0.1
+
+  dpo_enabled: false
+
+  orpo_enabled: true
+  orpo_alpha_orpo: 0.25
+  orpo_alpha_mle: 1.0
+  orpo_weight: 1.0
