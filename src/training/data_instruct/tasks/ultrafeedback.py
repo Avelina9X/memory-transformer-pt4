@@ -8,7 +8,7 @@ class UltrafeedbackInstructDataset( BaseInstructDataset ):
     def download( self, cache_dir: str ) -> DatasetDict:
         dataset = load_dataset( 'argilla/ultrafeedback-binarized-preferences-cleaned', cache_dir=cache_dir )
         assert isinstance( dataset, DatasetDict )
-        return dataset.filter( lambda x: json.dumps( x[ 'rejected' ], sort_keys=True ) == json.dumps( x[ 'chosen' ], sort_keys=True ) )
+        return dataset.filter( lambda x: json.dumps( x[ 'rejected' ], sort_keys=True ) != json.dumps( x[ 'chosen' ], sort_keys=True ) )
 
     @property
     def task_type( self ) -> InstructionDatasetTask:
