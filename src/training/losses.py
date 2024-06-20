@@ -395,7 +395,7 @@ class ORPOLoss( nn.Module ):
         
         # Calculate log odds
         log_odds_n = policy_pos_logp - policy_neg_logp
-        log_odds_d = torch.log1p( - torch.exp( policy_pos_logp ) ) - torch.log1p( - torch.exp( policy_neg_logp ) )
+        log_odds_d = torch.log1p( 1e-5 - torch.exp( policy_pos_logp ) ) - torch.log1p( 1e-5 - torch.exp( policy_neg_logp ) )
         log_odds = log_odds_n - log_odds_d
         
         ratio = F.logsigmoid( log_odds ).mean() # pylint: disable=E1102
