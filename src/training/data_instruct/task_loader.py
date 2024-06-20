@@ -412,6 +412,9 @@ class DPHMultiTaskLoader( IterableDataset ):
 
         pos_candidate = random.choice( pos_list )
         neg_candidate = random.choice( neg_list )
+        
+        if pos_candidate[-1].role != 'assistant' or neg_candidate[-1].role != 'assistant':
+            raise ValueError( 'Last message must be an assistant message!' )
 
         pos_messages = self.formatter.tokenize_chat( pos_candidate )
         neg_messages = self.formatter.tokenize_chat( neg_candidate )
