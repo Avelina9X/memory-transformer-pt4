@@ -10,6 +10,10 @@ model:
   trainable_embeddings: true
   recompute_kv: false
 
+  reward_heads: [ 'reward_head' ]
+  reward_pooler: identity
+  reward_dropout: 0.1
+
 train:
   batch_size: 64
   batch_size_step: 0
