@@ -408,7 +408,7 @@ class ORPOLoss( nn.Module ):
         metrics[ 'orpo/neg_mean' ] = torch.mean( policy_neg_logp ).item()
         metrics[ 'orpo/log_odds_ratio' ] = torch.mean( ratio ).item()
         metrics[ 'orpo/log_odds' ] = torch.mean( log_odds ).item()
-        metrics[ 'orpo/accuracy' ] = torch.mean( policy_pos_logp > policy_neg_logp ).item()
+        metrics[ 'orpo/accuracy' ] = ( policy_pos_logp > policy_neg_logp ).float().mean().item()
         
         return loss, metrics
 
