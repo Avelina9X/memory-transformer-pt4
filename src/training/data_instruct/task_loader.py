@@ -396,8 +396,12 @@ class DPHMultiTaskLoader( IterableDataset ):
             case 'all':
                 return tokens, targets
             case 'train':
+                if not any( train_mask ):
+                    raise ValueError( 'Train mask is empty!' )
                 return tokens, [ t if m else -100 for t, m in zip( targets, train_mask ) ]
             case 'test':
+                if not any( test_mask ):
+                    raise ValueError( 'Test mask is empty!' )
                 return tokens, [ t if m else -100 for t, m in zip( targets, test_mask ) ]
             case _:
                 assert False, 'We should not be here!'
