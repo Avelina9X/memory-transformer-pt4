@@ -352,7 +352,7 @@ class ORPOLoss( nn.Module ):
         self.alpha_mle = alpha_mle
         self.vocab_size = vocab_size
         
-        self.mle_fct = CrossEntropyLoss( ignore_index=-100, reduction='none' )
+        # self.mle_fct = CrossEntropyLoss( ignore_index=-100, reduction='none' )
     
     def get_logprobs( self, logits: torch.Tensor, targets: torch.LongTensor ) -> torch.Tensor:
         logprobs = logits.log_softmax( -1, torch.float32 ).gather( -1, targets.unsqueeze( -1 ) ).squeeze( -1 )
@@ -384,7 +384,7 @@ class ORPOLoss( nn.Module ):
         
         # Calculate MLE loss
         logits_view = policy_pos_logits.transpose( 2, 1 ).float().contiguous()
-        mle_loss = self.train_fct( logits_view, pos_labels ).sum( -1 )
+        mle_loss = F.cross_entropy( logits_view, pos_labels, ignore_index=-100, reduction='none' ).sum( -1 )
         valid_len = torch.maximum( ( pos_labels != -100 ).float().sum( -1 ), torch.tensor( 1.0 ) )
         
         mle_loss = ( mle_loss / valid_len ).mean()
