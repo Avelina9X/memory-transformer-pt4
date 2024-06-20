@@ -276,6 +276,7 @@ def instruct_align(
 
     # Print out our configs
     rich.print( trainer.train_config )
+    rich.print( trainer.dph_config )
     rich.print( trainer.model_dph.config )
 
     # Compute params
