@@ -219,11 +219,6 @@ def instruct_align(
     assert len( model_config.reward_heads ) == 1
     reward_head_name = model_config.reward_heads[0]
 
-    # Load reference model and set trainable
-    ref_model = typing.cast( LSWTForCausalLM, LSWTForCausalLM.from_pretrained( pretrained_run_dir, **model_config.to_dict() ) )
-    ref_model.requires_grad_( False )
-    ref_model = typing.cast( LSWTForCausalLM, ref_model.half().eval().cuda() ) # type: ignore # pylance is confused
-
     # Load DPH model and set trainable
     dph_model = typing.cast( LSWTForDPH, LSWTForDPH.from_pretrained( pretrained_run_dir, **model_config.to_dict() ) )
     train_utils.set_backbone_trainable( dph_model, config[ 'finetune.trainable_backbone' ] )
@@ -235,6 +230,14 @@ def instruct_align(
         rich.print( 'Frozen params:' )
         rich.print( frozen_list )
         print()
+
+    # Load reference model and set trainable
+    if dph_config.requires_reference_model:
+        ref_model = typing.cast( LSWTForCausalLM, LSWTForCausalLM.from_pretrained( pretrained_run_dir, **model_config.to_dict() ) )
+        ref_model.requires_grad_( False )
+        ref_model = typing.cast( LSWTForCausalLM, ref_model.half().eval().cuda() ) # type: ignore # pylance is confused
+    else:
+        ref_model = dph_model
 
     # Load tokenizer and add new segment tokens
     tokenizer = AutoTokenizer.from_pretrained( model_config.parent_embeddings, use_fast=True, cache_dir=HF_CACHE_DIR )
