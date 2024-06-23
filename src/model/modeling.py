@@ -407,24 +407,41 @@ class LSWTForDPH( LSWTForCausalLM ):
 
         self.pooler_pipeline = torch.nn.Sequential()
 
+        # Match the reward pooler type
         match config.reward_pooler:
+            
+            # If identity we only do dropout
             case 'identity':
-                self.pooler_pipeline.append( torch.nn.Dropout( p=config.reward_dropout ) )
-                
+                # Set embedding size to that of d_model as pooler is passthrough
                 embedding_size = config.d_model
                 
+                # Add dropout as final layer
+                self.pooler_pipeline.append( torch.nn.Dropout( p=config.reward_dropout ) )
+            
+            # If projection do: linear -> activation -> dropout
             case 'projection':
+                # Assertions to make linter happy. We should have raised an error already.
                 assert config.reward_embedding_size is not None
                 assert config.reward_activation is not None
-                self.pooler_pipeline.append( torch.nn.Linear( config.d_model, config.reward_embedding_size * ( 2 if config.reward_activation == 'swiglu' else 1 ), bias=config.enable_bias ) )
-                self.pooler_pipeline.append( SwiGLU() if config.reward_activation == 'swiglu' else ACT2FN[config.reward_activation] )
-                self.pooler_pipeline.append( torch.nn.Dropout( p=config.reward_dropout ) )
                 
+                # Set embedding size to that of config
                 embedding_size = config.reward_embedding_size
+                
+                # Set intermediate size to 2x if gated, otherwise 1x
+                intermediate_size = config.reward_embedding_size * ( 2 if config.reward_activation == 'swiglu' else 1 )
+                
+                # Set activation to SwiGLU if gated, otherwise get activation by name
+                activation = SwiGLU() if config.reward_activation == 'swiglu' else ACT2FN[config.reward_activation]
+                
+                # Append linear -> activation -> dropout
+                self.pooler_pipeline.append( torch.nn.Linear( config.d_model, intermediate_size, bias=config.enable_bias ) )
+                self.pooler_pipeline.append( activation )
+                self.pooler_pipeline.append( torch.nn.Dropout( p=config.reward_dropout ) )
                 
             case _:
                 raise ValueError( 'Invalid pooler type.' )
 
+        # Create dict of reward head projections
         self.reward_heads = torch.nn.ModuleDict( {
             name: torch.nn.Linear( embedding_size, 1, bias=False )
             for name in config.reward_heads
