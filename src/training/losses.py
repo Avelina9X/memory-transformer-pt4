@@ -414,10 +414,12 @@ class ORPOLoss( nn.Module ):
 
 
 class KLPairsLoss( nn.Module ):
+    """ Implements the pairwise KL Divergence Loss """
+    
     def __init__(
         self,
         pn_ratio: float = 0.5,
-        penalty: float = 0.5,
+        penalty: float = 0.2,
     ):
         """ Instantiate the pairwise KL penalty loss.
 
@@ -459,24 +461,34 @@ class KLPairsLoss( nn.Module ):
             metrics (dict[str, torch.Tensor]]): detached metrics for KL loss
         """
         
+        # Get policy logps
         policy_pos_logp = F.log_softmax( policy_pos_logits, -1, dtype=torch.float32 )
         policy_neg_logp = F.log_softmax( policy_neg_logits, -1, dtype=torch.float32 )
+        
+        # Get reference logps
         reference_pos_logp = F.log_softmax( reference_pos_logits, -1, dtype=torch.float32 )
         reference_neg_logp = F.log_softmax( reference_neg_logits, -1, dtype=torch.float32 )
+        
+        # Get masks
         pos_mask = pos_labels != -100
         neg_mask = neg_labels != -100
         
+        # Compute KL and sum along class dimension
         pos_kl = F.kl_div( policy_pos_logp, reference_pos_logp, reduction='none', log_target=True ).sum( -1 )
         neg_kl = F.kl_div( policy_neg_logp, reference_neg_logp, reduction='none', log_target=True ).sum( -1 )
         
+        # Keep only assistant token locations and sum along sequence dimension
         pos_kl = ( pos_kl * pos_mask ).sum( -1 ) #/  pos_mask.float().sum( -1 )
         neg_kl = ( neg_kl * neg_mask ).sum( -1 ) #/  neg_mask.float().sum( -1 )
         
+        # Average across batch dim
         pos_kl = pos_kl.mean()
         neg_kl = neg_kl.mean()
         
+        # Compute weighted loss penalty
         loss = ( pos_kl * self.pos_penalty + neg_kl * self.neg_penalty ) * self.penalty
         
+        # Set metrics
         metrics = {}
         metrics[ 'kl/pos' ] = pos_kl.detach()
         metrics[ 'kl/neg' ] = neg_kl.detach()
