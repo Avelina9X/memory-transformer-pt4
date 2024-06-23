@@ -413,6 +413,72 @@ class ORPOLoss( nn.Module ):
         return loss, metrics
 
 
+class KLPairsLoss( nn.Module ):
+    def __init__(
+        self,
+        pn_ratio: float = 0.5,
+    ):
+        """ Instantiate the pairwise KL penalty loss.
+
+        Args:
+            pn_ratio (float, optional): Postive to negative penalty ratio. 1=only positive penalty, 0=only negative penalty, 0.5=balanced penalty. Defaults to 0.5.
+        """
+        
+        super().__init__()
+        
+        self.pn_ratio = pn_ratio
+        self.pos_penalty = pn_ratio
+        self.neg_penalty = 1.0 - pn_ratio
+
+    def forward(
+        self,
+        *,
+        policy_pos_logits: torch.Tensor,
+        policy_neg_logits: torch.Tensor,
+        reference_pos_logits: torch.Tensor,
+        reference_neg_logits: torch.Tensor,
+        pos_labels: torch.LongTensor,
+        neg_labels: torch.LongTensor,
+    ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        """ Compute the KL Div loss and returns additional auxilary metrics
+
+        Args:
+            policy_pos_logits (torch.Tensor): positive/chosen logits from policy model
+            policy_neg_logits (torch.Tensor): negative/rejected logits from policy model
+            reference_pos_logits (torch.Tensor): positive/chosen logits from reference model
+            reference_neg_logits (torch.Tensor): negative/rejected logits from reference model
+            pos_labels (torch.LongTensor): positive/chosen input labels
+            neg_labels (torch.LongTensor): negative/rejected input labels
+
+        Returns:
+            loss (torch.Tensor): average KL loss with respect to inputs
+            metrics (dict[str, torch.Tensor]]): detached metrics for KL loss
+        """
+        
+        policy_pos_logp = F.log_softmax( policy_pos_logits, -1, dtype=torch.float32 )
+        policy_neg_logp = F.log_softmax( policy_neg_logits, -1, dtype=torch.float32 )
+        reference_pos_logp = F.log_softmax( reference_pos_logits, -1, dtype=torch.float32 )
+        reference_neg_logp = F.log_softmax( reference_neg_logits, -1, dtype=torch.float32 )
+        pos_mask = pos_labels != -100
+        neg_mask = neg_labels != -100
+        
+        pos_kl = F.kl_div( policy_pos_logp, reference_pos_logp, reduction='none', log_target=True ).sum( -1 )
+        neg_kl = F.kl_div( policy_neg_logp, reference_neg_logp, reduction='none', log_target=True ).sum( -1 )
+        
+        pos_kl = ( pos_kl * pos_mask ).sum( -1 ) #/  pos_mask.float().sum( -1 )
+        neg_kl = ( neg_kl * neg_mask ).sum( -1 ) #/  neg_mask.float().sum( -1 )
+        
+        pos_kl = pos_kl.mean()
+        neg_kl = neg_kl.mean()
+        
+        loss = pos_kl * self.pos_penalty + neg_kl * self.neg_penalty
+        
+        metrics = {}
+        metrics[ 'kl/pos' ] = pos_kl.detach()
+        metrics[ 'kl/neg' ] = neg_kl.detach()
+        
+        return loss, metrics
+
 """ ========================================================================
     Metric classes
     ======================================================================== """
