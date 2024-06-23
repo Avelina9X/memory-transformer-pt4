@@ -10,6 +10,7 @@ Contains:
 from collections.abc import Sequence
 from transformers import PreTrainedModel
 from transformers.modeling_outputs import BaseModelOutputWithPast, CausalLMOutputWithPast
+from transformers.activations import ACT2FN
 import torch
 
 from .configuration import LSWTConfig
@@ -404,40 +405,30 @@ class LSWTForDPH( LSWTForCausalLM ):
         if config.reward_heads is None or len( config.reward_heads ) == 0:
             raise ValueError( 'At least one reward head must be defined when initializing a DPH model.' )
 
-        self.reward_heads = torch.nn.ModuleDict( {
-            name: torch.nn.Linear( config.d_model, 1, bias=False )
-            for name in config.reward_heads
-        } )
-
         self.pooler_pipeline = torch.nn.Sequential()
 
         match config.reward_pooler:
             case 'identity':
                 self.pooler_pipeline.append( torch.nn.Dropout( p=config.reward_dropout ) )
-            case 'bert':
-                self.pooler_pipeline.append( torch.nn.Linear( config.d_model, config.d_model ) )
-                self.pooler_pipeline.append( torch.nn.Tanh() )
+                
+                embedding_size = config.d_model
+                
+            case 'projection':
+                assert config.reward_embedding_size is not None
+                assert config.reward_activation is not None
+                self.pooler_pipeline.append( torch.nn.Linear( config.d_model, config.reward_embedding_size * ( 2 if config.reward_activation == 'swiglu' else 1 ), bias=config.enable_bias ) )
+                self.pooler_pipeline.append( SwiGLU() if config.reward_activation == 'swiglu' else ACT2FN[config.reward_activation] )
                 self.pooler_pipeline.append( torch.nn.Dropout( p=config.reward_dropout ) )
-            case 't5':
-                self.pooler_pipeline.append( torch.nn.Dropout( p=config.reward_dropout ) )
-                self.pooler_pipeline.append( torch.nn.Linear( config.d_model, config.d_model ) )
-                self.pooler_pipeline.append( torch.nn.Tanh() )
-                self.pooler_pipeline.append( torch.nn.Dropout( p=config.reward_dropout ) )
-            case 'swiglu_bert':
-                self.pooler_pipeline.append( torch.nn.Linear( config.d_model, config.d_ffn * 2 ) )
-                self.pooler_pipeline.append( SwiGLU() )
-                self.pooler_pipeline.append( torch.nn.Linear( config.d_ffn, config.d_model ) )
-                self.pooler_pipeline.append( torch.nn.Tanh() )
-                self.pooler_pipeline.append( torch.nn.Dropout( p=config.reward_dropout ) )
-            case 'swiglu_t5':
-                self.pooler_pipeline.append( torch.nn.Dropout( p=config.reward_dropout ) )
-                self.pooler_pipeline.append( torch.nn.Linear( config.d_model, config.d_ffn * 2 ) )
-                self.pooler_pipeline.append( SwiGLU() )
-                self.pooler_pipeline.append( torch.nn.Linear( config.d_ffn, config.d_model ) )
-                self.pooler_pipeline.append( torch.nn.Tanh() )
-                self.pooler_pipeline.append( torch.nn.Dropout( p=config.reward_dropout ) )
+                
+                embedding_size = config.reward_embedding_size
+                
             case _:
                 raise ValueError( 'Invalid pooler type.' )
+
+        self.reward_heads = torch.nn.ModuleDict( {
+            name: torch.nn.Linear( embedding_size, 1, bias=False )
+            for name in config.reward_heads
+        } )
 
         self.post_init()
 

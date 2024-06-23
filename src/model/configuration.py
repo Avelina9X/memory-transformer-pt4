@@ -81,7 +81,9 @@ class LSWTConfig( PretrainedConfig ):
         parent_embeddings='facebook/opt-125m',
 
         reward_heads: Sequence[str] | None = None,
-        reward_pooler: Literal['identity', 'bert', 't5', 'swiglu_bert', 'swiglu_t5'] = 'identity',
+        reward_pooler: Literal['identity', 'projection'] = 'identity',
+        reward_embedding_size: int | None = None,
+        reward_activation: Literal['swiglu'] | str | None = None,
         reward_dropout=0.0,
 
         **kwargs,
@@ -133,7 +135,9 @@ class LSWTConfig( PretrainedConfig ):
             parent_embeddings (str): Parent embeddings and tokenizer vocab. Defaults to 'facebook/opt-125m'.
 
             reward_heads (Sequence[str] | None): The names of reward heads used by the model if in DPH mode. Defaults to None.
-            reward_pooler (str): The pooler type used on the final CLS token. Defaults to 'identity'.
+            reward_pooler (Literal['identity', 'projection']): The pooler type used on the final CLS token. Defaults to 'identity'.
+            reward_embedding_size (int | None): Output dim of the reward projection. Must be int for `projection` pooler or None for `identity` pooler. Defaults to None.
+            reward_activation (Literal['swiglu'] | str | None): Output activation of the reward pooler. Must be str for `projection` pooler or None for `identity` pooler. Defaults to None.
             reward_dropout (float): The probability of applying dropout to the inputs of the reward head. Deafults to 0.0.
         """
         super().__init__(
@@ -196,7 +200,26 @@ class LSWTConfig( PretrainedConfig ):
         # Reward heads
         self.reward_heads = reward_heads
         self.reward_pooler = reward_pooler
+        self.reward_embedding_size = reward_embedding_size
+        self.reward_activation = reward_activation
         self.reward_dropout = reward_dropout
+        
+        if reward_pooler == 'identity':
+            if self.reward_embedding_size is not None:
+                raise ValueError( 'reward_embedding_size must be unset for reward_pooler=`identity`' )
+            
+            if self.reward_activation is not None:
+                raise ValueError( 'reward_activation must be unset for reward_pooler=`identity`' )
+        
+        elif reward_pooler == 'projection':
+            if self.reward_embedding_size is None:
+                raise ValueError( 'reward_embedding_size must be set for reward_pooler=`identity`' )
+            
+            if self.reward_activation is None:
+                raise ValueError( 'reward_activation must be set for reward_pooler=`identity`' )
+        
+        else:
+            raise ValueError( 'Invalid reward_pooler type' )
 
         # Assertions
         if d_model % n_heads != 0:
