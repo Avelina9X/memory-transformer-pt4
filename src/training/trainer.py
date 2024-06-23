@@ -751,6 +751,7 @@ class DPHTrainer():
         neg_rewards = self.model_dph.compute_rewards( dph_neg_states, neg_tokens, self.tokenizer.cls_token_id )
 
         with torch.no_grad():
+            # Compute reference logits if we need a reference model (e.g. for DPO or KL)
             if self.dph_config.requires_reference_model:
                 ref_outputs = self.model_ref(
                     input_ids=tokens_combined,
@@ -780,14 +781,19 @@ class DPHTrainer():
 
     @torch.compile( **TORCH_COMPILE_OPTIONS )
     def train_sub_step( self, pos_tokens, pos_target, neg_tokens, neg_target ):
+        
+        # Set autocast context # TODO: support bf16 in addition to fp16
         with torch.autocast( device_type='cuda', dtype=torch.float16 ):
+            # Perform forward pass to get all relevant outputs
             outputs = self.forward_pass( pos_tokens, neg_tokens )
 
+            # We always perform DPH loss no matter what
             dph_loss, dph_metrics = self.dph_loss(
                 pos_logits=outputs.reward_pos_logits,
                 neg_logits=outputs.reward_neg_logits
             )
 
+            # If DPO is enabled compute loss from policy+reference models
             if self.dph_config.dpo_enabled:
                 dpo_loss, dpo_metrics = self.dpo_loss(
                     policy_pos_logits=outputs.policy_pos_logits,
@@ -801,6 +807,7 @@ class DPHTrainer():
                 dpo_loss = torch.zeros_like( dph_loss )
                 dpo_metrics = {}
             
+            # If ORPO is enabled compute loss from policy model only
             if self.dph_config.orpo_enabled:
                 orpo_loss, orpo_metrics = self.orpo_loss(
                     policy_pos_logits=outputs.policy_pos_logits,
@@ -812,6 +819,7 @@ class DPHTrainer():
                 orpo_loss = torch.zeros_like( dph_loss )
                 orpo_metrics = {}
             
+            # If KL is enabled compute loss from policy+reference models
             if self.dph_config.kl_enabled:
                 kl_loss, kl_metrics = self.kl_loss(
                     policy_pos_logits=outputs.policy_pos_logits,
@@ -825,14 +833,18 @@ class DPHTrainer():
                 kl_loss = torch.zeros_like( dph_loss )
                 kl_metrics = {}
 
+            # Compute weighted sum of losses and divide by accumulation count
             accu_loss = (
                 dph_loss * self.dph_config.dph_weight +
                 dpo_loss * self.dph_config.dpo_weight +
-                orpo_loss * self.dph_config.orpo_weight
+                orpo_loss * self.dph_config.orpo_weight +
+                kl_loss * self.dph_config.kl_weight
             ) / self.batch_groups
-            
+        
+        # Scaled backwards pass
         self.optimizer_scaler.scale( accu_loss ).backward()
 
+        # Return { losses }, { metrics }
         return {
             'dph': dph_loss.detach(),
             'dpo': dpo_loss.detach(),
@@ -846,50 +858,82 @@ class DPHTrainer():
         }
 
     def train_optim_step( self ):
+        
+        # Increment optimizer step
         self.optimizer_step += 1
 
+        # For all parameter groups apply LR schedule
         for p_group in self.optimizer.param_groups:
             p_group[ 'lr' ] = self.get_schedule() * self.train_config.lr_max
 
+        # If gradient norm clipping is enabled perform scaling and clipping
         if self.train_config.opt_max_grad_norm > 0.0:
             self.optimizer_scaler.unscale_( self.optimizer )
             torch.nn.utils.clip_grad_norm_( self.model_dph.parameters(), self.train_config.opt_max_grad_norm ) # type: ignore
 
+        # Perform optimizer update
         self.optimizer_scaler.step( self.optimizer )
         self.optimizer_scaler.update()
         self.optimizer.zero_grad()
 
     def train_batch_step( self, batch ):
+        
+        # Set reference model to eval state if present
+        if self.dph_config.requires_reference_model:
+            self.model_ref.eval()
+        
+        # Set policy model to train state
         self.model_dph.train()
-        self.model_ref.eval()
 
+        # Unpack batch
         pos_tokens, pos_target, neg_tokens, neg_target = batch
 
+        # Get chosen tokens and targets and split into groups
         pos_tokens = torch.split( pos_tokens.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
         pos_target = torch.split( pos_target.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
 
+        # Get rejected tokens and targets and split into groups
         neg_tokens = torch.split( neg_tokens.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
         neg_target = torch.split( neg_target.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
 
+        # Iterate through all groups
         for idx in range( self.batch_groups ):
-            losses, metrics_dict = self.train_sub_step( pos_tokens[idx], pos_target[idx], neg_tokens[idx], neg_target[idx] )
+            # Perform forward pass sub step on group
+            losses, metrics_dict = self.train_sub_step(
+                pos_tokens=pos_tokens[idx],
+                pos_target=pos_target[idx],
+                neg_tokens=neg_tokens[idx],
+                neg_target=neg_target[idx]
+            )
 
+            # Update DPO loss if enabled
             if self.dph_config.dpo_enabled:
                 self.metrics[ 'loss_dpo' ].update( losses[ 'dpo' ] )
             
+            # Update ORPO loss if enabled
             if self.dph_config.orpo_enabled:
                 self.metrics[ 'loss_orpo' ].update( losses[ 'orpo' ] )
             
+            # Update KL loss if enabled
+            if self.dph_config.kl_enabled:
+                self.metrics[ 'loss_kl' ].update( losses[ 'kl' ] )
+            
+            # Update DPH loss
             self.metrics[ 'loss_dph' ].update( losses[ 'dph' ] )
 
+            # Update all other metrics
             for name, value in metrics_dict.items():
                 self.metrics[ name ].update( value )
 
+        # Perform optimizer update
         self.train_optim_step()
 
     def train_epoch( self, iterator, epoch ):
+        
+        # Get time of epoch start
         start_time = time.time()
 
+        # For all batches in epoch perform step and update progress bar
         for batch in range( self.train_config.batches_per_epoch ):
             self.train_batch_step( next( iterator ) )
 
@@ -903,7 +947,9 @@ class DPHTrainer():
             print( '\r' + bar_string, end='', flush=True )
         print()
 
+        # Clear the cache for validation loop
         torch.cuda.empty_cache()
         gc.collect()
 
+        # Get and reset metrics
         return self.reset_metrics()
