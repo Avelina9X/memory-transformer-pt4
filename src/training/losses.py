@@ -417,16 +417,20 @@ class KLPairsLoss( nn.Module ):
     def __init__(
         self,
         pn_ratio: float = 0.5,
+        penalty: float = 0.5,
     ):
         """ Instantiate the pairwise KL penalty loss.
 
         Args:
             pn_ratio (float, optional): Postive to negative penalty ratio. 1=only positive penalty, 0=only negative penalty, 0.5=balanced penalty. Defaults to 0.5.
+            penalty (float, optional): The KL Penalty to apply *after* balancing postive and negative examples. Defaults to 0.2.
         """
         
         super().__init__()
         
         self.pn_ratio = pn_ratio
+        self.penalty = penalty
+        
         self.pos_penalty = pn_ratio
         self.neg_penalty = 1.0 - pn_ratio
 
@@ -471,7 +475,7 @@ class KLPairsLoss( nn.Module ):
         pos_kl = pos_kl.mean()
         neg_kl = neg_kl.mean()
         
-        loss = pos_kl * self.pos_penalty + neg_kl * self.neg_penalty
+        loss = ( pos_kl * self.pos_penalty + neg_kl * self.neg_penalty ) * self.penalty
         
         metrics = {}
         metrics[ 'kl/pos' ] = pos_kl.detach()
