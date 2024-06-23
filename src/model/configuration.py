@@ -347,6 +347,11 @@ class LSWTConfigTrainingDPH():
         orpo_alpha_orpo=0.25,
         orpo_alpha_mle=1.0,
         orpo_weight=1.0,
+        
+        kl_enabled=False,
+        kl_pn_ratio=0.5,
+        kl_penalty=0.2,
+        kl_weight=1.0,
 
         dph_contrastive=False,
         dph_epsilon=0.1,
@@ -369,6 +374,11 @@ class LSWTConfigTrainingDPH():
             orpo_alpha_orpo (float, optional): ORPO weigh coefficient. Defaults to 0.25.
             orpo_alpha_mle (float, optional): MLE weight coefficient. Defaults to 1.0.
             orpo_weight (float, optional): Loss strength for combined ORPO+MLE. Defaults to 1.0.
+            
+            kl_enabled (bool, optional): If KLPairsLoss should be enabled. Defaults to false.
+            kl_pn_ratio (float, optional): Postive to negative penalty ratio. 1=only positive penalty, 0=only negative penalty, 0.5=balanced penalty. Defaults to 0.5.
+            kl_penalty (float, optional): The KL Penalty to apply *after* balancing postive and negative examples. Defaults to 0.2.
+            kl_weight (float, optional): Loss strength of KL. Defaults to 1.0.
 
             dph_contrastive (bool, optional): When true uses ConDPH instead of SepDPH. Defaults to False.
             dph_epsilon (float, optional): Label smoothing parameter for DPH objective. Defaults to 0.1.
@@ -389,6 +399,11 @@ class LSWTConfigTrainingDPH():
         self.orpo_alpha_orpo = orpo_alpha_orpo
         self.orpo_alpha_mle = orpo_alpha_mle
         self.orpo_weight = orpo_weight
+        
+        self.kl_enabled = kl_enabled
+        self.kl_pn_ratio = kl_pn_ratio
+        self.kl_penalty = kl_penalty
+        self.kl_weight = kl_weight
 
         self.dph_contrastive = dph_contrastive
         self.dph_epsilon = dph_epsilon
@@ -436,4 +451,4 @@ class LSWTConfigTrainingDPH():
     
     @property
     def requires_reference_model( self ):
-        return self.dpo_enabled
+        return self.dpo_enabled or self.kl_enabled

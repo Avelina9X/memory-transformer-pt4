@@ -25,7 +25,7 @@ from optimizer.minato import Minato
 from optimizer.laprop import LaProp
 from .data_instruct.task_loader import DPHMultiTaskLoader
 from .data import PileDataset, OpenOrcaDataset, HFDatasetConfig, HFBatchDataset
-from .losses import DPOLoss, DPHLoss, MLELoss, ORPOLoss, SimCTGLoss, AccuracyMetric
+from .losses import DPOLoss, DPHLoss, KLPairsLoss, MLELoss, ORPOLoss, SimCTGLoss, AccuracyMetric
 
 PILE_PATH_PATTERN = os.environ[ 'PILE_PATH_PATTERN' ]
 PILE_SHARDS = int( os.environ[ 'PILE_SHARDS' ] )
@@ -560,6 +560,11 @@ class DPHTrainer():
             contrastive=dph_config.dph_contrastive,
             penalty=dph_config.dph_penalty,
         )
+        
+        self.kl_loss = KLPairsLoss(
+            pn_ratio=dph_config.kl_pn_ratio,
+            penalty=dph_config.kl_penalty,
+        )
 
         self.dataset = dataset
 
@@ -592,6 +597,14 @@ class DPHTrainer():
                 'orpo/log_odds': metrics.Mean().to( 'cuda' ),
                 'orpo/accuracy': metrics.Mean().to( 'cuda' ),
             } )
+        
+        if dph_config.kl_enabled:
+            self.metrics.update( {
+                'loss_kl': metrics.Mean().to( 'cuda' ),
+
+                'kl/pos': metrics.Mean().to( 'cuda' ),
+                'kl/neg': metrics.Mean().to( 'cuda' ),
+            } )
 
         self.optimizer_step = 0
 
@@ -616,6 +629,11 @@ class DPHTrainer():
             postfix += ' | orpo={0:.3f}, orpo_acc={1:.3f}'.format(
                 self.metrics[ 'loss_orpo' ].compute(),
                 self.metrics[ 'orpo/accuracy' ].compute(),
+            )
+        
+        if self.dph_config.kl_enabled:
+            postfix += ' | kl={0:.3f}'.format(
+                self.metrics[ 'loss_kl' ].compute(),
             )
 
         return tqdm.tqdm.format_meter(
@@ -793,6 +811,19 @@ class DPHTrainer():
             else:
                 orpo_loss = torch.zeros_like( dph_loss )
                 orpo_metrics = {}
+            
+            if self.dph_config.kl_enabled:
+                kl_loss, kl_metrics = self.kl_loss(
+                    policy_pos_logits=outputs.policy_pos_logits,
+                    policy_neg_logits=outputs.policy_neg_logits,
+                    reference_pos_logits=outputs.reference_pos_logits,
+                    reference_neg_logits=outputs.reference_neg_logits,
+                    pos_labels=pos_target,
+                    neg_labels=neg_target,
+                )
+            else:
+                kl_loss = torch.zeros_like( dph_loss )
+                kl_metrics = {}
 
             accu_loss = (
                 dph_loss * self.dph_config.dph_weight +
@@ -805,11 +836,13 @@ class DPHTrainer():
         return {
             'dph': dph_loss.detach(),
             'dpo': dpo_loss.detach(),
-            'orpo': orpo_loss.detach()
+            'orpo': orpo_loss.detach(),
+            'kl': kl_loss.detach(),
         }, {
             **dph_metrics,
             **dpo_metrics,
-            **orpo_metrics
+            **orpo_metrics,
+            **kl_metrics,
         }
 
     def train_optim_step( self ):
