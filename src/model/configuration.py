@@ -416,16 +416,46 @@ class LSWTConfigTrainingDPH():
         # DPO Assertions
         if self.dpo_beta < 0:
             raise ValueError( f'DPO beta must be at least 0.0, but received {self.dpo_beta}' )
+        
         if not ( 0.0 <= self.dpo_epsilon <= 0.5 ):
             raise ValueError( f'DPO epsilon must be in range [0.0,0.5], but received {self.dpo_epsilon}' )
+        
         if self.dpo_weight < 0:
             raise ValueError( f'DPO weight must be at least 0.0, but received {self.dpo_weight}' )
+
+
+        # ORPO Assertions
+        if self.orpo_alpha_mle < 0:
+            raise ValueError( f'ORPO MLE alpha must be at least 0.0, but received {self.orpo_alpha_mle}' )
+        
+        if self.orpo_alpha_orpo < 0:
+            raise ValueError( f'ORPO Odds alpha must be at least 0.0, but received {self.orpo_alpha_orpo}' )
+        
+        if self.orpo_weight < 0:
+            raise ValueError( f'ORPO weight must be at least 0.0, but received {self.orpo_weight}' )
+
+
+        # KL Assertions
+        if not ( 0.0 <= self.kl_pn_ratio <= 1.0 ):
+            raise ValueError( f'KL p-n ration must be in range [0.0,1.0], but received {self.kl_pn_ratio}' )
+        
+        if self.kl_penalty < 0:
+            raise ValueError( f'KL penalty must be at least 0.0, but receive {self.kl_penalty}' )
+        
+        if self.kl_weight < 0:
+            raise ValueError( f'KL weight must be at least 0.0, but received {self.kl_weight}' )
+
 
         # DPH Assertions
         if not ( 0.0 <= self.dph_epsilon <= 0.5 ):
             raise ValueError( f'DPH epsilon must be in range [0.0,0.5], but received {self.dph_epsilon}' )
+        
+        if self.dph_penalty < 0:
+            raise ValueError( f'DPH L2 penalty must be at least 0.0, but receive {self.dph_penalty}' )
+        
         if self.dph_weight < 0:
             raise ValueError( f'DPH weight must be at least 0.0, but received {self.dph_weight}' )
+
 
     def to_json_string( self ) -> str:
         """ Serializes this instance to a JSON string.
