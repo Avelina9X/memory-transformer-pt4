@@ -64,7 +64,7 @@ The following envars should be used for debugging `torch.compile` related issues
 | Name | $d_{model}$ | $d_{ffn}$ | $n_{layers}$ | $n_{heads}$ | $d_{key}$ | Parameters |
 | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
 | **Tiny** 	| 768	| 2048 | 12 | 12 | 64 | 125M |
-| **Medium**| 1536 | 4096 | 28 | 24 | 64 | 551M |
+| **Medium**| 1536 | 4096 | 18 | 24 | 64 | 551M |
 
 ## Citation
 If you wish to cite this work before then, you may refer to this repository and link to [my Semantic Scholar profile](https://www.semanticscholar.org/author/Avelina-Asada-Hadji-Kyriacou/2139984073).
