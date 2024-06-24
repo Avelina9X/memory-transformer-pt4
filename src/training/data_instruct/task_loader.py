@@ -415,6 +415,9 @@ class DPHMultiTaskLoader( IterableDataset ):
         
         if pos_candidate[-1].role != 'assistant' or neg_candidate[-1].role != 'assistant':
             raise ValueError( 'Last message must be an assistant message!' )
+        
+        if len( pos_candidate ) != len( neg_candidate ):
+            raise ValueError( 'Both examples must be of equal message count!' )
 
         pos_messages = self.formatter.tokenize_chat( pos_candidate )
         neg_messages = self.formatter.tokenize_chat( neg_candidate )
