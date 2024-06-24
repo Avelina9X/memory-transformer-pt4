@@ -1,0 +1,4 @@
+model:
+  reward_pooler: projection
+  reward_embedding_size: 4096
+  reward_activation: swiglu
