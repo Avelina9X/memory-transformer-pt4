@@ -780,8 +780,8 @@ class DPHTrainer():
             policy_neg_logits=dph_neg_logits,
             reference_pos_logits=ref_pos_logits,
             reference_neg_logits=ref_neg_logits,
-            reward_pos_logits=pos_rewards[ self.reward_head_key ],
-            reward_neg_logits=neg_rewards[ self.reward_head_key ],
+            reward_pos_logits=pos_rewards.last_rewards[ self.reward_head_key ],
+            reward_neg_logits=neg_rewards.last_rewards[ self.reward_head_key ],
         )
 
 

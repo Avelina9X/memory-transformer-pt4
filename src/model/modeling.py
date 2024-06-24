@@ -7,9 +7,10 @@ Contains:
     - LSWTForCausalLM: causal head model containing an LSWTModel instance.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from transformers import PreTrainedModel
-from transformers.modeling_outputs import BaseModelOutputWithPast, CausalLMOutputWithPast
+from transformers.modeling_outputs import BaseModelOutputWithPast, CausalLMOutputWithPast, ModelOutput
 from transformers.activations import ACT2FN
 import torch
 
@@ -383,6 +384,18 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
                 tuple(past_state.index_select(0, beam_idx.to(past_state.device)) for past_state in layer_past),
             )
         return reordered_past
+    
+@dataclass
+class DPHOutput( ModelOutput ):
+    """ Base class for DPH reward outputs.
+    """
+    
+    last_rewards: Mapping[str, torch.Tensor]
+    """ Mapping of head name to the rewards computed on the final <|im_end|> token """
+    
+    last_latent_states: torch.Tensor | None = None
+    """ Latent states computed on the final <|im_end|> token. Returns None when `output_latent_states=False` """
+
 
 class LSWTForDPH( LSWTForCausalLM ):
     """
@@ -406,6 +419,7 @@ class LSWTForDPH( LSWTForCausalLM ):
             raise ValueError( 'At least one reward head must be defined when initializing a DPH model.' )
 
         self.pooler_pipeline = torch.nn.Sequential()
+        self.dropout = torch.nn.Dropout( p=config.reward_dropout )
 
         # Match the reward pooler type
         match config.reward_pooler:
@@ -416,7 +430,7 @@ class LSWTForDPH( LSWTForCausalLM ):
                 embedding_size = config.d_model
                 
                 # Add dropout as final layer
-                self.pooler_pipeline.append( torch.nn.Dropout( p=config.reward_dropout ) )
+                self.pooler_pipeline.append( torch.nn.Identity() )
             
             # If projection do: linear -> activation -> dropout
             case 'projection':
@@ -436,7 +450,6 @@ class LSWTForDPH( LSWTForCausalLM ):
                 # Append linear -> activation -> dropout
                 self.pooler_pipeline.append( torch.nn.Linear( config.d_model, intermediate_size, bias=config.enable_bias ) )
                 self.pooler_pipeline.append( activation )
-                self.pooler_pipeline.append( torch.nn.Dropout( p=config.reward_dropout ) )
                 
             case _:
                 raise ValueError( 'Invalid pooler type.' )
@@ -454,16 +467,18 @@ class LSWTForDPH( LSWTForCausalLM ):
         last_hidden_states: torch.Tensor,
         input_ids: torch.LongTensor,
         cls_id: int,
-    ) -> dict[str, torch.Tensor]:
+        output_latent_states = False,
+    ) -> DPHOutput:
         """ Computes the rewards of all sequences in a batch.
 
         Args:
             last_hidden_states (torch.Tensor): Hidden states of size [Batch x Seq x Dim].
             input_ids (torch.LongTensor): Input ids of size [Batch x Seq].
             cls_id (int): id of the token used to aggregate rewards from. If multiple exist in the sequence the last one is used.
+            output_latent_states (bool, optional): When true returns the intermediate latent state. Defaults to False.
 
         Returns:
-            dict[str, torch.Tensor]: Dict of reward head names -> reward tensors of size [Batch x 1]
+            DPHOutput: Model output
         """
 
         batch_size, seq_lengths = input_ids.shape[:2]
@@ -475,13 +490,19 @@ class LSWTForDPH( LSWTForCausalLM ):
         assert torch.all( cls_idx != -1 )
 
         pooled_states = last_hidden_states[ batch_ids, cls_idx ]
-        pooled_states = self.pooler_pipeline( pooled_states )
+        latent_states = self.pooler_pipeline( pooled_states )
+        dropped_states = self.dropout( latent_states )
 
-        return {
-            name: module( pooled_states )
+        rewards = {
+            name: module( dropped_states )
             for name, module
             in self.reward_heads.items()
         }
+        
+        return DPHOutput(
+            last_rewards=rewards,
+            last_latent_states=latent_states if output_latent_states else None,
+        )
 
     def get_param_groups(
         self,
