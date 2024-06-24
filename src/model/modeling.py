@@ -390,11 +390,11 @@ class DPHOutput( ModelOutput ):
     """ Base class for DPH reward outputs.
     """
     
-    last_rewards: Mapping[str, torch.Tensor]
-    """ Mapping of head name to the rewards computed on the final <|im_end|> token """
+    rewards: Mapping[str, torch.Tensor]
+    """ Mapping of head name to the rewards computed on the <|im_end|> token."""
     
-    last_latent_states: torch.Tensor | None = None
-    """ Latent states computed on the final <|im_end|> token. Returns None when `output_latent_states=False` """
+    latent_states: torch.Tensor | None = None
+    """ Latent states computed on the <|im_end|> token. Returns None when `output_latent_states=False` """
 
 
 class LSWTForDPH( LSWTForCausalLM ):
@@ -462,14 +462,14 @@ class LSWTForDPH( LSWTForCausalLM ):
 
         self.post_init()
 
-    def compute_rewards(
+    def compute_final_rewards(
         self,
         last_hidden_states: torch.Tensor,
         input_ids: torch.LongTensor,
         cls_id: int,
         output_latent_states = False,
     ) -> DPHOutput:
-        """ Computes the rewards of all sequences in a batch.
+        """ Computes the final token rewards of all sequences in a batch.
 
         Args:
             last_hidden_states (torch.Tensor): Hidden states of size [Batch x Seq x Dim].
@@ -500,8 +500,8 @@ class LSWTForDPH( LSWTForCausalLM ):
         }
         
         return DPHOutput(
-            last_rewards=rewards,
-            last_latent_states=latent_states if output_latent_states else None,
+            rewards=rewards,
+            latent_states=latent_states if output_latent_states else None,
         )
 
     def get_param_groups(
