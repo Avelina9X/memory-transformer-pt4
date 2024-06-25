@@ -745,7 +745,7 @@ class DPHTrainer():
 
         # Get the logits and states
         dph_logits = dph_outputs.logits
-        dph_states = dph_outputs.hidden_states[-1]
+        dph_states = dph_outputs.hidden_states[self.model_dph.config.reward_select_layer]
 
         # Chunk the logits and states into positive and negative respectively
         dph_pos_logits, dph_neg_logits = dph_logits.chunk( 2, dim=0 )

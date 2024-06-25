@@ -87,6 +87,8 @@ class LSWTConfig( PretrainedConfig ):
         reward_activation: Literal['swiglu'] | str | None = None,
         reward_activation_gated=False,
         reward_dropout=0.0,
+        
+        reward_select_layer=-1,
 
         **kwargs,
     ):
@@ -143,6 +145,7 @@ class LSWTConfig( PretrainedConfig ):
             reward_activation (str | None): Output activation of the reward pooler. Must be str for `projection` pooler or None for `identity` pooler. Defaults to None.
             reward_activation_gated (bool): If gating should be used to compute the intermedaite latent. Defaults to False.
             reward_dropout (float): The probability of applying dropout to the inputs of the reward head. Deafults to 0.0.
+            reward_select_layer (int): The layer from which to aggregate rewards. NOTE: -1 is final layer post-norm, -2 and up are pre-norm layers. Defaults to -1.
         """
         super().__init__(
             pad_token_id=pad_token_id,
@@ -210,6 +213,7 @@ class LSWTConfig( PretrainedConfig ):
         self.reward_activation = reward_activation
         self.reward_activation_gated = reward_activation_gated
         self.reward_dropout = reward_dropout
+        self.reward_select_layer = reward_select_layer
         
         if self.reward_activation == 'swiglu':
             print( 'SwiGLU activation is depracted, please use `silu` with `reward_activation_gated==True`')
