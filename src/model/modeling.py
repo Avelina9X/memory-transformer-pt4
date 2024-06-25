@@ -384,7 +384,8 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
                 tuple(past_state.index_select(0, beam_idx.to(past_state.device)) for past_state in layer_past),
             )
         return reordered_past
-    
+
+
 @dataclass
 class DPHOutput( ModelOutput ):
     """ Base class for DPH reward outputs.
@@ -396,28 +397,15 @@ class DPHOutput( ModelOutput ):
     latent_states: torch.Tensor | None = None
     """ Latent states computed on the <|im_end|> token. Returns None when `output_latent_states=False` """
 
-
-class LSWTForDPH( LSWTForCausalLM ):
-    """
-    Causal LM model class with DPH for the LSW Transformer.
-
-    Inherits from LSWTForCausalLM and adds one or more DPHs.
-    """
-
-    def __init__( self, config: LSWTConfig, parent_embeddings: torch.Tensor | None=None ):
-        """
-        Constructs a new LSWTForDPH.
-
-        Args:
-            config (LSWTConfig): Config for the LSWT architecture
-            parent_embeddings (Optional[torch.Tensor], optional): Optinal warm start embeddings.
-        """
-
-        super().__init__( config, parent_embeddings )
-
-        if config.reward_heads is None or len( config.reward_heads ) == 0:
-            raise ValueError( 'At least one reward head must be defined when initializing a DPH model.' )
-
+class LSWTPooler( torch.nn.Module ):
+    def __init__( self, config: LSWTConfig ):
+        super().__init__()
+        
+        self.config = config
+        
+        if config.reward_heads is None:
+            raise ValueError( 'reward_heads must be defined. If no heads are desired please use an empty list.' )
+        
         self.pooler_pipeline = torch.nn.Sequential()
         self.dropout = torch.nn.Dropout( p=config.reward_dropout )
 
@@ -459,6 +447,42 @@ class LSWTForDPH( LSWTForCausalLM ):
             name: torch.nn.Linear( embedding_size, 1, bias=False )
             for name in config.reward_heads
         } )
+    
+    def forward( self, hidden_states: torch.Tensor, output_latent_states = False ) -> DPHOutput:
+        latent_states = self.pooler_pipeline( hidden_states )
+        dropped_states = self.dropout( latent_states )
+
+        rewards = {
+            name: module( dropped_states )
+            for name, module
+            in self.reward_heads.items()
+        }
+        
+        return DPHOutput(
+            rewards=rewards,
+            latent_states=latent_states if output_latent_states else None,
+        )
+
+
+class LSWTForDPH( LSWTForCausalLM ):
+    """
+    Causal LM model class with DPH for the LSW Transformer.
+
+    Inherits from LSWTForCausalLM and adds one or more DPHs.
+    """
+
+    def __init__( self, config: LSWTConfig, parent_embeddings: torch.Tensor | None=None ):
+        """
+        Constructs a new LSWTForDPH.
+
+        Args:
+            config (LSWTConfig): Config for the LSWT architecture
+            parent_embeddings (Optional[torch.Tensor], optional): Optinal warm start embeddings.
+        """
+
+        super().__init__( config, parent_embeddings )
+
+        self.pooler = LSWTPooler( config )
 
         self.post_init()
 
@@ -490,19 +514,9 @@ class LSWTForDPH( LSWTForCausalLM ):
         assert torch.all( cls_idx != -1 )
 
         pooled_states = last_hidden_states[ batch_ids, cls_idx ]
-        latent_states = self.pooler_pipeline( pooled_states )
-        dropped_states = self.dropout( latent_states )
-
-        rewards = {
-            name: module( dropped_states )
-            for name, module
-            in self.reward_heads.items()
-        }
         
-        return DPHOutput(
-            rewards=rewards,
-            latent_states=latent_states if output_latent_states else None,
-        )
+        return self.pooler( pooled_states, output_latent_states=output_latent_states )
+        
 
     def get_param_groups(
         self,
@@ -530,10 +544,7 @@ class LSWTForDPH( LSWTForCausalLM ):
 
         # TODO: improve this
         def check_dph( p ):
-            for pp in self.reward_heads.parameters():
-                if p is pp:
-                    return True
-            for pp in self.pooler_pipeline.parameters():
+            for pp in self.pooler.parameters():
                 if p is pp:
                     return True
 
