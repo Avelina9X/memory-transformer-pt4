@@ -47,6 +47,7 @@ class LSWTConfig( PretrainedConfig ):
 
         n_registers=0,
 
+        hidden_act='silu',
         gated_ffn=True,
         gated_att=False,
 
@@ -84,6 +85,7 @@ class LSWTConfig( PretrainedConfig ):
         reward_pooler: Literal['identity', 'projection'] = 'identity',
         reward_embedding_size: int | None = None,
         reward_activation: Literal['swiglu'] | str | None = None,
+        reward_activation_gated=False,
         reward_dropout=0.0,
 
         **kwargs,
@@ -102,6 +104,7 @@ class LSWTConfig( PretrainedConfig ):
 
             n_registers (int): Number of attention sink registers. Set to zero to disable. Defaults to 16.
 
+            hidden_act (str): FFN activation function. Defaults to silu.
             gated_ffn (bool): Weather to use SwiGLU in the FFN. When disabled uses GELU. Defaults to True.
             gated_att (bool): Enables head gating (currently not implemented). Defaults to False. TODO: implement attention gating.
 
@@ -137,7 +140,8 @@ class LSWTConfig( PretrainedConfig ):
             reward_heads (Sequence[str] | None): The names of reward heads used by the model if in DPH mode. Defaults to None.
             reward_pooler (Literal['identity', 'projection']): The pooler type used on the final CLS token. Defaults to 'identity'.
             reward_embedding_size (int | None): Output dim of the reward projection. Must be int for `projection` pooler or None for `identity` pooler. Defaults to None.
-            reward_activation (Literal['swiglu'] | str | None): Output activation of the reward pooler. Must be str for `projection` pooler or None for `identity` pooler. Defaults to None.
+            reward_activation (str | None): Output activation of the reward pooler. Must be str for `projection` pooler or None for `identity` pooler. Defaults to None.
+            reward_activation_gated (bool): If gating should be used to compute the intermedaite latent. Defaults to False.
             reward_dropout (float): The probability of applying dropout to the inputs of the reward head. Deafults to 0.0.
         """
         super().__init__(
@@ -160,6 +164,8 @@ class LSWTConfig( PretrainedConfig ):
 
         # Auxilary attention sinking registers
         self.n_registers = n_registers
+        
+        self.hidden_act = hidden_act
 
         # Gating settings
         self.gated_ffn = gated_ffn
@@ -202,7 +208,13 @@ class LSWTConfig( PretrainedConfig ):
         self.reward_pooler = reward_pooler
         self.reward_embedding_size = reward_embedding_size
         self.reward_activation = reward_activation
+        self.reward_activation_gated = reward_activation_gated
         self.reward_dropout = reward_dropout
+        
+        if self.reward_activation == 'swiglu':
+            print( 'SwiGLU activation is depracted, please use `silu` with `reward_activation_gated==True`')
+            self.reward_activation = 'silu'
+            self.reward_activation_gated = True
         
         if reward_pooler == 'identity':
             if self.reward_embedding_size is not None:

@@ -15,7 +15,7 @@ from transformers.activations import ACT2FN
 import torch
 
 from .configuration import LSWTConfig
-from .layers import SharedEmbeddings, RotaryEmbedding, LSWTBlock, SwiGLU
+from .layers import SharedEmbeddings, RotaryEmbedding, LSWTBlock, ActGLU
 
 class LSWTPreTrainedModel( PreTrainedModel ):
     """
@@ -442,10 +442,10 @@ class LSWTForDPH( LSWTForCausalLM ):
                 embedding_size = config.reward_embedding_size
                 
                 # Set intermediate size to 2x if gated, otherwise 1x
-                intermediate_size = config.reward_embedding_size * ( 2 if config.reward_activation == 'swiglu' else 1 )
+                intermediate_size = config.reward_embedding_size * ( 2 if config.reward_activation_gated else 1 )
                 
                 # Set activation to SwiGLU if gated, otherwise get activation by name
-                activation = SwiGLU() if config.reward_activation == 'swiglu' else ACT2FN[config.reward_activation]
+                activation = ActGLU( config.reward_activation ) if config.reward_activation_gated else ACT2FN[config.reward_activation]
                 
                 # Append linear -> activation -> dropout
                 self.pooler_pipeline.append( torch.nn.Linear( config.d_model, intermediate_size, bias=config.enable_bias ) )

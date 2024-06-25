@@ -3,6 +3,7 @@ Module containing all the layers required for the LSWTransformer architecture.
 """
 
 import torch
+from transformers.activations import ACT2FN
 
 from .configuration import LSWTConfig
 
@@ -317,13 +318,16 @@ class LSWTAttention( torch.nn.Module ):
 
         return o, memory
 
-class SwiGLU( torch.nn.Module ):
-    """ SwiGLU activation
-    """
+
+class ActGLU( torch.nn.Module ):
+    def __init__( self, activation: str ):
+        super().__init__()
+        
+        self.activation = ACT2FN[activation]
     
     def forward( self, x ):
         x, g = x.chunk( 2, dim=-1 )
-        return x * torch.nn.functional.silu( g )
+        return x * self.activation( g )
 
 class LSWTFeedForward( torch.nn.Module ):
     """ Feedforward MLP with SwiGLU support
@@ -336,7 +340,7 @@ class LSWTFeedForward( torch.nn.Module ):
 
         self.fc1 = torch.nn.Linear( config.d_model, config.d_ffn * ( 2 if config.gated_ffn else 1 ) )
         self.fc2 = torch.nn.Linear( config.d_ffn, config.d_model )
-        self.act = SwiGLU() if config.gated_ffn else torch.nn.GELU()
+        self.act = ActGLU( config.hidden_act ) if config.gated_ffn else ACT2FN[config.hidden_act]
 
         self.drop_int = torch.nn.Dropout( config.dropout_ffn_int )
         self.drop_out = torch.nn.Dropout( config.dropout_ffn_out )
