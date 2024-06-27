@@ -13,6 +13,7 @@ from transformers import PreTrainedModel
 from transformers.modeling_outputs import BaseModelOutputWithPast, CausalLMOutputWithPast, ModelOutput
 from transformers.activations import ACT2FN
 import torch
+import torch.nn.functional as F
 
 from .configuration import LSWTConfig
 from .layers import SharedEmbeddings, RotaryEmbedding, LSWTBlock, ActGLU
@@ -46,6 +47,12 @@ class LSWTPreTrainedModel( PreTrainedModel ):
         elif isinstance( module, torch.nn.LayerNorm ):
             module.bias.data.zero_()
             module.weight.data.fill_( 1.0 )
+            
+        elif isinstance( module, LSWTSparseAutoEncoder ):
+            torch.nn.init.kaiming_uniform_( module.decoder_weight.data )
+            torch.nn.init.kaiming_uniform_( module.encoder_weight.data )
+            module.encoder_bias.data.zero_()
+            module.decoder_bias.data.zero_()
 
     def get_param_groups( self, decay_mask: Sequence[str] ) -> list[dict]:
         """
@@ -387,6 +394,51 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
 
 
 @dataclass
+class SAELoss( ModelOutput ):
+    """ Base class for SAE outputs.
+    """
+    
+    reconstruction_loss: torch.Tensor
+    l1_penalty: torch.Tensor
+
+class LSWTSparseAutoEncoder( torch.nn.Module ):
+    def __init__( self, config: LSWTConfig ):
+        super().__init__()
+        
+        self.config = config
+        
+        n_dim = config.d_model
+        m_dim = config.reward_embedding_size
+        
+        assert m_dim
+        assert config.reward_activation in [ 'relu' ]
+        assert not config.reward_activation_gated
+        
+        self.encoder_weight = torch.nn.Parameter( torch.empty( m_dim, n_dim ) )
+        self.encoder_bias = torch.nn.Parameter( torch.empty( m_dim ) )
+        
+        self.decoder_weight = torch.nn.Parameter( torch.empty( n_dim, m_dim ) )
+        self.decoder_bias = torch.nn.Parameter( torch.empty( n_dim ) )
+    
+    def forward( self, hidden_states: torch.Tensor, output_auxiliary = False ):
+        x_prime = hidden_states - self.decoder_bias
+        
+        latent = torch.relu( F.linear( x_prime, self.encoder_weight, self.encoder_bias ) ) # pylint: disable=E1102
+        
+        if output_auxiliary:
+            x_hat = F.linear( latent, self.decoder_weight, self.decoder_bias ) # pylint: disable=E1102
+            
+            l2_penalty = ( hidden_states.detach() - x_hat ).pow( 2 ).mean()
+            l1_penalty = torch.norm( latent, p=1, dim=-1 ).mean()
+            
+            return latent, SAELoss( l2_penalty, l1_penalty )
+        else:
+            return latent
+            
+            
+
+
+@dataclass
 class DPHOutput( ModelOutput ):
     """ Base class for DPH reward outputs.
     """
@@ -396,6 +448,9 @@ class DPHOutput( ModelOutput ):
     
     latent_states: torch.Tensor | None = None
     """ Latent states computed on the <|im_end|> token. Returns None when `output_latent_states=False` """
+    
+    aux_loss: SAELoss | None = None
+    """ Auxiliary loss for SAEs """
 
 class LSWTPooler( torch.nn.Module ):
     def __init__( self, config: LSWTConfig ):
@@ -438,6 +493,12 @@ class LSWTPooler( torch.nn.Module ):
                 # Append linear -> activation -> dropout
                 self.pooler_pipeline.append( torch.nn.Linear( config.d_model, intermediate_size, bias=config.enable_bias ) )
                 self.pooler_pipeline.append( activation )
+            
+            case 'sae':
+                self.pooler_pipeline.append( LSWTSparseAutoEncoder( config ) )
+                
+                 # Set intermediate size to 2x if gated, otherwise 1x
+                intermediate_size = config.reward_embedding_size
                 
             case _:
                 raise ValueError( 'Invalid pooler type.' )
@@ -448,8 +509,14 @@ class LSWTPooler( torch.nn.Module ):
             for name in config.reward_heads
         } )
     
-    def forward( self, hidden_states: torch.Tensor, output_latent_states = False ) -> DPHOutput:
-        latent_states = self.pooler_pipeline( hidden_states )
+    def forward( self, hidden_states: torch.Tensor, output_latent_states=False, compute_sae_loss=False ) -> DPHOutput:
+        if compute_sae_loss:
+            assert self.config.reward_pooler == 'sae'
+            latent_states, sae_loss = self.pooler_pipeline( hidden_states, output_auxiliary=True )
+        else:
+            latent_states = self.pooler_pipeline( hidden_states )
+            sae_loss = None
+        
         dropped_states = self.dropout( latent_states )
 
         rewards = {
@@ -461,6 +528,7 @@ class LSWTPooler( torch.nn.Module ):
         return DPHOutput(
             rewards=rewards,
             latent_states=latent_states if output_latent_states else None,
+            aux_loss=sae_loss,
         )
 
 
@@ -491,7 +559,8 @@ class LSWTForDPH( LSWTForCausalLM ):
         last_hidden_states: torch.Tensor,
         input_ids: torch.LongTensor,
         cls_id: int,
-        output_latent_states = False,
+        output_latent_states: bool = False,
+        compute_sae_loss: bool = False
     ) -> DPHOutput:
         """ Computes the final token rewards of all sequences in a batch.
 
@@ -500,6 +569,7 @@ class LSWTForDPH( LSWTForCausalLM ):
             input_ids (torch.LongTensor): Input ids of size [Batch x Seq].
             cls_id (int): id of the token used to aggregate rewards from. If multiple exist in the sequence the last one is used.
             output_latent_states (bool, optional): When true returns the intermediate latent state. Defaults to False.
+            compute_sae_loss (bool, optional): When true computes the L1 and reconstruction losses. Only supported when in SAE mode. Defaults to False.
 
         Returns:
             DPHOutput: Model output
@@ -515,7 +585,7 @@ class LSWTForDPH( LSWTForCausalLM ):
 
         pooled_states = last_hidden_states[ batch_ids, cls_idx ]
         
-        return self.pooler( pooled_states, output_latent_states=output_latent_states )
+        return self.pooler( pooled_states, output_latent_states=output_latent_states, compute_sae_loss=compute_sae_loss )
         
 
     def get_param_groups(
