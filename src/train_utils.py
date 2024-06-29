@@ -228,6 +228,7 @@ def compute_stats_dict( trainer: Trainer, i: int ) -> dict[str, float | int]:
     return {
         'stats/n_tokens': trainer.optimizer_step * trainer.train_config.batch_size * trainer.train_config.length_sequence,
         'stats/n_batches': trainer.optimizer_step,
+        'stats/n_samples': trainer.optimizer_step * trainer.train_config.batch_size,
         'stats/n_epochs': i + 1,
         'stats/learning_rate': trainer.get_schedule() * trainer.train_config.lr_max,
     }
