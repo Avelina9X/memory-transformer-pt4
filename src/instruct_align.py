@@ -421,6 +421,14 @@ def run():
         type=train_utils.parse_options,
         help='Key value pairs to overwrite config parameters. Uses format `<key>:<value>,<key>:<value>,...`'
     )
+    
+    # Additional tag(s) argument
+    argparser.add_argument(
+        '-t',
+        '--tags',
+        type=lambda s: s.split( ',' ),
+        help='Comma seperated list of tags to add to the WandB run.'
+    )
 
     # Parse the command line args
     arguments = argparser.parse_args()
@@ -444,7 +452,7 @@ def run():
         raise ValueError( "finetune.mode must be 'dph'" )
 
     # Add the finetune mode to the tags list
-    tags = [ f"finetune_{config[ 'finetune.mode' ]}", torch.cuda.get_device_name() ]
+    tags = [ f"finetune_{config[ 'finetune.mode' ]}", torch.cuda.get_device_name(), *arguments.tags ]
 
     # If we have other tags, add them to the list
     if 'meta.tags' in config:

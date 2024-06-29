@@ -1,8 +1,10 @@
 """ Main pretraining pipeline module. Pretrain's on The Pile """
 
+import os
 import copy
 import argparse
 
+import shortuuid
 import rich
 import wandb
 from wcmatch import glob
@@ -180,8 +182,10 @@ def train(
         ddp_cleanup()
 
 def run():
+    
     argparser = argparse.ArgumentParser()
 
+    # YAML config file(s) argument
     argparser.add_argument(
         '-c',
         '--config',
@@ -189,6 +193,7 @@ def run():
         required=True
     )
 
+    # WandB mode argument
     argparser.add_argument(
         '-w',
         '--wmode',
@@ -196,12 +201,55 @@ def run():
         choices=[ 'online', 'offline', 'disabled' ]
     )
 
+    # Additional parameter(s) argument
+    argparser.add_argument(
+        '--params',
+        type=train_utils.parse_options,
+        help='Key value pairs to overwrite config parameters. Uses format `<key>:<value>,<key>:<value>,...`'
+    )
+    
+    # Additional tag(s) argument
+    argparser.add_argument(
+        '-t',
+        '--tags',
+        type=lambda s: s.split( ',' ),
+        help='Comma seperated list of tags to add to the WandB run.'
+    )
+
+    # Parse the command line args
     arguments = argparser.parse_args()
 
+    # Parse the YAML file(s)
     config = train_utils.parse_yaml_config( arguments.config )
 
+    # If params are passed, update config
+    if arguments.params is not None:
+        config.update( arguments.params )
+
+    # Add a UUID to run name
+    config[ 'meta.run_name' ] += f'_{shortuuid.uuid()[:4]}'
+
+    # If we have a UUID collision throw an error. TODO: maybe try and fix the collision instead?
+    if os.path.exists( f"./checkpoints/{config['meta.run_name']}" ):
+        raise ValueError( f"Cannot create run '{config['meta.run_name']}' because it already exists!" )
+
+    # Add tags list
+    tags = [ "pretrain", torch.cuda.get_device_name(), *arguments.tags ]
+
+    # If we have other tags, add them to the list
+    if 'meta.tags' in config:
+        tags += config[ 'meta.tags' ]
+
+    # Print the config to stdout
+    rich.print( config )
+
     if torch.cuda.device_count() == 1:
-        train( config=config, wandb_mode=arguments.wmode, wandb_tags=[ 'rerope_tests' ], wandb_run_name=config[ 'meta.run_name' ] )
+        train(
+            config=config,
+            wandb_mode=arguments.wmode,
+            wandb_tags=tags,
+            wandb_run_name=config[ 'meta.run_name' ]
+        )
     else:
         mp.spawn( # type: ignore
             fn=train,
@@ -209,7 +257,7 @@ def run():
                 torch.cuda.device_count(),
                 config,
                 arguments.wmode,
-                [ 'rerope_tests', 'ddp' ],
+                tags,
                 config[ 'meta.run_name' ]
             ),
             nprocs=torch.cuda.device_count(),
