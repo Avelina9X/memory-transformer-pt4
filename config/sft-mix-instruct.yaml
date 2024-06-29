@@ -9,7 +9,7 @@ finetune:
     - [ tulu/v2, 5, true ]
     - [ orca/SlimOrca, 5, true ]
     - [ ultrachat/200k, 5, true ]
-    - [ baii/Infinity-Instruct, 5, true ]
+    - [ baai/Infinity-Instruct, 5, true ]
 
     - [ cnn_dailymail/3.0.0, 1, false ]
     - [ tiny/instruct, 1, false ]
