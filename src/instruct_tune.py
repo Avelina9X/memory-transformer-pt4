@@ -362,7 +362,7 @@ def run():
         raise ValueError( "finetune.mode must be 'vocab' or 'sft'" )
 
     # Add the finetune mode to the tags list
-    tags = [ f"finetune_{config[ 'finetune.mode' ]}", torch.cuda.get_device_name(), *arguments.tags ]
+    tags = [ f"finetune_{config[ 'finetune.mode' ]}", torch.cuda.get_device_name(), *( arguments.tags or [] ) ]
 
     # If we have other tags, add them to the list
     if 'meta.tags' in config:

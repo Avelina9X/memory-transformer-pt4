@@ -191,7 +191,7 @@ def run():
         raise ValueError( f"Cannot create run '{config['meta.run_name']}' because it already exists!" )
 
     # Add tags list
-    tags = [ "pretrain", torch.cuda.get_device_name(), *arguments.tags ]
+    tags = [ "pretrain", torch.cuda.get_device_name(), *( arguments.tags or [] ) ]
 
     # If we have other tags, add them to the list
     if 'meta.tags' in config:
