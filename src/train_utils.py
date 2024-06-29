@@ -6,8 +6,10 @@ import json
 import os
 import pathlib
 import yaml
+import argparse
 
 import wandb
+from wcmatch import glob
 import numpy as np
 import torch
 import torch.distributed as dist
@@ -229,6 +231,52 @@ def compute_stats_dict( trainer: Trainer, i: int ) -> dict[str, float | int]:
         'stats/n_epochs': i + 1,
         'stats/learning_rate': trainer.get_schedule() * trainer.train_config.lr_max,
     }
+
+def parse_cmd_args() -> tuple[argparse.Namespace, dict]:
+    argparser = argparse.ArgumentParser()
+
+    # YAML config file(s) argument
+    argparser.add_argument(
+        '-c',
+        '--config',
+        type=lambda x: glob.glob( x, flags=glob.BRACE ),
+        required=True
+    )
+
+    # WandB mode argument
+    argparser.add_argument(
+        '-w',
+        '--wmode',
+        default='disabled',
+        choices=[ 'online', 'offline', 'disabled' ]
+    )
+
+    # Additional parameter(s) argument
+    argparser.add_argument(
+        '--params',
+        type=parse_options,
+        help='Key value pairs to overwrite config parameters. Uses format `<key>:<value>,<key>:<value>,...`'
+    )
+    
+    # Additional tag(s) argument
+    argparser.add_argument(
+        '-t',
+        '--tags',
+        type=lambda s: s.split( ',' ),
+        help='Comma seperated list of tags to add to the WandB run.'
+    )
+
+    # Parse the command line args
+    arguments = argparser.parse_args()
+
+    # Parse the YAML file(s)
+    config = parse_yaml_config( arguments.config )
+
+    # If params are passed, update config
+    if arguments.params is not None:
+        config.update( arguments.params )
+    
+    return arguments, config
 
 
 def parse_yaml_config( files: list[str] ) -> dict:

@@ -2,14 +2,12 @@
 
 from collections.abc import Sequence
 import os
-import argparse
 import typing
 import math
 
 import shortuuid
 import rich
 import wandb
-from wcmatch import glob
 
 import torch
 
@@ -395,50 +393,7 @@ def run():
         ValueError: Thrown when an invalid finetuning mode is passed
     """
 
-    argparser = argparse.ArgumentParser()
-
-    # YAML config file(s) argument
-    argparser.add_argument(
-        '-c',
-        '--config',
-        type=lambda x: glob.glob( x, flags=glob.BRACE ),
-        required=True,
-        help='List of YAML files to use for configuration. Supports globbing. File order overwrite parameters.'
-    )
-
-    # WandB mode argument
-    argparser.add_argument(
-        '-w',
-        '--wmode',
-        default='disabled',
-        choices=[ 'online', 'offline', 'disabled' ],
-        help='Chooses the mode WandB will run in. `disabled` also disabled local logging.'
-    )
-
-    # Additional parameter(s) argument
-    argparser.add_argument(
-        '--params',
-        type=train_utils.parse_options,
-        help='Key value pairs to overwrite config parameters. Uses format `<key>:<value>,<key>:<value>,...`'
-    )
-    
-    # Additional tag(s) argument
-    argparser.add_argument(
-        '-t',
-        '--tags',
-        type=lambda s: s.split( ',' ),
-        help='Comma seperated list of tags to add to the WandB run.'
-    )
-
-    # Parse the command line args
-    arguments = argparser.parse_args()
-
-    # Parse the YAML file(s)
-    config = train_utils.parse_yaml_config( arguments.config )
-
-    # If params are passed, update config
-    if arguments.params is not None:
-        config.update( arguments.params )
+    arguments, config = train_utils.parse_cmd_args()
 
     # Add a UUID to run name
     config[ 'meta.run_name' ] += f'_{shortuuid.uuid()[:4]}'
