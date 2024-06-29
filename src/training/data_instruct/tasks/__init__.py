@@ -3,6 +3,7 @@ from collections.abc import Callable, Mapping
 from . import (
     alpaca,
     arc,
+    baai,
     cnn_dailymail,
     coqa,
     drop,
@@ -53,6 +54,7 @@ DIRECTORY_SUMMARY: dict[str, Mapping[str, Callable[[str], BaseInstructDataset]]]
 
 DIRECTORY_GENERATIVE: dict[str, Mapping[str, Callable[[str], BaseInstructDataset]]] = {
     'alpaca': alpaca.DIRECTORY,
+    'baai': baai.DIRECTORY,
     'gsm8k': gsm8k.DIRECTORY,
     'orca': orca.DIRECTORY,
     'tiny': tiny.DIRECTORY,
