@@ -1,5 +1,5 @@
 finetune:
-  sft_mix_name: sft_mix
+  sft_mix_name: sft_mix_instruct
   sft_mix:
     - [ drop/main, 1, false ]
     - [ gsm8k/main, 1, false ]
