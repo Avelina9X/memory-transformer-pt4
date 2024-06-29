@@ -170,8 +170,8 @@ class SlimOrcaInstructDataset( BaseInstructDataset ):
         for sub_doc in doc[ 'conversations' ]:
             message_list.append(
 				Message(
-					role=role_map[ sub_doc[ 'role' ] ],
-					content=sub_doc[ 'content' ],
+					role=role_map[ sub_doc[ 'from' ] ],
+					content=sub_doc[ 'value' ],
 					complete=True,
 				)
 			)
