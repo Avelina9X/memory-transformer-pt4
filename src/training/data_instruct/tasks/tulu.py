@@ -56,7 +56,7 @@ class TuluInstructDataset( BaseInstructDataset ):
         raise NotImplementedError( 'This does not use the message factory' )
 
     def create_target_message_list( self, doc: dict ) -> list[MessageList]:
-        message_list = [ self.format_system_message( doc ) ]
+        message_list = [] if doc[ 'messages' ][0][ 'role' ] == 'system' else [ self.format_system_message( doc ) ]
 
         for sub_doc in doc[ 'messages' ]:
             message_list.append(
