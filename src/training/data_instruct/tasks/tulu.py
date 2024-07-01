@@ -7,6 +7,7 @@ class TuluInstructDataset( BaseInstructDataset ):
     def download( self, cache_dir: str ) -> DatasetDict:
         dataset = load_dataset( 'allenai/tulu-v2-sft-mixture', cache_dir=cache_dir )
         assert isinstance( dataset, DatasetDict )
+        dataset = dataset.filter( lambda x: x[ 'dataset' ] != 'hard_coded' )
         return dataset
 
     @property
