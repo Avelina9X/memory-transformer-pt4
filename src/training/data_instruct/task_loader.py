@@ -73,9 +73,12 @@ class TaskLoader( IterableDataset ):
         self.mask_type = mask_type
         self.max_tokens = max_tokens
         self.shard_mode = shard_mode
+        
 
         dataset = self.task.get_training_docs()
         assert dataset is not None
+        
+        self.num_samples = len( dataset )
 
         if shuffle_seed is True:
             dataset = dataset.shuffle( None )
@@ -236,9 +239,11 @@ class MixedTaskLoader( IterableDataset ):
         shuffle_seed: int | bool,
         mask_type: str,
         max_tokens: int | None = None,
+        task_elbow: int | None = None,
     ):
         self.batch_size = batch_size
         self.seq_length = seq_length
+        self.task_elbow = task_elbow
 
         self.tasks = [
             TaskLoader(
@@ -262,8 +267,14 @@ class MixedTaskLoader( IterableDataset ):
             for task in self.tasks
         ]
 
-        while True:
-            yield next( random.choice( generators ) )
+        if self.task_elbow is None:
+            while True:
+                yield next( random.choice( generators ) )
+        else:
+            probs = [ min( task.num_samples, self.task_elbow ) for task in self.tasks ]
+            
+            while True:
+                yield next( random.choices( generators, probs )[0] )
 
     def token_generator( self, shard_idx: int ) -> Generator[tuple[int, int], None, None]:
         for messages in self.message_tokens_generator( shard_idx ):
@@ -317,6 +328,7 @@ class ParallelMixedTaskLoader( IterableDataset ):
         mask_type: str,
         max_tokens: int | None = None,
         micro_batch_size: int = 1,
+        task_elbow: int | None = None
     ):
         assert batch_size % micro_batch_size == 0
         
@@ -329,6 +341,7 @@ class ParallelMixedTaskLoader( IterableDataset ):
                 shuffle_seed=True,
                 mask_type=mask_type,
                 max_tokens=max_tokens,
+                task_elbow=task_elbow,
             ) for _ in range( batch_size // micro_batch_size )
         ]
 

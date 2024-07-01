@@ -14,7 +14,6 @@ finetune:
     - [ mmlu/all, 1, false ]
     - [ race/all, 1, false ]
     - [ squad/v2, 1, false ]
-    - [ hellaswag/choice, 1, false ]
 
     - [ hellaswag/no_choice, 1, false ]
     - [ obqa/main, 1, false ]

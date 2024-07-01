@@ -224,6 +224,7 @@ def instruct_tune(
         batch_size=train_config.batch_size // world_size,
         mask_type=mask_type,
         micro_batch_size=train_config.batch_size // world_size,
+        task_elbow=config.get( 'finetune.sft_mix_elbow', None ),
     )
 
     # Instantiate trainer for finetuning
