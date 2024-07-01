@@ -61,24 +61,51 @@ class InfinityInstructDataset( BaseInstructDataset ):
         return None
     
     def create_target_message_list( self, doc: dict ) -> list[MessageList]:
-        message_list = [ self.format_system_message( doc ) ]
-
         role_map = {
             'system': 'system',
             'human': 'user',
             'gpt': 'assistant'
         }
         
-        for sub_doc in doc[ 'conversations' ]:
-            message_list.append(
-				Message(
-					role=role_map[ sub_doc[ 'from' ] ],
-					content=sub_doc[ 'value' ],
-					complete=True,
-				)
-			)
+        first = doc[ 'conversations' ][0]
+        
+        # If first message is from a human add our own system message
+        if first[ 'from' ] == 'human':
+            message_list = [ self.format_system_message( doc ) ]
 
-        return [ message_list ]
+            for sub_doc in doc[ 'conversations' ]:
+                message_list.append(
+                    Message(
+                        role=role_map[ sub_doc[ 'from' ] ],
+                        content=sub_doc[ 'value' ],
+                        complete=True,
+                    )
+                )
+
+            return [ message_list ]
+        
+        # If first message is from GPT turn it into a system message
+        elif first[ 'from' ] == 'gpt':
+            message_list = [
+                Message(
+                    role='system',
+                    content=first[ 'value' ],
+                    complete=True,
+                )
+            ]
+            
+            for sub_doc in doc[ 'conversations' ][ 1 : ]:
+                message_list.append(
+                    Message(
+                        role=role_map[ sub_doc[ 'from' ] ],
+                        content=sub_doc[ 'value' ],
+                        complete=True,
+                    )
+                )
+            
+            return [ message_list ]
+        
+        raise ValueError( 'How did we get here?' )
 
     def compute_metric( self, predictions=None, references=None ) -> dict:
         # TODO: add warning for using compute
