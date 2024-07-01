@@ -1,5 +1,5 @@
 finetune:
-  sft_mix_name: sft_mix_instruct_slim
+  sft_mix_name: sft-mix-instruct-slim
   sft_mix:
     - [ tulu/v2, 1, true ]
     - [ orca/SlimOrca, 1, true ]
