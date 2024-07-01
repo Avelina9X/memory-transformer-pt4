@@ -1,5 +1,6 @@
 finetune:
   sft_mix_name: sft-mix-filtered
+  sft_mix_elbow: 200000
   sft_mix:
     - [ glue/cola, 1, false ]
     - [ glue/mnli, 1, false ]
