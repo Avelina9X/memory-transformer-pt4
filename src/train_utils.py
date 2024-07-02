@@ -14,7 +14,7 @@ import numpy as np
 import torch
 import torch.distributed as dist
 
-from transformers import PreTrainedTokenizerBase
+from transformers import PreTrainedTokenizerBase, GenerationConfig
 
 from model.configuration import LSWTConfigTraining, LSWTConfig, LSWTConfigTrainingDPH
 from model.modeling import LSWTForCausalLM
@@ -428,3 +428,27 @@ def create_train_tasks( sft_mix: list[tuple[str, int, bool]] ) -> TaskList:
         ( DIRECTORY_ALL[task[0]][task[1]]( HF_CACHE_DIR ), fewshot_n, fewshot_allsys )
         for task, fewshot_n, fewshot_allsys in sft_list
     ]
+    
+def create_generation_config( tokenizer: PreTrainedTokenizerBase ) -> GenerationConfig:
+    """ Creates the default geneartion config with Typical sampling for LSWT.
+
+    Args:
+        tokenizer (PreTrainedTokenizerBase): The tokenizer in use so we can extract the CLS and EOS tokens.
+
+    Returns:
+        GenerationConfig: The generation config.
+    """
+    
+    config = GenerationConfig(
+        pad_token_id=tokenizer.pad_token_id,
+        eos_token_id=[
+            tokenizer.cls_token_id,
+            tokenizer.eos_token_id,
+        ],
+        
+        do_sample=True,
+        typical_p=0.95,
+    )
+    
+    return config
+
