@@ -477,14 +477,15 @@ def perform_prompt_validation( ds, tokenizer: PreTrainedTokenizerBase, model ): 
             prompt = doc[ 'prompt' ]
             tokens = doc[ 'tokens' ]
             
-            response = tokenizer.decode(
-                model.generate(
-                    inputs=torch.LongTensor( [ tokens ] ).cuda(),
-                    use_cache=True,
-                    max_new_tokens=256,
-                )[0, len( tokens ) : ].cpu(),
-                skip_special_tokens=True
-            )
+            with torch.autocast( device_type='cuda', dtype=torch.float16 ): # type: ignore
+                response = tokenizer.decode(
+                    model.generate(
+                        inputs=torch.LongTensor( [ tokens ] ).cuda(),
+                        use_cache=True,
+                        max_new_tokens=256,
+                    )[0, len( tokens ) : ].cpu(),
+                    skip_special_tokens=True
+                )
             
             data.append( [ title, prompt, response ] )
     
