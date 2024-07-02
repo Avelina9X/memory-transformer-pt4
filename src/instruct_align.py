@@ -240,6 +240,9 @@ def instruct_align(
     # Load tokenizer and add new segment tokens
     tokenizer = AutoTokenizer.from_pretrained( model_config.parent_embeddings, use_fast=True, cache_dir=HF_CACHE_DIR )
     train_utils.add_special_tokens( tokenizer )
+    
+    # Set generation config
+    dph_model.generation_config = train_utils.create_generation_config( tokenizer )
 
     # Create task mixes
     train_tasks = train_utils.create_align_tasks( config[ 'finetune.dph_mix' ] )

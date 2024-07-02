@@ -195,6 +195,9 @@ def instruct_tune(
     # Load tokenizer and add new segment tokens
     tokenizer = AutoTokenizer.from_pretrained( model_config.parent_embeddings, use_fast=True, cache_dir=HF_CACHE_DIR )
     train_utils.add_special_tokens( tokenizer )
+    
+    # Set generation config
+    model.generation_config = train_utils.create_generation_config( tokenizer )
 
     # Create task mixes
     train_tasks = train_utils.create_train_tasks( config[ 'finetune.sft_mix' ] )
