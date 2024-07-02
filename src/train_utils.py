@@ -19,6 +19,7 @@ from transformers import PreTrainedTokenizerBase, GenerationConfig
 from model.configuration import LSWTConfigTraining, LSWTConfig, LSWTConfigTrainingDPH
 from model.modeling import LSWTForCausalLM
 from training.trainer import Trainer
+from training.data import load_awesome_prompts
 from training.data_instruct.tasks import DIRECTORY_ALL
 from training.data_instruct.task_base import BaseInstructDataset
 from training.data_instruct.task_loader import TaskList
@@ -452,3 +453,41 @@ def create_generation_config( tokenizer: PreTrainedTokenizerBase ) -> Generation
     
     return config
 
+def create_validation_prompts( tokenizer: PreTrainedTokenizerBase ): # TODO: refactor?
+    def tokenize_msg( doc: dict ):
+        return {
+            'tokens': tokenizer.apply_chat_template(
+                conversation=[ { 'role': 'user', 'content': doc[ 'prompt' ] } ],
+                add_generation_prompt=True,
+                tokenize=True,
+            )
+        }
+        
+    return load_awesome_prompts( HF_CACHE_DIR ).map( tokenize_msg )
+
+def perform_prompt_validation( ds, tokenizer: PreTrainedTokenizerBase, model ): # TODO: refactor?
+    with torch.inference_mode():
+        model.eval()
+        
+        columns = [ 'Title', 'Prompt', 'Completion' ]
+        data = []
+        
+        for doc in ds:
+            title = doc[ 'act' ]
+            prompt = doc[ 'prompt' ]
+            tokens = doc[ 'tokens' ]
+            
+            response = tokenizer.decode(
+                model.generate(
+                    inputs=torch.LongTensor( [ tokens ] ).cuda(),
+                    use_cache=True,
+                    max_new_tokens=256,
+                )[0, len( tokens ) : ].cpu(),
+                skip_special_tokens=True
+            )
+            
+            data.append( [ title, prompt, response ] )
+    
+    torch.cuda.empty_cache()
+    
+    return wandb.Table( columns=columns, data=data )

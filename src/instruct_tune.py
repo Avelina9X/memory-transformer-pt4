@@ -204,6 +204,7 @@ def instruct_tune(
     
     if rank == 0:
         validation_zeroshot_tasks = create_validation_zeroshot_tasks()
+        validation_prompts = train_utils.create_validation_prompts( tokenizer )
 
     # Instantiate instruct helpers
     train_formatter = InstructionFormatter( tokenizer, 0 )
@@ -318,8 +319,15 @@ def instruct_tune(
 
             train_log = train_utils.compute_metric_dict( train_metrics, 'train' )
             stats_log = train_utils.compute_stats_dict( trainer, i )
+            
+            validation_prompt_table = train_utils.perform_prompt_validation(
+                validation_prompts,
+                tokenizer,
+                model,
+            )
 
             wandb.log( {
+                'validation_generations': validation_prompt_table,
                 **train_log,
                 **stats_log,
                 **validation_dict,
