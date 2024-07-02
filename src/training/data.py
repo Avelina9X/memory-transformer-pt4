@@ -528,3 +528,10 @@ def load_gov_reports( cache_dir, split ):
         split=split,
         cache_dir=cache_dir
     )
+
+def load_awesome_prompts( cache_dir ):
+    return load_dataset(
+        'fka/awesome-chatgpt-prompts',
+        split='train',
+        cache_dir=cache_dir,
+    )
