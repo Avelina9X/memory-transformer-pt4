@@ -15,7 +15,7 @@ class InfinityInstructDataset( BaseInstructDataset ):
 
     @property
     def task_name( self ) -> str:
-        return 'baii'
+        return 'baai'
 
     @property
     def task_subset( self ) -> str:
