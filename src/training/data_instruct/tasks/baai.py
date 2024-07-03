@@ -2,11 +2,13 @@ from collections.abc import Callable, Mapping
 from datasets import DatasetDict, Dataset, load_dataset
 
 from ..task_base import BaseInstructDataset, InstructionDatasetTask, Message, MessageList
+from ..task_utils import phrase_filter
 
 class InfinityInstructDataset( BaseInstructDataset ):
     def download( self, cache_dir: str ) -> DatasetDict:
         dataset = load_dataset( 'BAAI/Infinity-Instruct', cache_dir=cache_dir )
         assert isinstance( dataset, DatasetDict )
+        dataset = dataset.filter( lambda x: phrase_filter( x, 'value', 'conversations' ) )
         return dataset
 
     @property

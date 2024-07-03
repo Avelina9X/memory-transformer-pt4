@@ -2,12 +2,14 @@ from collections.abc import Callable, Mapping
 from datasets import DatasetDict, Dataset, load_dataset
 
 from ..task_base import BaseInstructDataset, InstructionDatasetTask, Message, MessageList
+from ..task_utils import phrase_filter
 
 class TuluInstructDataset( BaseInstructDataset ):
     def download( self, cache_dir: str ) -> DatasetDict:
         dataset = load_dataset( 'allenai/tulu-v2-sft-mixture', cache_dir=cache_dir )
         assert isinstance( dataset, DatasetDict )
         dataset = dataset.filter( lambda x: x[ 'dataset' ] != 'hard_coded' )
+        dataset = dataset.filter( lambda x: phrase_filter( x, 'content', 'messages' ) )
         return dataset
 
     @property
