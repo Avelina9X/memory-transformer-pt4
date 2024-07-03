@@ -5,8 +5,16 @@ from datasets import DatasetDict, Dataset, load_dataset
 from ..task_base import BaseInstructDataset, InstructionDatasetTask, Message
 
 class UltrafeedbackInstructDataset( BaseInstructDataset ):
-    def download( self, cache_dir: str ) -> DatasetDict:
-        dataset = load_dataset( 'argilla/ultrafeedback-binarized-preferences-cleaned', cache_dir=cache_dir )
+    def __init__( self, cache_dir: str, version: str ):
+        self.version = version
+        super().__init__( cache_dir )
+        
+    def download( self, cache_dir: str ) -> DatasetDict:        
+        if self.version == 'binarized':
+            dataset = load_dataset( 'argilla/ultrafeedback-binarized-preferences-cleaned', cache_dir=cache_dir )
+        elif self.version == 'multi-binarized':
+            dataset = load_dataset( 'argilla/ultrafeedback-multi-binarized-preferences-cleaned', cache_dir=cache_dir )
+        
         assert isinstance( dataset, DatasetDict )
         return dataset.filter( lambda x: json.dumps( x[ 'rejected' ], sort_keys=True ) != json.dumps( x[ 'chosen' ], sort_keys=True ) )
 
@@ -20,7 +28,7 @@ class UltrafeedbackInstructDataset( BaseInstructDataset ):
 
     @property
     def task_subset( self ) -> str:
-        return 'binarized'
+        return self.version
 
     def get_training_docs( self ) -> Dataset:
         return self.dataset[ 'train' ]
@@ -79,7 +87,8 @@ class UltrafeedbackInstructDataset( BaseInstructDataset ):
 
 
 DIRECTORY: Mapping[str, Callable[[str], BaseInstructDataset]] = {
-    'binarized': UltrafeedbackInstructDataset,
+    'binarized': lambda cache_dir: UltrafeedbackInstructDataset( cache_dir=cache_dir, version='binarized' ),
+    'multi-binarized': lambda cache_dir: UltrafeedbackInstructDataset( cache_dir=cache_dir, version='multi-binarized' ),
 }
 
 def main():
@@ -90,4 +99,5 @@ def main():
 
     cache_dir = os.environ[ 'HF_CACHE_DIR' ]
 
-    rich.print( UltrafeedbackInstructDataset( cache_dir ) )
+    rich.print( UltrafeedbackInstructDataset( cache_dir, 'binarized' ) )
+    rich.print( UltrafeedbackInstructDataset( cache_dir, 'multi-binarized' ) )
