@@ -265,6 +265,7 @@ def instruct_align(
         seq_length=train_config.length_sequence,
         batch_size=train_config.batch_size,
         mask_type=mask_type,
+        task_elbow=config.get( 'finetune.dph_mix_elbow', None )
     )
 
     # Instantiate trainer for alignment

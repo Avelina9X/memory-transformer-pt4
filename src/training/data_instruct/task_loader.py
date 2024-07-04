@@ -380,6 +380,7 @@ class DPHMultiTaskLoader( IterableDataset ):
         seq_length: int,
         batch_size: int,
         mask_type: str,
+        task_elbow: int | None = None,
     ):
         self.task_list = [ ( task, task.get_training_docs().shuffle() ) for task in task_list ] # type: ignore
 
@@ -387,6 +388,8 @@ class DPHMultiTaskLoader( IterableDataset ):
         self.seq_length = seq_length
         self.batch_size = batch_size
         self.mask_type = mask_type
+        
+        self.task_elbow = task_elbow
 
         if mask_type not in [ 'all', 'train', 'test' ]:
             raise ValueError( 'mask_type must be `all`, `train` or `test`' )
@@ -447,9 +450,10 @@ class DPHMultiTaskLoader( IterableDataset ):
 
     def example_generator( self ):
         iterators = [ ( task, iter( generate_forever( ds ) ) ) for task, ds in self.task_list ]
+        probs = [ min( len( ds ), self.task_elbow or 1 ) for _, ds in self.task_list ]
 
         while True:
-            task, ds = random.choice( iterators )
+            task, ds = random.choices( iterators, probs )[0]
             doc = next( ds )
 
             try:
