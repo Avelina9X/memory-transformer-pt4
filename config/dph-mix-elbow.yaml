@@ -1,5 +1,6 @@
 finetune:
-  dph_mix_name: dph_mix_large
+  dph_mix_name: dph-mix-elbow
+  dph_mix_elbow: 160000
   dph_mix:
       - glue/cola
       - glue/mnli
@@ -25,6 +26,10 @@ finetune:
       - super_glue/boolq
       - piqa/no_choice
 
-      - ultrafeedback/binarized
+      - ultrafeedback/multi-binarized
       - orca/orca_dpo_pairs
       - hh/rlhf
+      - OpenHermes/Preferences
+
+      - glue/wnli
+      - super_glue/copa
