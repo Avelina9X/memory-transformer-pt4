@@ -42,7 +42,7 @@ class TaskLoader( IterableDataset ):
             sub_batch_size (int): Number of sequences per batch
             shuffle_seed (int | bool): Dataset pre-shuffling seed, or True for random seed, or False for no shuffle.
             mask_type (str): Must be 'all', 'train' or 'test'
-            max_tokens (int | None): Max number of tokens in a message before dropping. Defaults to None.
+            max_tokens (int | None): Max number of tokens in a conversation before dropping. Defaults to None.
             shard_mode (str): 'split' uses exclusive sharding, 'shuffle' shards by shuffling. Defaults to 'shuffle'.
 
         Raises:
@@ -241,6 +241,22 @@ class MixedTaskLoader( IterableDataset ):
         max_tokens: int | None = None,
         task_elbow: int | None = None,
     ):
+        """ Creates a task loader for multiple tasks.
+        
+        The tasks are unweighted if `task_elbow` is None. Otherwise weights the probability of task
+        being selected for training by the number of samples, clamped to the value of `task_elbow`.
+
+        Args:
+            task_list (TaskList): Task List of SFT tasks.
+            formatter (InstructionFormatter): Formatter to use.
+            seq_length (int): Max tokens per sequence in batch.
+            batch_size (int): Number of sequences per batch.
+            shuffle_seed (int | bool): Dataset pre-shuffling seed, or True for random seed, or False for no shuffle.
+            mask_type (str): Must be 'all', 'train' or 'test'.
+            max_tokens (int | None, optional): Max number of tokens in a conversation before dropping. Defaults to None.
+            task_elbow (int | None, optional): Number of samples in a task to clip and weight by. Defaults to None.
+        """
+        
         self.batch_size = batch_size
         self.seq_length = seq_length
         self.task_elbow = task_elbow
@@ -330,6 +346,25 @@ class ParallelMixedTaskLoader( IterableDataset ):
         micro_batch_size: int = 1,
         task_elbow: int | None = None
     ):
+        """ Creates a task loader for multiple tasks with optional worker sharding.
+        
+        The tasks are unweighted if `task_elbow` is None. Otherwise weights the probability of task
+        being selected for training by the number of samples, clamped to the value of `task_elbow`.
+        
+        When `micro_batch_size` is 1 will spawn `batch_size` number of workers.
+        When `micro_batch_size == batch_size` only 1 worker will be spawned.
+
+        Args:
+            task_list (TaskList): Task List of SFT tasks.
+            formatter (InstructionFormatter): Formatter to use.
+            seq_length (int): Max tokens per sequence in batch.
+            batch_size (int): Number of sequences per batch.
+            mask_type (str): Must be 'all', 'train' or 'test'.
+            max_tokens (int | None, optional): Max number of tokens in a conversation before dropping. Defaults to None.
+            micro_batch_size (int, optional): Spawns `batch_size/micro_batch_size` workers. Defaults to 1.
+            task_elbow (int | None, optional): Number of samples in a task to clip and weight by. Defaults to None.
+        """
+        
         assert batch_size % micro_batch_size == 0
         
         self.mixed_tasks = [
@@ -382,6 +417,25 @@ class DPHMultiTaskLoader( IterableDataset ):
         mask_type: str,
         task_elbow: int | None = None,
     ):
+        """ Creates a task loader for multiple DPH tasks.
+        
+        The tasks are unweighted if `task_elbow` is None. Otherwise weights the probability of task
+        being selected for training by the number of samples, clamped to the value of `task_elbow`.
+        
+        Note: all tasks must provide both target and distractor messages to be used for DPH training.
+
+        Args:
+            task_list (list[BaseInstructDataset]): List of Tasks.
+            formatter (InstructionFormatter): Formatter to use.
+            seq_length (int): Max tokens per sequence in batch.
+            batch_size (int): Number of pairs per batch.
+            mask_type (str): Must be 'all', 'train' or 'test'.
+            task_elbow (int | None, optional): Number of samples in a task to clip and weight by. Defaults to None.
+
+        Raises:
+            ValueError: raised when `mask_type` isn't one of `all`, `train` or `test`.
+        """
+        
         self.task_list = [ ( task, task.get_training_docs().shuffle() ) for task in task_list ] # type: ignore
 
         self.formatter = formatter
