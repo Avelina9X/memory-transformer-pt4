@@ -296,6 +296,7 @@ def instruct_tune(
             # Create empty validation metrics list
             validation_lines = []
             validation_dict = {}
+            validation_prompt_dict = {}
             
             validate_freq = config.get( 'meta.validate_freq', 1 )
             should_validate = config[ 'meta.validate' ] and ( i % validate_freq == validate_freq - 1 )
@@ -314,20 +315,22 @@ def instruct_tune(
                     **aggregate_race_score( validation_dict ),
                 } )
 
+                validation_prompt_table = train_utils.perform_prompt_validation(
+                    validation_prompts,
+                    tokenizer,
+                    model,
+                )
+                
+                validation_prompt_dict[ 'validation_generations' ] = validation_prompt_table
+
             if wandb_mode != 'disabled':
                 train_utils.log_stats( output_dir, train_metrics, validation_lines, trainer.optimizer_step )
 
             train_log = train_utils.compute_metric_dict( train_metrics, 'train' )
             stats_log = train_utils.compute_stats_dict( trainer, i )
             
-            validation_prompt_table = train_utils.perform_prompt_validation(
-                validation_prompts,
-                tokenizer,
-                model,
-            )
-
             wandb.log( {
-                'validation_generations': validation_prompt_table,
+                **validation_prompt_dict,
                 **train_log,
                 **stats_log,
                 **validation_dict,
