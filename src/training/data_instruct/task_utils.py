@@ -4,7 +4,7 @@ UNCENSOR_LIST = [
     'as an ai,',
     'as an ai ',
     'as a language model',
-    'as a text-based AI assistant',
+    'text-based AI assistant',
 ]
 
 def phrase_filter( x: dict, content_key: str = 'content', messages_key: str = 'messages' ) -> bool:
