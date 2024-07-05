@@ -14,8 +14,9 @@ finetune:
     mmlu/all: 1.0
     race/all: 1.0
     squad/v2: 1.0
-    hellaswag/no_choice: 1.0
+    hellaswag/choice: 0.5
 
+    hellaswag/no_choice: 1.0
     obqa/main: 1.0
     winogrande/no_choice: 1.0
     arc/challenge: 1.0
@@ -33,6 +34,10 @@ finetune:
     orca/SlimOrca: 1.0
     ultrachat/200k: 1.0
     baai/Infinity-Instruct: 1.0
-    
+
     cnn_dailymail/3.0.0: 1.0
-    tiny/instruct: 1.0
+    tiny/instruct: 0.25
+    tiny/summary: 0.25
+
+    super_glue/copa: 1.0
+    glue/wnli: 1.0
