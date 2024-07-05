@@ -231,6 +231,7 @@ def compute_stats_dict( trainer: Trainer, i: int ) -> dict[str, float | int]:
         'stats/n_samples': trainer.optimizer_step * trainer.train_config.batch_size,
         'stats/n_epochs': i + 1,
         'stats/learning_rate': trainer.get_schedule() * trainer.train_config.lr_max,
+        'stats/true_samples': trainer.get_sequence_count(),
     }
 
 def parse_cmd_args() -> tuple[argparse.Namespace, dict]:

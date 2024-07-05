@@ -78,6 +78,8 @@ class Trainer(): # pylint: disable=R0902
             'loss': metrics.Mean().to( 'cuda' ),
             'acc': metrics.Mean().to( 'cuda' ),
         }
+        
+        self.sequence_counter = metrics.Sum().to( 'cuda' )
 
         self.optimizer_step = 0
 
@@ -197,6 +199,9 @@ class Trainer(): # pylint: disable=R0902
         cooldown_ratio = cooldown_ratio * ( 1.0 - self.train_config.lr_cooldown_ratio ) + self.train_config.lr_cooldown_ratio
 
         return min( warmup_ratio, cooldown_ratio )
+    
+    def get_sequence_count( self ) -> int:
+        return int( self.sequence_counter.compute() )
 
     def get_total_epochs( self ) -> int:
         """ Compute the total number of epochs based on the number of total tokens.
@@ -278,6 +283,8 @@ class Trainer(): # pylint: disable=R0902
         self.model.train()
 
         tokens_xs, tokens_ys = batch
+        
+        self.sequence_counter.update( ( tokens_xs == self.tokenizer.bos_token_id ).sum() )
 
         tokens_xs = torch.split( tokens_xs.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
         tokens_ys = torch.split( tokens_ys.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
@@ -418,6 +425,9 @@ class TrainerDDP( Trainer ):
             dist.barrier()
             metric.reset()
         return stats
+    
+    def get_sequence_count( self ) -> int:
+        return int( sync_and_compute( self.sequence_counter ) )
 
 
     """ ========================================================================
@@ -428,6 +438,8 @@ class TrainerDDP( Trainer ):
         self.model.train()
 
         tokens_xs, tokens_ys = batch
+        
+        self.sequence_counter.update( ( tokens_xs == self.tokenizer.bos_token_id ).sum() )
 
         tokens_xs = torch.split( tokens_xs.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
         tokens_ys = torch.split( tokens_ys.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
