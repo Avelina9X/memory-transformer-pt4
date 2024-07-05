@@ -245,7 +245,7 @@ def instruct_align(
     dph_model.generation_config = train_utils.create_generation_config( tokenizer )
 
     # Create task mixes
-    train_tasks = train_utils.create_align_tasks( config[ 'finetune.dph_mix' ] )
+    train_tasks = train_utils.create_train_tasks( config[ 'finetune.dph_mix' ] )
     validation_zeroshot_tasks = create_validation_zeroshot_tasks()
 
     # Instantiate instruct helpers

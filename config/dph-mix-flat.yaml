@@ -1,31 +1,31 @@
 finetune:
   dph_mix_name: dph-mix-flat
   dph_mix:
-      - glue/cola
-      - glue/mnli
-      - glue/mrpc
-      - glue/qnli
-      - glue/qqp
-      - glue/rte
-      - glue/sst2
-      - glue/stsb
+      glue/cola: 1.0
+      glue/mnli: 1.0
+      glue/mrpc: 1.0
+      glue/qnli: 1.0
+      glue/qqp: 1.0
+      glue/rte: 1.0
+      glue/sst2: 1.0
+      glue/stsb: 1.0
 
-      - mmlu/all
-      - race/middle
-      - race/high
-      - hellaswag/choice
-      - squad/v2
-      - sciq/no_choice
+      mmlu/all: 1.0
+      race/middle: 1.0
+      race/high: 1.0
+      hellaswag/choice: 1.0
+      squad/v2: 1.0
+      sciq/no_choice: 1.0
 
-      - hellaswag/no_choice
-      - obqa/main
-      - winogrande/no_choice
-      - arc/challenge
-      - arc/easy
-      - super_glue/boolq
-      - piqa/no_choice
-
-      - ultrafeedback/multi-binarized
-      - orca/orca_dpo_pairs
-      - hh/rlhf
-      - OpenHermes/Preferences
+      hellaswag/no_choice: 1.0
+      obqa/main: 1.0
+      winogrande/no_choice: 1.0
+      arc/challenge: 1.0
+      arc/easy: 1.0
+      super_glue/boolq: 1.0
+      piqa/no_choice: 1.0
+      
+      ultrafeedback/multi-binarized: 1.0
+      orca/orca_dpo_pairs: 1.0
+      hh/rlhf: 1.0
+      OpenHermes/Preferences: 1.0

@@ -1,7 +1,7 @@
 finetune:
   sft_mix_name: sft-mix-instruct-slim
   sft_mix:
-    - [ tulu/v2, 1, true ]
-    - [ orca/SlimOrca, 1, true ]
-    - [ ultrachat/200k, 1, true ]
-    - [ baai/Infinity-Instruct, 1, true ]
+    tulu/v2: 1.0
+    orca/SlimOrca: 1.0
+    ultrachat/200k: 1.0
+    baai/Infinity-Instruct: 1.0

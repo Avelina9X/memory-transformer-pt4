@@ -2,37 +2,37 @@ finetune:
   sft_mix_name: sft-mix-filtered
   sft_mix_elbow: 200000
   sft_mix:
-    - [ glue/cola, 1, false ]
-    - [ glue/mnli, 1, false ]
-    - [ glue/mrpc, 1, false ]
-    - [ glue/qnli, 1, false ]
-    - [ glue/qqp, 1, false ]
-    - [ glue/rte, 1, false ]
-    - [ glue/sst2, 1, false ]
-    - [ glue/stsb, 1, false ]
+    glue/cola: 1.0
+    glue/mnli: 1.0
+    glue/mrpc: 1.0
+    glue/qnli: 1.0
+    glue/qqp: 1.0
+    glue/rte: 1.0
+    glue/sst2: 1.0
+    glue/stsb: 1.0
 
-    - [ mmlu/all, 1, false ]
-    - [ race/all, 1, false ]
-    - [ squad/v2, 1, false ]
+    mmlu/all: 1.0
+    race/all: 1.0
+    squad/v2: 1.0
+    hellaswag/no_choice: 1.0
 
-    - [ hellaswag/no_choice, 1, false ]
-    - [ obqa/main, 1, false ]
-    - [ winogrande/no_choice, 1, false ]
-    - [ arc/challenge, 1, false ]
-    - [ arc/easy, 1, false ]
-    - [ super_glue/boolq, 1, false ]
-    - [ piqa/no_choice, 1, false ]
+    obqa/main: 1.0
+    winogrande/no_choice: 1.0
+    arc/challenge: 1.0
+    arc/easy: 1.0
+    super_glue/boolq: 1.0
+    piqa/no_choice: 1.0
+    sciq/no_choice: 1.0
 
-    - [ sciq/no_choice, 1, false ]
-    - [ drop/main, 1, false ]
-    - [ gsm8k/main, 1, false ]
+    drop/main: 1.0
+    gsm8k/main: 1.0
 
-    - [ alpaca/cleaned, 1, true ]
-    - [ coqa/all, 1, true ]
-    - [ tulu/v2, 1, true ]
-    - [ orca/SlimOrca, 1, true ]
-    - [ ultrachat/200k, 1, true ]
-    - [ baai/Infinity-Instruct, 1, true ]
-
-    - [ cnn_dailymail/3.0.0, 1, false ]
-    - [ tiny/instruct, 1, false ]
+    alpaca/cleaned: 1.0
+    coqa/all: 1.0
+    tulu/v2: 1.0
+    orca/SlimOrca: 1.0
+    ultrachat/200k: 1.0
+    baai/Infinity-Instruct: 1.0
+    
+    cnn_dailymail/3.0.0: 1.0
+    tiny/instruct: 1.0

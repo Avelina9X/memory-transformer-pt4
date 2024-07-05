@@ -22,22 +22,19 @@ class TaskLoader( IterableDataset ):
         self,
         task: BaseInstructDataset,
         formatter: InstructionFormatter,
-        fewshot_count: int,
-        fewshot_allsys: bool,
         seq_length: int,
         sub_batch_size: int,
         shuffle_seed: int | bool,
         mask_type: str,
         max_tokens: int | None = None,
         shard_mode: str = 'shuffle',
+        sample_weight: float = 1.0,
     ):
         """ Creates a task loader for a single task.
 
         Args:
             task (BaseInstructDataset): Task to load
             formatter (InstructionFormatter): Formatter to use
-            fewshot_count (int): Number of examples per sequence
-            fewshot_allsys (bool): If all message groups should contain a system message
             seq_length (int): Max tokens per sequence in batch
             sub_batch_size (int): Number of sequences per batch
             shuffle_seed (int | bool): Dataset pre-shuffling seed, or True for random seed, or False for no shuffle.
@@ -55,9 +52,6 @@ class TaskLoader( IterableDataset ):
         if not task.has_training_docs:
             raise ValueError( f'Task {task.task_name}:{task.task_subset} has no training set.' )
 
-        if fewshot_count < 1:
-            raise ValueError( 'Fewshot count must be at least 1' )
-
         if mask_type not in [ 'all', 'train', 'test' ]:
             raise ValueError( 'mask_type must be `all`, `train` or `test`' )
 
@@ -66,8 +60,6 @@ class TaskLoader( IterableDataset ):
 
         self.task = task
         self.formatter = formatter
-        self.fewshot_count = fewshot_count
-        self.fewshot_allsys = fewshot_allsys
         self.seq_length = seq_length
         self.sub_batch_size = sub_batch_size
         self.mask_type = mask_type
@@ -79,6 +71,7 @@ class TaskLoader( IterableDataset ):
         assert dataset is not None
         
         self.num_samples = len( dataset )
+        self.sample_weight = sample_weight
 
         if shuffle_seed is True:
             dataset = dataset.shuffle( None )
@@ -97,17 +90,14 @@ class TaskLoader( IterableDataset ):
                     for i in range( sub_batch_size )
                 ]
 
-    def message_list_generator( self, shard_idx: int ) -> Generator[list[MessageList], None, None]:
+    def message_list_generator( self, shard_idx: int ) -> Generator[MessageList, None, None]:
         iterator = iter( generate_forever( self._dataset_shards[shard_idx] ) )
         while True:
-            yield [
-                random.choice( self.task.create_target_message_list( next( iterator ) ) )
-                for _ in range( self.fewshot_count )
-            ]
+            yield random.choice( self.task.create_target_message_list( next( iterator ) ) )
 
     def message_tokens_generator( self, shard_idx: int ) -> Generator[tuple[list[int], list[int]], None, None]:
         for message_list in self.message_list_generator( shard_idx ):
-            token_dict = self.formatter.tokenize_chat_training( message_list, self.fewshot_allsys )
+            token_dict = self.formatter.tokenize_chat_training( message_list )
 
             tokens = token_dict[ 'tokens' ]
             targets = token_dict[ 'targets' ]
@@ -168,7 +158,7 @@ class TaskLoader( IterableDataset ):
     def __getitem__( self, index ):
         raise NotImplementedError( "This dataset does not support random access using __getitem__" )
 
-TaskList: TypeAlias = list[tuple[BaseInstructDataset, int, bool]]
+TaskList: TypeAlias = list[tuple[BaseInstructDataset, float]]
 
 class MultiTaskLoader( IterableDataset ):
     def __init__(
@@ -190,15 +180,14 @@ class MultiTaskLoader( IterableDataset ):
             TaskLoader(
                 task=task,
                 formatter=formatter,
-                fewshot_count=fewshot_count,
-                fewshot_allsys=fewshot_allsys,
                 seq_length=seq_length,
                 sub_batch_size=sub_batch_size,
                 shuffle_seed=shuffle_seed,
                 mask_type=mask_type,
                 max_tokens=max_tokens,
+                sample_weight=weight,
             )
-            for task, fewshot_count, fewshot_allsys
+            for task, weight
             in task_list
         ]
 
@@ -265,15 +254,14 @@ class MixedTaskLoader( IterableDataset ):
             TaskLoader(
                 task=task,
                 formatter=formatter,
-                fewshot_count=fewshot_count,
-                fewshot_allsys=fewshot_allsys,
                 seq_length=seq_length,
                 sub_batch_size=batch_size,
                 shuffle_seed=shuffle_seed,
                 mask_type=mask_type,
                 max_tokens=max_tokens,
+                sample_weight=weight,
             )
-            for task, fewshot_count, fewshot_allsys
+            for task, weight
             in task_list
         ]
 
@@ -287,7 +275,7 @@ class MixedTaskLoader( IterableDataset ):
             while True:
                 yield next( random.choice( generators ) )
         else:
-            probs = [ min( task.num_samples, self.task_elbow ) for task in self.tasks ]
+            probs = [ min( task.num_samples, self.task_elbow ) * task.sample_weight for task in self.tasks ]
             
             while True:
                 yield next( random.choices( generators, probs )[0] )
@@ -410,7 +398,7 @@ class ParallelMixedTaskLoader( IterableDataset ):
 class DPHMultiTaskLoader( IterableDataset ):
     def __init__(
         self,
-        task_list: list[BaseInstructDataset],
+        task_list: TaskList,
         formatter: InstructionFormatter,
         seq_length: int,
         batch_size: int,
@@ -425,7 +413,7 @@ class DPHMultiTaskLoader( IterableDataset ):
         Note: all tasks must provide both target and distractor messages to be used for DPH training.
 
         Args:
-            task_list (list[BaseInstructDataset]): List of Tasks.
+            task_list (TaskList): List of Tasks.
             formatter (InstructionFormatter): Formatter to use.
             seq_length (int): Max tokens per sequence in batch.
             batch_size (int): Number of pairs per batch.
@@ -436,7 +424,7 @@ class DPHMultiTaskLoader( IterableDataset ):
             ValueError: raised when `mask_type` isn't one of `all`, `train` or `test`.
         """
         
-        self.task_list = [ ( task, task.get_training_docs().shuffle() ) for task in task_list ] # type: ignore
+        self.task_list = [ ( task, task.get_training_docs().shuffle(), weight ) for task, weight in task_list ] # type: ignore
 
         self.formatter = formatter
         self.seq_length = seq_length
@@ -503,8 +491,8 @@ class DPHMultiTaskLoader( IterableDataset ):
         )
 
     def example_generator( self ):
-        iterators = [ ( task, iter( generate_forever( ds ) ) ) for task, ds in self.task_list ]
-        probs = [ min( len( ds ), self.task_elbow or 1 ) for _, ds in self.task_list ]
+        iterators = [ ( task, iter( generate_forever( ds ) ) ) for task, ds, _ in self.task_list ]
+        probs = [ min( len( ds ), self.task_elbow or 1 ) * weight for _, ds, weight in self.task_list ]
 
         while True:
             task, ds = random.choices( iterators, probs )[0]

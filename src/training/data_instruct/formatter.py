@@ -121,27 +121,20 @@ class InstructionFormatter():
 
     def tokenize_chat_training(
         self,
-        target_list: list[MessageList],
-        fewshow_allsys: bool
+        target_list: MessageList
     ) -> dict:
         """ Tokenizes a message list for zero-shot or few-shot.
 
         All assistant message are enabled in the mask.
 
         Args:
-            target_list (list[MessageList]): List of target messages.
-            fewshow_allsys (bool): When True all messages have a system message. When False only the first system message is included.
+            target_list (MessageList): List of target messages.
 
         Returns:
             dict: dictionary of tokens and masks
         """
-        head = target_list[0]
-        body = list( itertools.chain( *target_list[ 1 : ] ) )
 
-        if not fewshow_allsys:
-            body = self._remove_system_msgs( body )
-
-        outputs = self._apply_chat_template( head + body )
+        outputs = self._apply_chat_template( target_list )
 
         return {
             'tokens': [ self.tokenizer.eos_token_id ] + outputs[ 'tokens' ],
