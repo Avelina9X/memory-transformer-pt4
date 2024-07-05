@@ -149,6 +149,7 @@ def train(
     # Train loop
     for i in range( trainer.get_total_epochs() ):
         train_metrics = trainer.train_epoch( iterator, i + 1 )
+        true_sample_count = trainer.get_sequence_count()
 
         # If on first machine, do validation loop and log metrics
         if rank == 0:
@@ -156,7 +157,7 @@ def train(
 
             train_log = train_utils.compute_metric_dict( train_metrics, 'train' )
             valid_log = train_utils.compute_metric_dict( valid_metrics_wikitext, 'validation/wikitext' )
-            stats_log = train_utils.compute_stats_dict( trainer, i )
+            stats_log = train_utils.compute_stats_dict( trainer, i, true_sample_count )
 
             wandb.log( {
                 **train_log,

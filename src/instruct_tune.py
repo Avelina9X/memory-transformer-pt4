@@ -291,6 +291,7 @@ def instruct_tune(
     for i in range( trainer.get_total_epochs() ):
         # Train for an epoch and get metrics
         train_metrics = trainer.train_epoch( iterator, i + 1 )
+        true_sample_count = trainer.get_sequence_count()
 
         if rank == 0:
             # Create empty validation metrics list
@@ -327,7 +328,7 @@ def instruct_tune(
                 train_utils.log_stats( output_dir, train_metrics, validation_lines, trainer.optimizer_step )
 
             train_log = train_utils.compute_metric_dict( train_metrics, 'train' )
-            stats_log = train_utils.compute_stats_dict( trainer, i )
+            stats_log = train_utils.compute_stats_dict( trainer, i, true_sample_count )
             
             wandb.log( {
                 **validation_prompt_dict,

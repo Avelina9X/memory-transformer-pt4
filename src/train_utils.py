@@ -215,12 +215,13 @@ def compute_validation_metric_dict( inputs: dict[str, float], name: str ) -> dic
     }
 
 
-def compute_stats_dict( trainer: Trainer, i: int ) -> dict[str, float | int]:
+def compute_stats_dict( trainer: Trainer, i: int, true_samples: int ) -> dict[str, float | int]:
     """ Given the trainer and current iteration returns a wandb log dict of stats
 
     Args:
-        trainer (Trainer): Trainer used for training the model
+        trainer (Trainer): Trainer used for training the model.
         i (int): Current iteration index. Should be zero indexed.
+        true_samples (int): Number of true samples seen.
 
     Returns:
         dict[str, float | int]: wandb log dict of stats
@@ -231,7 +232,7 @@ def compute_stats_dict( trainer: Trainer, i: int ) -> dict[str, float | int]:
         'stats/n_samples': trainer.optimizer_step * trainer.train_config.batch_size,
         'stats/n_epochs': i + 1,
         'stats/learning_rate': trainer.get_schedule() * trainer.train_config.lr_max,
-        'stats/true_samples': trainer.get_sequence_count(),
+        'stats/true_samples': true_samples,
     }
 
 def parse_cmd_args() -> tuple[argparse.Namespace, dict]:
