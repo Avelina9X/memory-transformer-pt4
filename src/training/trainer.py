@@ -17,14 +17,14 @@ from torch.optim import AdamW
 from torcheval import metrics
 from torcheval.metrics.toolkit import sync_and_compute
 
-from constants import TORCH_COMPILE_OPTIONS, HF_CACHE_DIR
+from constants import TORCH_COMPILE_OPTIONS
 from model.configuration import LSWTConfigTraining, LSWTConfigTrainingDPH
 from model.modeling import LSWTForCausalLM, LSWTForDPH
 
 from optimizer.minato import Minato
 from optimizer.laprop import LaProp
 from .data_instruct.task_loader import DPHMultiTaskLoader
-from .data import PileDataset, OpenOrcaDataset, HFDatasetConfig, HFBatchDataset
+from .data import PileDataset
 from .losses import DPOLoss, DPHLoss, KLPairsLoss, MLELoss, ORPOLoss, SimCTGLoss, AccuracyMetric
 
 PILE_PATH_PATTERN = os.environ[ 'PILE_PATH_PATTERN' ]
@@ -40,7 +40,7 @@ class Trainer(): # pylint: disable=R0902
         train_config: LSWTConfigTraining,
         model: LSWTForCausalLM,
         tokenizer: PreTrainedTokenizerBase,
-        dataset: str | HFDatasetConfig | None
+        dataset: str | None
     ):
         """ Creates a Trainer instance for the entire pretraining pipeline.
 
@@ -156,14 +156,6 @@ class Trainer(): # pylint: disable=R0902
         raise ValueError( 'Invalid loss function' )
 
     def _load_dataset( self, dataset ):
-        if isinstance( dataset, HFDatasetConfig ):
-            return HFBatchDataset(
-                tokenizer=self.tokenizer,
-                seq_length=self.train_config.length_sequence,
-                batch_size=self.train_config.batch_size,
-                dataset_config=dataset,
-                num_proc=self.batch_groups,
-            )
 
         if dataset == 'pile':
             return PileDataset(
@@ -172,14 +164,6 @@ class Trainer(): # pylint: disable=R0902
                 batch_size=self.train_config.batch_size,
                 dir_pattern=PILE_PATH_PATTERN,
                 pile_shards=list( range( PILE_SHARDS ) )
-            ).as_data_loader()
-
-        if dataset == 'openorca':
-            return OpenOrcaDataset(
-                tokenizer=self.tokenizer,
-                seq_length=self.train_config.length_sequence,
-                batch_size=self.train_config.batch_size,
-                cache_dir=HF_CACHE_DIR,
             ).as_data_loader()
 
         if dataset is None:
