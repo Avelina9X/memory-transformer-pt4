@@ -21,7 +21,6 @@ from constants import TORCH_COMPILE_OPTIONS
 from model.configuration import LSWTConfigTraining, LSWTConfigTrainingDPH
 from model.modeling import LSWTForCausalLM, LSWTForDPH
 
-from optimizer.minato import Minato
 from optimizer.laprop import LaProp
 from .data_instruct.task_loader import DPHMultiTaskLoader
 from .data import PileDataset
@@ -105,16 +104,6 @@ class Trainer(): # pylint: disable=R0902
 
     def _load_optimizer( self ) -> torch.optim.Optimizer:
         params = self.model.get_param_groups( self.train_config.opt_decay_mask )
-        if self.train_config.optimizer == 'Minato':
-            assert not self.train_config.opt_decay_init, 'Decay init not implemented'
-            return Minato(
-                params=params,
-                lr=0.0,
-                betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
-                eps=self.train_config.opt_eps,
-                rho=self.train_config.opt_rho,
-                weight_decay=( self.train_config.opt_weight_decay )
-            )
 
         if self.train_config.optimizer == 'AdamW':
             assert not self.train_config.opt_decay_init, 'Decay init not implemented'
@@ -391,18 +380,6 @@ class TrainerDDP( Trainer ):
                 eps=self.train_config.opt_eps,
                 weight_decay=( self.train_config.opt_weight_decay ),
                 decay_init=self.train_config.opt_decay_init,
-            )
-
-        if self.train_config.optimizer == 'Minato':
-            assert not self.train_config.opt_decay_init, 'Decay init not implemented'
-            return ZeroRedundancyOptimizer(
-                params=params,
-                optimizer_class=Minato,
-                lr=0.0,
-                betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
-                rho=self.train_config.opt_rho,
-                eps=self.train_config.opt_eps,
-                weight_decay=( self.train_config.opt_weight_decay ),
             )
 
         raise ValueError( 'Invalid optimizer' )
