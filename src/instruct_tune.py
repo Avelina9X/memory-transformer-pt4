@@ -3,6 +3,7 @@
 from datetime import timedelta
 import os
 import typing
+import math
 
 import shortuuid
 import rich
@@ -116,10 +117,32 @@ def aggregate_mmlu_score( metrics: dict[ str, float ] ) -> dict[ str, float ]:
     ]
     return { 'validation/mmlu_avg': 100 * sum( macro_scores ) / len( macro_scores ) }
 
-def evaluate_zero_shot_task( task: BaseChoiceInstructDataset, batcher: ChoiceInstructionBatcher ) -> tuple[ str, dict[ str, float ] ]:
+
+def evaluate_zero_shot_task(
+    task: BaseChoiceInstructDataset,
+    batcher: ChoiceInstructionBatcher,
+    zero_nan=False,
+) -> tuple[ str, dict[ str, float ] ]:
+    """ Evaluates a task and returns the logp metrics.
+
+    Args:
+        task (BaseChoiceInstructDataset): Task to evaluate. Must have a validation split.
+        batcher (DPHChoiceInstructionBatcher): Batcher used to evaluate tasks.
+        zero_nan (bool): When true returns zero for NaN metrics. Defaults to False.
+
+    Returns:
+        log line (str): string suitable for file logging.
+        metrics (dict[str, float]): dict suitable for WandB logging.
+    """
+    
     task_ds = task.get_validation_docs()
     assert task_ds is not None
     val_metrics = batcher.evaluate_dataset( task, task_ds, False, False )
+    
+    if zero_nan:
+        for key in val_metrics:
+            value = val_metrics[key]
+            val_metrics[key] = 0.0 if math.isnan( value ) else value
 
     task_name = f'{task.task_name}/{task.task_subset}'
     curr_metrics = f'{task_name}={val_metrics}'
@@ -305,7 +328,7 @@ def instruct_tune(
             # If validation flag is set (or it's the last epoch) run validation
             if should_validate or i + 1 == trainer.get_total_epochs():
                 for task in validation_zeroshot_tasks:
-                    curr_line, curr_dict = evaluate_zero_shot_task( task, batcher )
+                    curr_line, curr_dict = evaluate_zero_shot_task( task, batcher, True )
                     validation_lines.append( curr_line )
                     validation_dict.update( **curr_dict )
                 torch.cuda.empty_cache()
