@@ -5,17 +5,16 @@
 A public repo for the LSWTransformer, codename `memory-transformer-pt4`.
 
 ## Features
+
+### Primary Features
 - **Transformer-XL style cache** for long sequence modelling.
 - **Reversed RoPE** for better EOS stability and an adjusted base frequency to help extrapolate to longer sequences.
-- ~~**Attention Registers** to provide sinks for unwanted attention.~~ Included, but no longer used.
 - **Flash Attention** for IO aware accelerated attention.
 - **SwiGLU Activation** in the FFN layers for higher model capacity.
 - **HuggingFace Model Format** for integration with the 🤗 ecosystem.
 - **Warmstart Word Embeddings** taken from `facebook/opt-125m` to accelerate convergence.
 - **Input/Output Projections** to decouple embedding matrix dimension from model dimension.
-- ~~**SimCTG Loss (optional)** to encourage embedding diversity.~~ Included, but no longer used.
 - **LaProp Optimizer** for faster convergence.
-- ~~**QK RMSNorm** grouped per head, suggested in multiple works to improve performance.~~ Added, but hasn't improved performance.
 - **KV Recompute** during training for additional memory gradients. Can be disabled in config and is disabled when in eval mode.
 - **Direct Preference Heads** for alignment without degredation.
 
@@ -23,6 +22,18 @@ A public repo for the LSWTransformer, codename `memory-transformer-pt4`.
 - **Partial RoPE** applying positional information to only a fraction of each head, suggested in GPT-Neo and GPT-J to improve performance.
 - **Long Term Memory** as an additional `past_key_values` argument.
 - **Segment Embeddings** utilising whitening to facilitate segment retrieval into long term memory.
+
+
+<details open>
+<summary><h3>Deprecated or Removed Features</h3></summary>
+
+- **Attention Registers** to provide sinks for unwanted attention. Included, but no longer used.
+- **SimCTG Loss** to encourage embedding diversity. Included, but no longer used.
+- **QK RMSNorm** grouped per head, suggested in multiple works to improve performance. Added, but hasn't improved performance.
+- **Spectral Normalisation** of QK projections using the 'Spectra' post-optimizer. Code removed.
+
+</details>
+
 
 ## Training and Evaluation Data
 LSWT is currently being trained on the original distribution of The Pile dataset. Runs without DDP use all 30 shards (0-29 inclusive), while runs using DDP are trained using the first 24 shards (0-23 inclusive) for easier distribution of data for typical world sizes.
