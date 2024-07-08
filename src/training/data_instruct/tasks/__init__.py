@@ -20,6 +20,7 @@ from . import (
     squad,
     sciq,
     super_glue,
+    tasksource,
     tiny,
     truthful_qa,
     tulu,
@@ -62,6 +63,7 @@ DIRECTORY_GENERATIVE: dict[str, Mapping[str, Callable[[str], BaseInstructDataset
     'tiny': tiny.DIRECTORY,
     'tulu': tulu.DIRECTORY,
     'ultrafeedback': ultrafeedback.DIRECTORY,
+    'tasksource': tasksource.DIRECTORY,
 }
 
 DIRECTORY_CONVERSATIONAL: dict[str, Mapping[str, Callable[[str], BaseInstructDataset]]] = {
