@@ -360,7 +360,7 @@ def instruct_align(
             train_utils.log_stats( output_dir, train_metrics, validation_lines, trainer.optimizer_step )
 
         # Compute the running stats log
-        stats_log = train_utils.compute_stats_dict( trainer, i ) # type: ignore
+        stats_log = train_utils.compute_stats_dict( trainer, i, None ) # type: ignore
 
         # Log to WandB
         wandb.log( {
