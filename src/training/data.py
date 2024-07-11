@@ -8,7 +8,7 @@ from json import JSONDecodeError
 import torch
 from torch.utils.data import IterableDataset, DataLoader
 
-from datasets import load_dataset
+from datasets import load_dataset, Dataset
 from transformers import PreTrainedTokenizerBase
 
 class PileShardDataset( IterableDataset ):
@@ -205,3 +205,20 @@ def load_awesome_prompts( cache_dir ):
         split='train',
         cache_dir=cache_dir,
     )
+
+def load_savvas_prompts():
+    questions = [
+        'What is the best exercise for inner pectorals?',
+        'What is the best exercise for outer pectorals?',
+        'What\'s better for muscle hypertrophy, compound exercise or isolation exercise?',
+        'Are stiff leg deadlifts a good exercise for hamstrings?',
+        'Are planks a good exercise to build your abdominal muscles?',
+        'Are higher repetitions better exercise for loosing fat than doing lower repetitions?' 
+    ]
+    
+    act = [ f'savvas_{i}' for i, _ in enumerate( questions ) ]
+    
+    return Dataset.from_dict( {
+        'act': act,
+        'prompt': questions,
+    } )

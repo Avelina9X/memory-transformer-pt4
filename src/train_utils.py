@@ -15,11 +15,12 @@ import torch
 import torch.distributed as dist
 
 from transformers import PreTrainedTokenizerBase, GenerationConfig
+from datasets import concatenate_datasets
 
 from model.configuration import LSWTConfigTraining, LSWTConfig, LSWTConfigTrainingDPH
 from model.modeling import LSWTForCausalLM
 from training.trainer import Trainer
-from training.data import load_awesome_prompts
+from training.data import load_awesome_prompts, load_savvas_prompts
 from training.data_instruct.tasks import DIRECTORY_ALL
 from training.data_instruct.task_loader import TaskList
 from constants import WANDB_PROJECT_NAME, HF_CACHE_DIR
@@ -448,7 +449,10 @@ def create_validation_prompts( tokenizer: PreTrainedTokenizerBase ): # TODO: ref
             )
         }
         
-    return load_awesome_prompts( HF_CACHE_DIR ).map( tokenize_msg )
+    return concatenate_datasets( [
+        load_awesome_prompts( HF_CACHE_DIR ), # type: ignore
+        load_savvas_prompts()
+    ] ).map( tokenize_msg )
 
 def perform_prompt_validation( ds, tokenizer: PreTrainedTokenizerBase, model ): # TODO: refactor?
     with torch.inference_mode():
