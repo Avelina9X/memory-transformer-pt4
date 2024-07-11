@@ -281,7 +281,7 @@ def instruct_align(
         task_list=train_tasks,
         formatter=train_formatter,
         seq_length=train_config.length_sequence,
-        batch_size=train_config.batch_size,
+        batch_size=train_config.batch_size // world_size,
         mask_type=mask_type,
         task_elbow=config.get( 'finetune.dph_mix_elbow', None )
     )

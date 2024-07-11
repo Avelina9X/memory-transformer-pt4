@@ -508,6 +508,7 @@ class DPHTrainer():
         self.model_ref = model_ref
         self.model_dph = model_dph
         self.reward_head_key = reward_head_key
+        self.reward_select_layer = model_dph.config.reward_select_layer
 
         self.tokenizer = tokenizer
 
@@ -718,7 +719,7 @@ class DPHTrainer():
 
         # Get the logits and states
         dph_logits = dph_outputs.logits
-        dph_states = dph_outputs.hidden_states[self.model_dph.config.reward_select_layer]
+        dph_states = dph_outputs.hidden_states[self.reward_select_layer]
 
         # Chunk the logits and states into positive and negative respectively
         dph_pos_logits, dph_neg_logits = dph_logits.chunk( 2, dim=0 )
