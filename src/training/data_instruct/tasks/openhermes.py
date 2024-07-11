@@ -55,7 +55,7 @@ class OpenHermesPreferences( BaseInstructDataset ):
         raise NotImplementedError( 'This does not use the message factory' )
 
     def create_distractor_message_list( self, doc: dict ) -> list[MessageList]:
-        message_list = [] if doc[ 'messages' ][0][ 'role' ] == 'system' else [ self.format_system_message( doc ) ]
+        message_list = [] if doc[ 'rejected' ][0][ 'role' ] == 'system' else [ self.format_system_message( doc ) ]
 
         for sub_doc in doc[ 'rejected' ]:
             message_list.append(
@@ -69,7 +69,7 @@ class OpenHermesPreferences( BaseInstructDataset ):
         return [ message_list ]
     
     def create_target_message_list( self, doc: dict ) -> list[MessageList]:
-        message_list = [] if doc[ 'messages' ][0][ 'role' ] == 'system' else [ self.format_system_message( doc ) ]
+        message_list = [] if doc[ 'chosen' ][0][ 'role' ] == 'system' else [ self.format_system_message( doc ) ]
 
         for sub_doc in doc[ 'chosen' ]:
             message_list.append(
