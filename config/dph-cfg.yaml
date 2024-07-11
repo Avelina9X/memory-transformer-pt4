@@ -43,7 +43,7 @@ dph:
   dph_penalty: 0.1
 
   dph_decay_init: false
-  dph_weight_decay: 0.1
+  dph_weight_decay: 0.0
 
   dpo_enabled: false
 
