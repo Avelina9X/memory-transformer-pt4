@@ -936,3 +936,196 @@ class DPHTrainer():
 
         # Get and reset metrics
         return self.reset_metrics()
+
+
+class DPHTrainerDDP( DPHTrainer ):
+    def __init__(
+        self,
+        train_config: LSWTConfigTraining,
+        dph_config: LSWTConfigTrainingDPH,
+        model_ref: LSWTForCausalLM,
+        model_dph: LSWTForDPH,
+        reward_head_key: str,
+        tokenizer: PreTrainedTokenizerBase,
+        dataset: DPHMultiTaskLoader,
+        ddp_rank: int,
+        ddp_world_size: int,
+    ):
+        self.ddp_rank = ddp_rank
+        self.ddp_world_size = ddp_world_size
+        
+        super().__init__(
+            train_config,
+            dph_config,
+            model_ref,
+            model_dph,
+            reward_head_key,
+            tokenizer,
+            dataset,
+        )
+        
+        # Modify batch_groups for DDP
+        self.batch_groups = train_config.batch_size // ( train_config.batch_size_step * self.ddp_world_size )
+    
+    """ ========================================================================
+        Overridden Internal Utility functions
+        ======================================================================== """
+    
+    def _bar_format( self, iter_n, iter_total, elapsed, epoch ) -> str:
+        postfix = 'dph={0:.3f}, dph_acc={1:.3f}'.format(
+            sync_and_compute( self.metrics[ 'loss_dph' ] ),
+            sync_and_compute( self.metrics[ 'dph/accuracy' ] ),
+        )
+        
+        if self.dph_config.dpo_enabled:
+            postfix += ' | dpo={0:.3f}, dpo_acc={1:.3f}'.format(
+                sync_and_compute( self.metrics[ 'loss_dpo' ] ),
+                sync_and_compute( self.metrics[ 'dpo/accuracy' ] ),
+            )
+        
+        if self.dph_config.orpo_enabled:
+            postfix += ' | orpo={0:.3f}, orpo_acc={1:.3f}'.format(
+                sync_and_compute( self.metrics[ 'loss_orpo' ] ),
+                sync_and_compute( self.metrics[ 'orpo/accuracy' ] ),
+            )
+        
+        if self.dph_config.kl_enabled:
+            postfix += ' | kl={0:.3f}'.format(
+                sync_and_compute( self.metrics[ 'loss_kl' ] ),
+            )
+
+        return tqdm.tqdm.format_meter(
+            n=iter_n,
+            total=iter_total,
+            elapsed=elapsed,
+            ncols=100,
+            unit='it',
+            bar_format='{desc}: {percentage:.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}, {rate_fmt}{postfix}]',
+            postfix=postfix,
+            prefix=f'Epoch {epoch}',
+        )
+    
+    def _load_optimizer( self ) -> torch.optim.Optimizer:
+        params = self.model_dph.get_param_groups(
+            self.train_config.opt_decay_mask,
+            self.dph_config.dph_decay_init,
+            self.dph_config.dph_weight_decay,
+        )
+
+        if self.train_config.optimizer == 'LaProp':
+            return ZeroRedundancyOptimizer(
+                params=params,
+                optimizer_class=LaProp,
+                lr=0.0,
+                betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
+                eps=self.train_config.opt_eps,
+                weight_decay=( self.train_config.opt_weight_decay ),
+                decay_init=self.train_config.opt_decay_init,
+            )
+
+        raise ValueError( 'Invalid optimizer' )
+    
+    """ ========================================================================
+        Overridden Utility functions
+        ======================================================================== """
+
+    def reset_metrics( self ) -> dict[ str, float ]:
+        stats = {}
+        for name, metric in self.metrics.items():
+            # Syncronise and compute metrics from all devices
+            stats[name] = float( sync_and_compute( metric ) )
+
+            # Ensure all devices wait for barrier before resetting
+            dist.barrier()
+            metric.reset()
+        return stats
+    
+    """ ========================================================================
+        Overridden Training Functions
+        ======================================================================== """
+
+    def train_batch_step( self, batch ):
+        
+        # Set reference model to eval state if present
+        if self.dph_config.requires_reference_model:
+            self.model_ref.eval()
+        
+        # Set policy model to train state
+        self.model_dph.train()
+
+        # Unpack batch
+        pos_tokens, pos_target, neg_tokens, neg_target = batch
+
+        # Get chosen tokens and targets and split into groups
+        pos_tokens = torch.split( pos_tokens.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
+        pos_target = torch.split( pos_target.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
+
+        # Get rejected tokens and targets and split into groups
+        neg_tokens = torch.split( neg_tokens.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
+        neg_target = torch.split( neg_target.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
+
+        # Iterate through all groups
+        for idx in range( self.batch_groups ):
+            self.model_dph.require_backward_grad_sync = ( idx == self.batch_groups - 1 ) # type: ignore
+            
+            # Perform forward pass sub step on group
+            losses, metrics_dict = self.train_sub_step(
+                pos_tokens=pos_tokens[idx],
+                pos_target=pos_target[idx],
+                neg_tokens=neg_tokens[idx],
+                neg_target=neg_target[idx]
+            )
+
+            # Update DPO loss if enabled
+            if self.dph_config.dpo_enabled:
+                self.metrics[ 'loss_dpo' ].update( losses[ 'dpo' ] )
+            
+            # Update ORPO loss if enabled
+            if self.dph_config.orpo_enabled:
+                self.metrics[ 'loss_orpo' ].update( losses[ 'orpo' ] )
+            
+            # Update KL loss if enabled
+            if self.dph_config.kl_enabled:
+                self.metrics[ 'loss_kl' ].update( losses[ 'kl' ] )
+            
+            # Update DPH loss
+            self.metrics[ 'loss_dph' ].update( losses[ 'dph' ] )
+
+            # Update all other metrics
+            for name, value in metrics_dict.items():
+                self.metrics[ name ].update( value )
+
+        # Perform optimizer update
+        self.train_optim_step()
+        
+        if self.optimizer_step <= 3:
+            torch.cuda.empty_cache()
+    
+    def train_epoch( self, iterator, epoch ):
+        
+        # Get time of epoch start
+        start_time = time.time()
+
+        # For all batches in epoch perform step and update progress bar
+        for batch in range( self.train_config.batches_per_epoch ):
+            self.train_batch_step( next( iterator ) )
+
+            bar_string = self._bar_format(
+                iter_n=batch + 1,
+                iter_total=self.train_config.batches_per_epoch,
+                elapsed=time.time() - start_time,
+                epoch=epoch
+            )
+
+            if self.ddp_rank == 0:
+                print( '\r' + bar_string, end='', flush=True )
+        if self.ddp_rank == 0:
+            print()
+
+        # Clear the cache for validation loop
+        torch.cuda.empty_cache()
+        gc.collect()
+
+        # Get and reset metrics
+        return self.reset_metrics()
+    
