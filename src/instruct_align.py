@@ -1,5 +1,6 @@
 """ Module for performing Direct Preference Head optimization. """
 
+from datetime import timedelta
 from collections.abc import Sequence
 import os
 import typing
@@ -10,13 +11,14 @@ import rich
 import wandb
 
 import torch
+import torch.multiprocessing as mp
 
 import evaluate
 import datasets
 import transformers
 from transformers import AutoTokenizer
 
-from training.trainer import DPHTrainer
+from training.trainer import DPHTrainer, DPHTrainerDDP
 
 from training.data_instruct.task_base import BaseChoiceInstructDataset
 
@@ -31,6 +33,7 @@ from model.modeling import LSWTForCausalLM, LSWTForDPH
 
 from constants import HF_CACHE_DIR, WANDB_API_KEY, WANDB_PROJECT_NAME
 import train_utils
+from train_utils import ddp_cleanup, ddp_setup, DDPModelWrapper
 from instruct_tune import create_validation_zeroshot_tasks
 
 def evaluate_zero_shot_task(
@@ -172,7 +175,9 @@ def aggregate_race_score(
     }
 
 def instruct_align(
-    config: dict,
+    rank: int = 0,
+    world_size: int = 1,
+    config: dict | None = None,
     wandb_mode: str | None = None,
     wandb_tags: list[str] | None = None,
     wandb_run_name: str | None = None
@@ -180,11 +185,15 @@ def instruct_align(
     """ Runs the DPH optimization pipeline.
 
     Args:
+        rank (int, optional): The DDP process rank. Defaults to 0.
+        world_size (int, optional): The DDP world size. When 1 DDP is disabled. Defulats to 1.
         config (dict): Aggregated config of all sub-dicts (meta, dph, model, train, finetune)
         wandb_mode (str | None): WandB run mode. Defaults to None.
         wandb_tags (list[str] | None): WandB run tags. Defaults to None.
         wandb_run_name (str | None): WandB run name. Defaults to None.
     """
+    
+    assert config
 
     # Log in to wandb
     wandb.require( 'core' )
@@ -200,6 +209,10 @@ def instruct_align(
         evaluate.utils.logging.disable_progress_bar()
         datasets.utils.logging.disable_progress_bar()
         torch._inductor.select_algorithm.PRINT_AUTOTUNE = False # type: ignore # pylint: disable=W0212
+    
+    # Setup ddp if world size is greater than 1
+    if world_size > 1:
+        ddp_setup( rank, world_size, timedelta( hours=1.0 ) )
 
     # Get pretrained run name and checkpoint directory
     pretrained_run_name = config[ 'finetune.checkpoint' ]
@@ -246,12 +259,17 @@ def instruct_align(
 
     # Create task mixes
     train_tasks = train_utils.create_train_tasks( config[ 'finetune.dph_mix' ] )
-    validation_zeroshot_tasks = create_validation_zeroshot_tasks()
+    
+    if rank == 0:
+        validation_zeroshot_tasks = create_validation_zeroshot_tasks()
+        validation_prompts = train_utils.create_validation_prompts( tokenizer )
 
     # Instantiate instruct helpers
     train_formatter = InstructionFormatter( tokenizer, 0 )
-    validation_formatter = InstructionFormatter( tokenizer, None )
-    batcher = DPHChoiceInstructionBatcher( dph_model, validation_formatter, reward_head_name, 'mean' )
+    
+    if rank == 0:
+        validation_formatter = InstructionFormatter( tokenizer, None )
+        batcher = DPHChoiceInstructionBatcher( dph_model, validation_formatter, reward_head_name, 'mean' )
     
     # Get mask type for this training variant
     mask_type = config.get( 'finetune.mask_override', {
@@ -269,20 +287,35 @@ def instruct_align(
     )
 
     # Instantiate trainer for alignment
-    trainer = DPHTrainer(
-        train_config,
-        dph_config,
-        ref_model,
-        dph_model,
-        reward_head_name,
-        tokenizer,
-        task_loader
-    )
+    if world_size == 1:
+        trainer = DPHTrainer(
+            train_config,
+            dph_config,
+            ref_model,
+            dph_model,
+            reward_head_name,
+            tokenizer,
+            task_loader
+        )
+    else:
+        dph_model = DDPModelWrapper( dph_model, device_ids=[ rank ] )
+        trainer = DPHTrainerDDP(
+            train_config,
+            dph_config,
+            ref_model,
+            dph_model, # type: ignore
+            reward_head_name,
+            tokenizer,
+            task_loader,
+            rank,
+            world_size
+        )
 
     # Print out our configs
-    rich.print( trainer.train_config )
-    rich.print( trainer.dph_config )
-    rich.print( trainer.model_dph.config )
+    if rank == 0:
+        rich.print( trainer.train_config )
+        rich.print( trainer.dph_config )
+        rich.print( trainer.model_dph.config )
 
     # Compute params
     params_total = sum( p.numel() for p in dph_model.parameters() )
@@ -290,11 +323,12 @@ def instruct_align(
     params_non_trainable = sum( p.numel() for p in dph_model.parameters() if not p.requires_grad )
 
     # Print parametes
-    print( '\nParameter Count:' )
-    rich.print( f'total         = {params_total}' )
-    rich.print( f'trainable     = {params_trainable}' )
-    rich.print( f'non trainable = {params_non_trainable}' )
-    print()
+    if rank == 0:
+        print( '\nParameter Count:' )
+        rich.print( f'total         = {params_total}' )
+        rich.print( f'trainable     = {params_trainable}' )
+        rich.print( f'non trainable = {params_non_trainable}' )
+        print()
 
     # Update the base config
     config.update( {
@@ -306,86 +340,103 @@ def instruct_align(
     } )
 
     # Log base config
-    if wandb_mode != 'disabled':
+    if wandb_mode != 'disabled' and rank == 0:
         train_utils.log_full_config( output_dir, config )
 
     # Create iterator
     iterator = iter( task_loader.as_data_loader() )
 
     # Initialise WandB
-    wandb.init(
-        project=WANDB_PROJECT_NAME,
-        group='alignment',
-        mode=wandb_mode,
-        config=config,
-        tags=wandb_tags,
-        name=wandb_run_name,
-        settings=wandb.Settings( _disable_stats=True )
-    )
+    if rank == 0:
+        wandb.init(
+            project=WANDB_PROJECT_NAME,
+            group='alignment',
+            mode=wandb_mode,
+            config=config,
+            tags=wandb_tags,
+            name=wandb_run_name,
+            settings=wandb.Settings( _disable_stats=True )
+        )
 
-    input_artifact = train_utils.get_model_artifact( pretrained_run_name )
-    wandb.use_artifact( input_artifact )
+        input_artifact = train_utils.get_model_artifact( pretrained_run_name )
+        wandb.use_artifact( input_artifact )
 
     # Train loop
     for i in range( trainer.get_total_epochs() ):
         # Train for an epoch and get metrics
         train_metrics = trainer.train_epoch( iterator, i + 1 )
 
-        # Create empty validation metrics list
-        validation_lines = []
-        validation_dict = {}
-        
-        validate_freq = config.get( 'meta.validate_freq', 1 )
-        should_validate = config[ 'meta.validate' ] and ( i % validate_freq == validate_freq - 1 )
+        if rank == 0:
+            # Create empty validation metrics list
+            validation_lines = []
+            validation_dict = {}
+            validation_prompt_dict = {}
+            
+            validate_freq = config.get( 'meta.validate_freq', 1 )
+            should_validate = config[ 'meta.validate' ] and ( i % validate_freq == validate_freq - 1 )
 
-        # If validation flag is set (or it's the last epoch) run validation
-        if should_validate or i + 1 == trainer.get_total_epochs():
-            for task in validation_zeroshot_tasks:
-                curr_line, curr_dict = evaluate_zero_shot_task( task, batcher )
-                validation_lines.append( curr_line )
-                validation_dict.update( **curr_dict )
-            torch.cuda.empty_cache()
+            # If validation flag is set (or it's the last epoch) run validation
+            if should_validate or i + 1 == trainer.get_total_epochs():
+                for task in validation_zeroshot_tasks:
+                    curr_line, curr_dict = evaluate_zero_shot_task( task, batcher )
+                    validation_lines.append( curr_line )
+                    validation_dict.update( **curr_dict )
+                torch.cuda.empty_cache()
 
-            validation_dict.update( {
-                **aggregate_gpt4all_score( validation_dict, 'dph' ),
-                **aggregate_glue_score( validation_dict, 'dph' ),
-                **aggregate_race_score( validation_dict, 'dph' ),
-                **aggregate_gpt4all_score( validation_dict, 'log' ),
-                **aggregate_glue_score( validation_dict, 'log' ),
-                **aggregate_race_score( validation_dict, 'log' ),
+                validation_dict.update( {
+                    **aggregate_gpt4all_score( validation_dict, 'dph' ),
+                    **aggregate_glue_score( validation_dict, 'dph' ),
+                    **aggregate_race_score( validation_dict, 'dph' ),
+                    **aggregate_gpt4all_score( validation_dict, 'log' ),
+                    **aggregate_glue_score( validation_dict, 'log' ),
+                    **aggregate_race_score( validation_dict, 'log' ),
+                } )
+                
+                validation_prompt_table = train_utils.perform_prompt_validation(
+                    validation_prompts,
+                    tokenizer,
+                    dph_model,
+                )
+                
+                validation_prompt_dict[ 'validation_generations' ] = validation_prompt_table
+
+            # If we're not in debug mode log the metrics etc to the output dir
+            if wandb_mode != 'disabled':
+                train_utils.log_stats( output_dir, train_metrics, validation_lines, trainer.optimizer_step )
+
+            # Compute the running stats log
+            stats_log = train_utils.compute_stats_dict( trainer, i, None ) # type: ignore
+
+            # Log to WandB
+            wandb.log( {
+                **validation_prompt_dict,
+                **{ f'train/{name}': metric for name, metric in train_metrics.items() },
+                **stats_log,
+                **validation_dict,
             } )
 
-        # If we're not in debug mode log the metrics etc to the output dir
-        if wandb_mode != 'disabled':
-            train_utils.log_stats( output_dir, train_metrics, validation_lines, trainer.optimizer_step )
+    if rank == 0:
+        # Cast the model to half, save the model and tokenizer
+        dph_model.half().save_pretrained( output_dir )
+        tokenizer.save_pretrained( output_dir )
 
-        # Compute the running stats log
-        stats_log = train_utils.compute_stats_dict( trainer, i, None ) # type: ignore
+        # Create artifact for the model
+        model_artifact = wandb.Artifact( name=dph_model.config.model_type, type="model" )
+        model_artifact.add_dir( output_dir )
 
-        # Log to WandB
-        wandb.log( {
-            **{ f'train/{name}': metric for name, metric in train_metrics.items() },
-            **stats_log,
-            **validation_dict,
-        } )
+        # Link the model artificat (if we're even a real run)
+        assert wandb.run is not None
+        wandb.run.log_artifact( model_artifact )
 
-    # Cast the model to half, save the model and tokenizer
-    dph_model.half().save_pretrained( output_dir )
-    tokenizer.save_pretrained( output_dir )
+        if config[ 'meta.evaluate' ]:
+            evaluate_fn( output_dir, 'all' )
 
-    # Create artifact for the model
-    model_artifact = wandb.Artifact( name=dph_model.config.model_type, type="model" )
-    model_artifact.add_dir( output_dir )
-
-    # Link the model artificat (if we're even a real run)
-    assert wandb.run is not None
-    wandb.run.log_artifact( model_artifact )
-
-    if config[ 'meta.evaluate' ]:
-        evaluate_fn( output_dir, 'all' )
-
-    # Aaand we're done!
-    wandb.finish()
+        # Aaand we're done!
+        wandb.finish()
+    
+    # Cleanup ddp if world size is greater than 1
+    if world_size > 1:
+        ddp_cleanup()
 
 def run():
     """ Runs the DPH optimization pipeline using command-line arguments.
@@ -421,12 +472,26 @@ def run():
     rich.print( config )
 
     # Launch program with our settings
-    instruct_align(
-        config=config,
-        wandb_mode=arguments.wmode,
-        wandb_tags=tags,
-        wandb_run_name=config[ 'meta.run_name' ],
-    )
+    if torch.cuda.device_count() == 1:
+        instruct_align(
+            config=config,
+            wandb_mode=arguments.wmode,
+            wandb_tags=tags,
+            wandb_run_name=config[ 'meta.run_name' ],
+        )
+    else:
+        mp.spawn( # type: ignore
+            fn=instruct_align,
+            args=(
+                torch.cuda.device_count(),
+                config,
+                arguments.wmode,
+                tags,
+                config[ 'meta.run_name' ]
+            ),
+            nprocs=torch.cuda.device_count(),
+            join=True,
+        )
 
 if __name__ == '__main__':
     run()
