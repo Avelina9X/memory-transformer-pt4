@@ -1,6 +1,6 @@
 finetune:
   sft_mix_name: sft-mix-filtered
-  sft_mix_elbow: 200000
+  sft_mix_elbow: 1000000
   sft_mix:
     glue/cola: 1.0
     glue/mnli: 1.0
@@ -33,11 +33,14 @@ finetune:
     tulu/v2: 1.0
     orca/SlimOrca: 1.0
     ultrachat/200k: 1.0
-    baai/Infinity-Instruct: 1.0
+    baai/Infinity-Instruct-3M: 1.0
+    baai/Infinity-Instruct-0625: 1.0
+    tasksource/instruct-v0: 1.0
 
     cnn_dailymail/3.0.0: 1.0
-    tiny/instruct: 0.25
-    tiny/summary: 0.25
+    tiny/instruct: 0.05
+    tiny/summary: 0.05
 
     super_glue/copa: 1.0
     glue/wnli: 1.0
+
