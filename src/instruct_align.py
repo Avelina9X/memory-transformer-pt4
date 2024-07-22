@@ -238,9 +238,11 @@ def instruct_align(
     # Mask out parameters
     if 'finetune.frozen_params' in config:
         frozen_list = train_utils.set_training_mask( dph_model, config[ 'finetune.frozen_params' ] )
-        rich.print( 'Frozen params:' )
-        rich.print( frozen_list )
-        print()
+        
+        if rank == 0:
+            rich.print( 'Frozen params:' )
+            rich.print( frozen_list )
+            print()
 
     # Load reference model and set trainable
     if dph_config.requires_reference_model:
