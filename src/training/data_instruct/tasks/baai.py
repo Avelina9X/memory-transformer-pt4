@@ -92,7 +92,7 @@ class InfinityInstructDataset( BaseInstructDataset ):
             return [ message_list ]
         
         # If first message is from GPT turn it into a system message
-        elif first[ 'from' ] == 'gpt':
+        elif first[ 'from' ] in [ 'gpt', 'system' ]:
             message_list = [
                 Message(
                     role='system',
@@ -112,7 +112,7 @@ class InfinityInstructDataset( BaseInstructDataset ):
             
             return [ message_list ]
         
-        raise ValueError( 'How did we get here?' )
+        raise ValueError( f'How did we get here? Got role={first[ "from" ]}' )
 
     def compute_metric( self, predictions=None, references=None ) -> dict:
         # TODO: add warning for using compute
