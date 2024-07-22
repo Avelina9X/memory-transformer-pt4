@@ -11,6 +11,7 @@ model:
   recompute_kv: false
 
   reward_heads: [ 'reward_head' ]
+  reward_head_bias: true
   reward_pooler: identity
   reward_dropout: 0.1
 
