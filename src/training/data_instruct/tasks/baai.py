@@ -5,10 +5,15 @@ from ..task_base import BaseInstructDataset, InstructionDatasetTask, Message, Me
 from ..task_utils import phrase_filter
 
 class InfinityInstructDataset( BaseInstructDataset ):
+    def __init__( self, cache_dir: str, split: str ):
+        self.split = split
+        super().__init__( cache_dir )
+        
     def download( self, cache_dir: str ) -> DatasetDict:
-        dataset = load_dataset( 'BAAI/Infinity-Instruct', cache_dir=cache_dir )
+        dataset = load_dataset( 'BAAI/Infinity-Instruct', self.split, cache_dir=cache_dir )
         assert isinstance( dataset, DatasetDict )
         dataset = dataset.filter( lambda x: phrase_filter( x, 'value', 'conversations' ) )
+        dataset = dataset.filter( lambda x: x[ 'langdetect' ] == 'en' )
         return dataset
 
     @property
@@ -21,7 +26,7 @@ class InfinityInstructDataset( BaseInstructDataset ):
 
     @property
     def task_subset( self ) -> str:
-        return 'Infinity-Instruct'
+        return 'Infinity-Instruct-' + self.split
 
     def get_training_docs( self ) -> Dataset:
         return self.dataset[ 'train' ]
@@ -114,5 +119,6 @@ class InfinityInstructDataset( BaseInstructDataset ):
         return {}
 
 DIRECTORY: Mapping[str, Callable[[str], BaseInstructDataset]] = {
-    'Infinity-Instruct': InfinityInstructDataset
+    'Infinity-Instruct-3M': lambda cache_dir: InfinityInstructDataset( cache_dir=cache_dir, split='3M' ),
+    'Infinity-Instruct-0625': lambda cache_dir: InfinityInstructDataset( cache_dir=cache_dir, split='0625' ),
 }
