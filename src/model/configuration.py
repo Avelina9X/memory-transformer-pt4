@@ -82,6 +82,7 @@ class LSWTConfig( PretrainedConfig ):
         parent_embeddings='facebook/opt-125m',
 
         reward_heads: Sequence[str] | None = None,
+        reward_head_bias: bool = False,
         reward_pooler: Literal['identity', 'projection'] = 'identity',
         reward_embedding_size: int | None = None,
         reward_activation: Literal['swiglu'] | str | None = None,
@@ -140,6 +141,7 @@ class LSWTConfig( PretrainedConfig ):
             parent_embeddings (str): Parent embeddings and tokenizer vocab. Defaults to 'facebook/opt-125m'.
 
             reward_heads (Sequence[str] | None): The names of reward heads used by the model if in DPH mode. Defaults to None.
+            reward_head_bias (bool): If reward heads should have a bias. Defaults to False for compatibility, but True is recommended.
             reward_pooler (Literal['identity', 'projection']): The pooler type used on the final CLS token. Defaults to 'identity'.
             reward_embedding_size (int | None): Output dim of the reward projection. Must be int for `projection` pooler or None for `identity` pooler. Defaults to None.
             reward_activation (str | None): Output activation of the reward pooler. Must be str for `projection` pooler or None for `identity` pooler. Defaults to None.
@@ -208,6 +210,7 @@ class LSWTConfig( PretrainedConfig ):
 
         # Reward heads
         self.reward_heads = reward_heads
+        self.reward_head_bias = reward_head_bias
         self.reward_pooler = reward_pooler
         self.reward_embedding_size = reward_embedding_size
         self.reward_activation = reward_activation

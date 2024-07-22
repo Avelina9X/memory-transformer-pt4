@@ -505,7 +505,7 @@ class LSWTPooler( torch.nn.Module ):
 
         # Create dict of reward head projections
         self.reward_heads = torch.nn.ModuleDict( {
-            name: torch.nn.Linear( embedding_size, 1, bias=False )
+            name: torch.nn.Linear( embedding_size, 1, bias=config.reward_head_bias )
             for name in config.reward_heads
         } )
     
