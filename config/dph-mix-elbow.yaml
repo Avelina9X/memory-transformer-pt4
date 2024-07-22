@@ -1,6 +1,6 @@
 finetune:
   dph_mix_name: dph-mix-elbow
-  dph_mix_elbow: 160000
+  dph_mix_elbow: 1000000
   dph_mix:
       glue/cola: 1.0
       glue/mnli: 1.0
@@ -30,6 +30,7 @@ finetune:
       orca/orca_dpo_pairs: 1.0
       hh/rlhf: 1.0
       OpenHermes/Preferences: 1.0
+      tasksource/dpo_pairs: 1.0
 
       glue/wnli: 1.0
       super_glue/copa: 1.0
