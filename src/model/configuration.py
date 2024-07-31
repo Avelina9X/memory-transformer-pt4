@@ -254,7 +254,7 @@ class LSWTConfig( PretrainedConfig ):
         if isinstance( pooler_config, dict ):
             self.pooler_config = LSWTPoolerConfig( **pooler_config )
         else:
-            self.pooler_config = self.pooler_config
+            self.pooler_config = pooler_config
 
         # Assertions
         if d_model % n_heads != 0:
