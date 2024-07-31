@@ -352,6 +352,15 @@ def instruct_tune(
                 validation_dict.update( **curr_dict )
             torch.cuda.empty_cache()
             
+            if rank == 0:
+                validation_prompt_table = train_utils.perform_prompt_validation(
+                    validation_prompts,
+                    tokenizer,
+                    model,
+                )
+                
+                validation_prompt_dict[ 'validation_generations' ] = validation_prompt_table
+            
             if validation_queue:
                 if rank > 0:
                     validation_queue.put( ( validation_lines, validation_dict ) )
@@ -368,14 +377,6 @@ def instruct_tune(
                     **aggregate_glue_score( validation_dict ),
                     **aggregate_race_score( validation_dict ),
                 } )
-
-                validation_prompt_table = train_utils.perform_prompt_validation(
-                    validation_prompts,
-                    tokenizer,
-                    model,
-                )
-                
-                validation_prompt_dict[ 'validation_generations' ] = validation_prompt_table
 
         if rank == 0:
             if wandb_mode != 'disabled':
