@@ -92,6 +92,7 @@ def evaluate_glue(
 
         # Iterate through dataset and get predictions
         for line in tqdm.tqdm( test_ds, smoothing=0.0 ):
+            assert isinstance( line, dict )
             result = batcher.evaluate_document( task, line, False, False )
             result[ 'id' ] = line[ 'idx' ]
             results_list.append( result )
