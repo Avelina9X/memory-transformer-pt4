@@ -14,6 +14,64 @@ from typing import Any, Literal
 
 from transformers import PretrainedConfig
 
+
+class LSWTPoolerConfig( PretrainedConfig ):
+    model_type = "lsw_transformer_pooler"
+    
+    def __init__(
+        self,
+        
+        reward_heads: Sequence[str] | None = None,
+        reward_head_bias: bool = False,
+        
+        embedding_size: int | None = None,
+        embedding_dropout=0.0,
+        
+        pooler_function: Literal['identity', 'projection'] = 'identity',
+        pooler_activation: Literal['swiglu'] | str | None = None,
+        pooler_activation_gated=False,
+        
+        layer_select=-1,
+    ):
+        
+        super().__init__()
+        
+        self.reward_heads = reward_heads
+        self.reward_head_bias = reward_head_bias
+        
+        self.embedding_size = embedding_size
+        self.embedding_dropout = embedding_dropout
+        
+        self.pooler_function = pooler_function
+        self.pooler_activation = pooler_activation
+        self.pooler_activation_gated = pooler_activation_gated
+        
+        self.layer_select = layer_select
+        
+        
+        if self.pooler_activation == 'swiglu':
+            print( 'SwiGLU activation is depracted, please use `silu` with `pooler_activation_gated==True`')
+            self.pooler_activation = 'silu'
+            self.pooler_activation_gated = True
+        
+        if pooler_function == 'identity':
+            if self.embedding_size is not None:
+                raise ValueError( 'embedding_size must be unset for pooler_function=`identity`' )
+            
+            if self.pooler_activation is not None:
+                raise ValueError( 'pooler_activation must be unset for pooler_function=`identity`' )
+        
+        elif pooler_function == 'projection':
+            if self.embedding_size is None:
+                raise ValueError( 'embedding_size must be set for pooler_function=`identity`' )
+            
+            if self.pooler_activation is None:
+                raise ValueError( 'pooler_activation must be set for pooler_function=`identity`' )
+        
+        else:
+            raise ValueError( 'Invalid pooler_function type' )
+
+
 class LSWTConfig( PretrainedConfig ):
     """
     Configuration class for the LSWTransformer architecture.
@@ -80,16 +138,8 @@ class LSWTConfig( PretrainedConfig ):
         recompute_kv=False,
 
         parent_embeddings='facebook/opt-125m',
-
-        reward_heads: Sequence[str] | None = None,
-        reward_head_bias: bool = False,
-        reward_pooler: Literal['identity', 'projection'] = 'identity',
-        reward_embedding_size: int | None = None,
-        reward_activation: Literal['swiglu'] | str | None = None,
-        reward_activation_gated=False,
-        reward_dropout=0.0,
         
-        reward_select_layer=-1,
+        pooler_config: dict | LSWTPoolerConfig | None = None,
 
         **kwargs,
     ):
@@ -140,14 +190,7 @@ class LSWTConfig( PretrainedConfig ):
 
             parent_embeddings (str): Parent embeddings and tokenizer vocab. Defaults to 'facebook/opt-125m'.
 
-            reward_heads (Sequence[str] | None): The names of reward heads used by the model if in DPH mode. Defaults to None.
-            reward_head_bias (bool): If reward heads should have a bias. Defaults to False for compatibility, but True is recommended.
-            reward_pooler (Literal['identity', 'projection']): The pooler type used on the final CLS token. Defaults to 'identity'.
-            reward_embedding_size (int | None): Output dim of the reward projection. Must be int for `projection` pooler or None for `identity` pooler. Defaults to None.
-            reward_activation (str | None): Output activation of the reward pooler. Must be str for `projection` pooler or None for `identity` pooler. Defaults to None.
-            reward_activation_gated (bool): If gating should be used to compute the intermedaite latent. Defaults to False.
-            reward_dropout (float): The probability of applying dropout to the inputs of the reward head. Deafults to 0.0.
-            reward_select_layer (int): The layer from which to aggregate rewards. NOTE: -1 is final layer post-norm, -2 and up are pre-norm layers. Defaults to -1.
+            pooler_config (dict | LSWTPoolerConfig | None): Pooler config for DPH and beyond. Defaults to None.
         """
         super().__init__(
             pad_token_id=pad_token_id,
@@ -207,38 +250,11 @@ class LSWTConfig( PretrainedConfig ):
 
         # Parent embeddings
         self.parent_embeddings = parent_embeddings
-
-        # Reward heads
-        self.reward_heads = reward_heads
-        self.reward_head_bias = reward_head_bias
-        self.reward_pooler = reward_pooler
-        self.reward_embedding_size = reward_embedding_size
-        self.reward_activation = reward_activation
-        self.reward_activation_gated = reward_activation_gated
-        self.reward_dropout = reward_dropout
-        self.reward_select_layer = reward_select_layer
         
-        if self.reward_activation == 'swiglu':
-            print( 'SwiGLU activation is depracted, please use `silu` with `reward_activation_gated==True`')
-            self.reward_activation = 'silu'
-            self.reward_activation_gated = True
-        
-        if reward_pooler == 'identity':
-            if self.reward_embedding_size is not None:
-                raise ValueError( 'reward_embedding_size must be unset for reward_pooler=`identity`' )
-            
-            if self.reward_activation is not None:
-                raise ValueError( 'reward_activation must be unset for reward_pooler=`identity`' )
-        
-        elif reward_pooler == 'projection':
-            if self.reward_embedding_size is None:
-                raise ValueError( 'reward_embedding_size must be set for reward_pooler=`identity`' )
-            
-            if self.reward_activation is None:
-                raise ValueError( 'reward_activation must be set for reward_pooler=`identity`' )
-        
+        if isinstance( pooler_config, dict ):
+            self.pooler_config = LSWTPoolerConfig( **pooler_config )
         else:
-            raise ValueError( 'Invalid reward_pooler type' )
+            self.pooler_config = self.pooler_config
 
         # Assertions
         if d_model % n_heads != 0:
@@ -254,6 +270,7 @@ class LSWTConfig( PretrainedConfig ):
             dict[str, Any]: Dict of all attributes that make up this configuration instance
         """
         return { f'{prefix}.{key}': value for key, value in self.to_diff_dict().items() }
+
 
 class LSWTConfigTraining():
     """

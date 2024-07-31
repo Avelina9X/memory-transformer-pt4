@@ -509,7 +509,7 @@ class DPHTrainer():
         self.model_ref = model_ref
         self.model_dph = model_dph
         self.reward_head_key = reward_head_key
-        self.reward_select_layer = model_dph.config.reward_select_layer
+        self.reward_select_layer = model_dph.config.pooler_config.layer_select
 
         self.tokenizer = tokenizer
 

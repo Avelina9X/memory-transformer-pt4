@@ -457,15 +457,16 @@ class LSWTPooler( torch.nn.Module ):
         super().__init__()
         
         self.config = config
+        self.pooler_config = config.pooler_config
         
-        if config.reward_heads is None:
+        if self.pooler_config.reward_heads is None:
             raise ValueError( 'reward_heads must be defined. If no heads are desired please use an empty list.' )
         
         self.pooler_pipeline = torch.nn.Sequential()
-        self.dropout = torch.nn.Dropout( p=config.reward_dropout )
+        self.dropout = torch.nn.Dropout( p=self.pooler_config.embedding_dropout )
 
         # Match the reward pooler type
-        match config.reward_pooler:
+        match self.pooler_config.pooler_function:
             
             # If identity we only do dropout
             case 'identity':
@@ -478,17 +479,17 @@ class LSWTPooler( torch.nn.Module ):
             # If projection do: linear -> activation -> dropout
             case 'projection':
                 # Assertions to make linter happy. We should have raised an error already.
-                assert config.reward_embedding_size is not None
-                assert config.reward_activation is not None
+                assert self.pooler_config.embedding_size is not None
+                assert self.pooler_config.pooler_activation is not None
                 
                 # Set embedding size to that of config
-                embedding_size = config.reward_embedding_size
+                embedding_size = self.pooler_config.embedding_size
                 
                 # Set intermediate size to 2x if gated, otherwise 1x
-                intermediate_size = config.reward_embedding_size * ( 2 if config.reward_activation_gated else 1 )
+                intermediate_size = self.pooler_config.embedding_size * ( 2 if self.pooler_config.pooler_activation_gated else 1 )
                 
                 # Set activation to SwiGLU if gated, otherwise get activation by name
-                activation = ActGLU( config.reward_activation ) if config.reward_activation_gated else ACT2FN[config.reward_activation]
+                activation = ActGLU( self.pooler_config.pooler_activation ) if self.pooler_config.pooler_activation_gated else ACT2FN[self.pooler_config.reward_activation]
                 
                 # Append linear -> activation -> dropout
                 self.pooler_pipeline.append( torch.nn.Linear( config.d_model, intermediate_size, bias=config.enable_bias ) )
@@ -498,20 +499,20 @@ class LSWTPooler( torch.nn.Module ):
                 self.pooler_pipeline.append( LSWTSparseAutoEncoder( config ) )
                 
                  # Set intermediate size to 2x if gated, otherwise 1x
-                intermediate_size = config.reward_embedding_size
+                intermediate_size = self.pooler_config.embedding_size
                 
             case _:
                 raise ValueError( 'Invalid pooler type.' )
 
         # Create dict of reward head projections
         self.reward_heads = torch.nn.ModuleDict( {
-            name: torch.nn.Linear( embedding_size, 1, bias=config.reward_head_bias )
-            for name in config.reward_heads
+            name: torch.nn.Linear( embedding_size, 1, bias=self.pooler_config.reward_head_bias )
+            for name in self.pooler_config.reward_heads
         } )
     
     def forward( self, hidden_states: torch.Tensor, output_latent_states=False, compute_sae_loss=False ) -> DPHOutput:
         if compute_sae_loss:
-            assert self.config.reward_pooler == 'sae'
+            assert self.pooler_config.pooler_function == 'sae'
             latent_states, sae_loss = self.pooler_pipeline( hidden_states, output_auxiliary=True )
         else:
             latent_states = self.pooler_pipeline( hidden_states )
