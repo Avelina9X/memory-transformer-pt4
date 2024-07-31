@@ -35,7 +35,7 @@ import train_utils
 from train_utils import ddp_cleanup, ddp_setup, DDPModelWrapper
 
 def create_validation_zeroshot_tasks() -> list[BaseChoiceInstructDataset]:
-    return [
+    tasks = [
         # Auxiliary datasets
         DIRECTORY_CHOICE[ 'super_glue' ][ 'copa' ]( HF_CACHE_DIR ),
         DIRECTORY_CHOICE[ 'sciq' ][ 'no_choice' ]( HF_CACHE_DIR ),
@@ -68,6 +68,10 @@ def create_validation_zeroshot_tasks() -> list[BaseChoiceInstructDataset]:
         DIRECTORY_CHOICE[ 'race' ][ 'middle' ]( HF_CACHE_DIR ),
         DIRECTORY_CHOICE[ 'race' ][ 'high' ]( HF_CACHE_DIR ),
     ]
+    
+    tasks.sort( key=lambda x: len( x.get_validation_docs() or [] ) ) # `or []` is a hack for the linter
+    
+    return tasks
 
 def aggregate_gpt4all_score( metrics: dict[ str, float ] ) -> dict[ str, float ]:
     macro_scores = [
