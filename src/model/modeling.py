@@ -459,6 +459,9 @@ class LSWTPooler( torch.nn.Module ):
         self.config = config
         self.pooler_config = config.pooler_config
         
+        if self.pooler_config is None:
+            raise ValueError( 'pooler_config must be defined!' )
+        
         if self.pooler_config.reward_heads is None:
             raise ValueError( 'reward_heads must be defined. If no heads are desired please use an empty list.' )
         
@@ -511,6 +514,8 @@ class LSWTPooler( torch.nn.Module ):
         } )
     
     def forward( self, hidden_states: torch.Tensor, output_latent_states=False, compute_sae_loss=False ) -> DPHOutput:
+        assert self.pooler_config
+        
         if compute_sae_loss:
             assert self.pooler_config.pooler_function == 'sae'
             latent_states, sae_loss = self.pooler_pipeline( hidden_states, output_auxiliary=True )
