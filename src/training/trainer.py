@@ -382,6 +382,7 @@ class TrainerDDP( Trainer ):
             return ZeroRedundancyOptimizer(
                 params=params,
                 optimizer_class=LaProp,
+                parameters_as_bucket_view=True,
                 lr=0.0,
                 betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
                 eps=self.train_config.opt_eps,
@@ -1017,6 +1018,7 @@ class DPHTrainerDDP( DPHTrainer ):
             return ZeroRedundancyOptimizer(
                 params=params,
                 optimizer_class=LaProp,
+                parameters_as_bucket_view=True,
                 lr=0.0,
                 betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
                 eps=self.train_config.opt_eps,

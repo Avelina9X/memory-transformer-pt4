@@ -273,7 +273,7 @@ def instruct_tune(
     if world_size == 1:
         trainer = Trainer( train_config, model, tokenizer, None )
     else:
-        model = DDPModelWrapper( model, device_ids=[ rank ] )
+        model = DDPModelWrapper( model, device_ids=[ rank ], gradient_as_bucket_view=True )
         trainer = TrainerDDP( train_config, model, tokenizer, None, rank, world_size ) # type: ignore
 
     # Print out our configs

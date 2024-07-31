@@ -300,7 +300,7 @@ def instruct_align(
             task_loader
         )
     else:
-        dph_model = DDPModelWrapper( dph_model, device_ids=[ rank ] )
+        dph_model = DDPModelWrapper( dph_model, device_ids=[ rank ], gradient_as_bucket_view=True )
         trainer = DPHTrainerDDP(
             train_config,
             dph_config,

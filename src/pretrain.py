@@ -111,7 +111,7 @@ def train(
     if world_size == 1:
         trainer = Trainer( train_config, model, tokenizer, 'pile' )
     else:
-        model = DDPModelWrapper( model, device_ids=[ rank ] )
+        model = DDPModelWrapper( model, device_ids=[ rank ], gradient_as_bucket_view=True )
         trainer = TrainerDDP( train_config, model, tokenizer, 'pile', rank, world_size, 24 ) # type: ignore
     evaluator = Eval( model, tokenizer ) # type: ignore
 
