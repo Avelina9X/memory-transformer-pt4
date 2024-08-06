@@ -3,6 +3,8 @@ Module containing all the layers required for the LSWTransformer architecture.
 """
 
 import torch
+from torch.cuda.amp import custom_bwd, custom_fwd
+
 from transformers.activations import ACT2FN
 
 from .configuration import LSWTConfig
@@ -47,6 +49,55 @@ except ModuleNotFoundError:
         return out
     
     attention_func = sdpa_attention
+    
+
+class ProLU(torch.autograd.Function):
+    STE: torch.autograd.Function
+    ReLU: torch.autograd.Function
+
+    @staticmethod
+    @custom_fwd
+    def forward(ctx, m, b):
+        gate = (m + b > 0) & (m > 0)
+        ctx.save_for_backward(m, gate)
+        return torch.where(gate, m, 0)
+
+    @staticmethod
+    @custom_bwd
+    def backward(ctx, grad_output):
+        raise NotImplementedError(
+            "This method should be overridden by a subclass of ProLU to provide a backward implementation."
+        )
+
+class ProLU_ReLU(ProLU):
+    @staticmethod
+    @custom_bwd
+    def backward(ctx, grad_output):
+        m, gate = ctx.saved_tensors
+        gated_grad = torch.where(gate, grad_output, 0)
+        grad_m, grad_b = gated_grad.clone(), gated_grad.clone()
+        return grad_m, grad_b, None
+
+class ProLU_STE(ProLU):
+    @staticmethod
+    @custom_bwd
+    def backward(ctx, grad_output):
+        m, gate = ctx.saved_tensors
+        gated_grad = torch.where(gate, grad_output, 0)
+        grad_b = gated_grad * m
+        grad_m = gated_grad + grad_b.clone()
+        return grad_m, grad_b, None
+
+ProLU.STE = ProLU_STE # type: ignore
+ProLU.ReLU = ProLU_ReLU # type: ignore
+
+def prolu_ste(m, b):
+    return ProLU_STE.apply(m, b)
+
+
+def prolu_relu(m, b):
+    return ProLU_ReLU.apply(m, b)
+
 
 class RMSHeadNorm( torch.nn.Module ):
     """ RMS Norm layer for query and keys heads.
