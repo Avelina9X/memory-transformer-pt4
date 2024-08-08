@@ -27,11 +27,17 @@ class LSWTPoolerConfig( PretrainedConfig ):
         embedding_size: int | None = None,
         embedding_dropout=0.0,
         
+        layer_pooling: Literal['layer', 'mean', 'weighted_sum'] = 'layer',
+        layer_pooling_norm: Literal['pre', 'post', 'both', None] = None,
+        
+        token_pooling: Literal['cls', 'last', 'max', 'mean', 'sgpt'] = 'cls',
+        token_pooling_norm: Literal['pre', 'post', 'both', None] = None,
+        
         pooler_function: Literal['identity', 'projection'] = 'identity',
-        pooler_activation: Literal['swiglu'] | str | None = None,
+        pooler_activation: str | None = None,
         pooler_activation_gated=False,
         
-        layer_select=-1,
+        layer_select: int | Sequence[int] = -1,
     ):
         
         super().__init__()
@@ -48,12 +54,12 @@ class LSWTPoolerConfig( PretrainedConfig ):
         
         self.layer_select = layer_select
         
+        self.layer_pooling = layer_pooling
+        self.layer_pooling_norm = layer_pooling_norm
         
-        if self.pooler_activation == 'swiglu':
-            print( 'SwiGLU activation is depracted, please use `silu` with `pooler_activation_gated==True`')
-            self.pooler_activation = 'silu'
-            self.pooler_activation_gated = True
-        
+        self.token_pooling = token_pooling
+        self.token_pooling_norm = token_pooling_norm
+                
         if pooler_function == 'identity':
             if self.embedding_size is not None:
                 raise ValueError( 'embedding_size must be unset for pooler_function=`identity`' )
@@ -61,12 +67,12 @@ class LSWTPoolerConfig( PretrainedConfig ):
             if self.pooler_activation is not None:
                 raise ValueError( 'pooler_activation must be unset for pooler_function=`identity`' )
         
-        elif pooler_function == 'projection':
+        elif pooler_function in [ 'projection', 'sae' ]:
             if self.embedding_size is None:
-                raise ValueError( 'embedding_size must be set for pooler_function=`identity`' )
+                raise ValueError( f'embedding_size must be set for pooler_function=`{pooler_function}`' )
             
             if self.pooler_activation is None:
-                raise ValueError( 'pooler_activation must be set for pooler_function=`identity`' )
+                raise ValueError( f'pooler_activation must be set for pooler_function=`{pooler_function}`' )
         
         else:
             raise ValueError( 'Invalid pooler_function type' )
