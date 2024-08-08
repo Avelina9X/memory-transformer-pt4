@@ -30,7 +30,7 @@ class LSWTPoolerConfig( PretrainedConfig ):
         layer_pooling: Literal['layer', 'mean', 'weighted_sum'] = 'layer',
         layer_pooling_norm: Literal['pre', 'post', 'both', None] = None,
         
-        token_pooling: Literal['cls', 'last', 'max', 'mean', 'sgpt'] = 'cls',
+        token_pooling: Literal['cls', 'max', 'mean', 'sgpt'] = 'cls',
         token_pooling_norm: Literal['pre', 'post', 'both', None] = None,
         
         pooler_function: Literal['identity', 'projection'] = 'identity',
