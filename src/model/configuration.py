@@ -59,6 +59,9 @@ class LSWTPoolerConfig( PretrainedConfig ):
         
         self.token_pooling = token_pooling
         self.token_pooling_norm = token_pooling_norm
+        
+        if not ( layer_pooling == 'layer' and isinstance( layer_select, int ) ):
+            raise ValueError( 'layer_select must be an int when layer_pooling is `layer`' )
                 
         if pooler_function == 'identity':
             if self.embedding_size is not None:

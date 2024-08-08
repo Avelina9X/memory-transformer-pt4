@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import time
 import gc
 import os
+import typing
 
 import tqdm
 import numpy as np
@@ -709,7 +710,7 @@ class DPHTrainer():
         torch._inductor.cudagraph_mark_step_begin() # type: ignore # pylint: disable=W0212
 
         # Combine the positive and negative tokens
-        tokens_combined = torch.cat( [ pos_tokens, neg_tokens ], dim=0 )
+        tokens_combined = typing.cast( torch.LongTensor, torch.cat( [ pos_tokens, neg_tokens ], dim=0 ) )
 
         # Compute outputs for positive and negative sequences
         dph_outputs = self.model_dph(
@@ -717,21 +718,24 @@ class DPHTrainer():
             past_key_values=None,
             use_cache=False,
         )
+        
+        # Assert that there is a CLS token ID set
+        assert self.tokenizer.sep_token_id is not None
+        assert self.tokenizer.cls_token_id is not None
 
         # Get the logits and states
         dph_logits = dph_outputs.logits
-        dph_states = dph_outputs.hidden_states[self.reward_select_layer]
+        dph_states = self.model_dph.pooler.aggregate_states( dph_outputs.hidden_states, tokens_combined, self.tokenizer.sep_token_id, self.tokenizer.cls_token_id, return_all=False )
 
         # Chunk the logits and states into positive and negative respectively
+        assert isinstance( dph_states, torch.Tensor )
         dph_pos_logits, dph_neg_logits = dph_logits.chunk( 2, dim=0 )
         dph_pos_states, dph_neg_states = dph_states.chunk( 2, dim=0 )
 
-        # Assert that there is a CLS token ID set
-        assert self.tokenizer.cls_token_id is not None
         
         # Compute the positive and negative rewards (honestly could be batched and then chunked)
-        pos_rewards = self.model_dph.compute_final_rewards( dph_pos_states, pos_tokens, self.tokenizer.cls_token_id )
-        neg_rewards = self.model_dph.compute_final_rewards( dph_neg_states, neg_tokens, self.tokenizer.cls_token_id )
+        pos_rewards = self.model_dph.pooler.forward( dph_pos_states, False, False )
+        neg_rewards = self.model_dph.pooler.forward( dph_neg_states, False, False )
 
         with torch.no_grad():
             # Compute reference logits if we need a reference model (e.g. for DPO or KL)

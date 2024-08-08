@@ -9,6 +9,7 @@ Contains:
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from operator import itemgetter
 from transformers import PreTrainedModel
 from transformers.modeling_outputs import BaseModelOutputWithPast, CausalLMOutputWithPast, ModelOutput
 from transformers.activations import ACT2FN
@@ -486,6 +487,19 @@ class LSWTPooler( torch.nn.Module ):
         
         self.pooler_pipeline = torch.nn.Sequential()
         self.dropout = torch.nn.Dropout( p=self.pooler_config.embedding_dropout )
+        
+        self.layer_norm_pre = torch.nn.LayerNorm( config.d_model ) if self.pooler_config.layer_pooling_norm in [ 'pre', 'both' ] else torch.nn.Identity()
+        self.layer_norm_post = torch.nn.LayerNorm( config.d_model ) if self.pooler_config.layer_pooling_norm in [ 'post', 'both' ] else torch.nn.Identity()
+
+        self.token_norm_pre = torch.nn.LayerNorm( config.d_model ) if self.pooler_config.token_pooling_norm in [ 'pre', 'both' ] else torch.nn.Identity()
+        self.token_norm_post = torch.nn.LayerNorm( config.d_model ) if self.pooler_config.token_pooling_norm in [ 'post', 'both' ] else torch.nn.Identity()
+
+        if self.pooler_config.layer_pooling == 'weighted_mean':
+            assert not isinstance( self.pooler_config.layer_select, int )
+            self.layer_weighting = torch.nn.Parameter( torch.empty( len( self.pooler_config.layer_select ) ), requires_grad=True )
+            self.layer_weighting.data.zero_()
+        else:
+            self.layer_weighting = None
 
         # Match the reward pooler type
         match self.pooler_config.pooler_function:
@@ -532,7 +546,97 @@ class LSWTPooler( torch.nn.Module ):
             for name in self.pooler_config.reward_heads
         } )
     
-    def forward( self, hidden_states: torch.Tensor, output_latent_states=False, compute_sae_loss=False ) -> DPHOutput:
+    def aggregate_states(
+        self,
+        hidden_states: tuple[torch.Tensor],
+        input_ids: torch.LongTensor,
+        start_id: int,
+        end_id: int,
+        return_all=False
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        assert self.pooler_config
+        
+        # Select the layer or subset of layers
+        if isinstance( self.pooler_config.layer_select, int ):
+            layer_selected_states = hidden_states[self.pooler_config.layer_select][ None, ... ]
+        else:
+            layer_selected_states = torch.stack( itemgetter( *self.pooler_config.layer_select )( hidden_states ) )
+        
+        # Pre normalise layers
+        layer_selected_states: torch.Tensor = self.layer_norm_pre( layer_selected_states )
+        
+        # Perform layer pooling type
+        match self.pooler_config.layer_pooling:
+            case 'layer':
+                layer_pooled_states = layer_selected_states.squeeze( 0 )
+            
+            case 'mean':
+                layer_pooled_states = layer_selected_states.mean( 0 )
+            
+            case 'weighted_mean':
+                assert self.layer_weighting
+                layer_pooled_states = ( layer_selected_states * self.layer_weighting.softmax( 0 ) ).sum( 0 )
+
+            case _:
+                raise ValueError( 'Incorrect layer pooler type.' )
+        
+        # Post normalise layers
+        layer_pooled_states: torch.Tensor = self.layer_norm_post( layer_pooled_states ).float()
+        
+        
+        # Get some useful stuff
+        batch_size, seq_lengths = input_ids.shape[:2]
+        batch_ids = torch.arange( batch_size, device=layer_pooled_states.device )
+        seq_ids = torch.arange( seq_lengths, device=input_ids.device )
+        
+        start_idx = torch.where( input_ids == start_id, seq_ids, -1 ).max( -1 )[0]
+        end_idx = torch.where( input_ids == end_id, seq_ids, -1 ).max( -1 )[0]
+        segment_mask = ( start_idx[ :, None ] <= seq_ids[ None, : ] ) * ( seq_ids[ None, : ] <= end_idx[ :, None ] )
+        segment_pos = segment_mask.float().cumsum( -1 ) * segment_mask
+        
+        segment_mask = segment_mask[ ..., None ]
+        segment_pos = segment_mask[ ..., None ]
+        
+        # Pre normalise tokens
+        token_selected_states: torch.Tensor = self.token_norm_pre( layer_pooled_states )
+        
+        # Perform layer token pooling
+        match self.pooler_config.token_pooling:
+            case 'cls':
+                token_pooled_states = token_selected_states * segment_mask
+            
+            case 'max':
+                token_pooled_states = torch.where( segment_mask, token_selected_states, -1e9 ).cummax( -2 )[0]
+                token_pooled_states = token_pooled_states * segment_mask
+            
+            case 'mean':
+                token_pooled_states = torch.where( segment_mask, token_selected_states, 0 ).cumsum( -2 )
+                token_pooled_states = token_pooled_states / ( segment_pos + 1e-9 )
+                token_pooled_states = token_pooled_states * segment_mask
+            
+            case 'sgpt':
+                token_pooled_states = torch.where( segment_mask, token_selected_states * segment_pos, 0 ).cumsum( -2 )
+                token_pooled_states = token_pooled_states / segment_pos.cumsum( -2 )
+                token_pooled_states = token_pooled_states * segment_mask
+            
+            case _:
+                raise ValueError( 'Incorrect token pooler type.' )
+        
+        # Post normalise tokens
+        token_pooled_states: torch.Tensor = self.token_norm_post( token_pooled_states )
+        
+        if not return_all:
+            return token_pooled_states[ batch_ids, end_idx ]
+        else:
+            return token_pooled_states, segment_mask, segment_pos
+        
+    
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        output_latent_states=False,
+        compute_sae_loss=False
+    ) -> DPHOutput:
         assert self.pooler_config
         
         if compute_sae_loss:
@@ -578,39 +682,50 @@ class LSWTForDPH( LSWTForCausalLM ):
         self.pooler = LSWTPooler( config )
 
         self.post_init()
-
+    
     def compute_final_rewards(
         self,
-        last_hidden_states: torch.Tensor,
+        hidden_states: tuple[torch.Tensor],
         input_ids: torch.LongTensor,
-        cls_id: int,
-        output_latent_states: bool = False,
-        compute_sae_loss: bool = False
-    ) -> DPHOutput:
-        """ Computes the final token rewards of all sequences in a batch.
+        start_id: int,
+        end_id: int
+    ) -> Mapping[str, torch.Tensor]:
+        dph_states = self.pooler.aggregate_states( hidden_states, input_ids, start_id, end_id, return_all=False )
+        assert isinstance( dph_states, torch.Tensor )
+        return self.pooler.forward( dph_states, False, False )
 
-        Args:
-            last_hidden_states (torch.Tensor): Hidden states of size [Batch x Seq x Dim].
-            input_ids (torch.LongTensor): Input ids of size [Batch x Seq].
-            cls_id (int): id of the token used to aggregate rewards from. If multiple exist in the sequence the last one is used.
-            output_latent_states (bool, optional): When true returns the intermediate latent state. Defaults to False.
-            compute_sae_loss (bool, optional): When true computes the L1 and reconstruction losses. Only supported when in SAE mode. Defaults to False.
+    # def compute_final_rewards(
+    #     self,
+    #     last_hidden_states: torch.Tensor,
+    #     input_ids: torch.LongTensor,
+    #     cls_id: int,
+    #     output_latent_states: bool = False,
+    #     compute_sae_loss: bool = False
+    # ) -> DPHOutput:
+    #     """ Computes the final token rewards of all sequences in a batch.
 
-        Returns:
-            DPHOutput: Model output
-        """
+    #     Args:
+    #         last_hidden_states (torch.Tensor): Hidden states of size [Batch x Seq x Dim].
+    #         input_ids (torch.LongTensor): Input ids of size [Batch x Seq].
+    #         cls_id (int): id of the token used to aggregate rewards from. If multiple exist in the sequence the last one is used.
+    #         output_latent_states (bool, optional): When true returns the intermediate latent state. Defaults to False.
+    #         compute_sae_loss (bool, optional): When true computes the L1 and reconstruction losses. Only supported when in SAE mode. Defaults to False.
 
-        batch_size, seq_lengths = input_ids.shape[:2]
-        batch_ids = torch.arange( batch_size, device=last_hidden_states.device )
-        seq_ids = torch.arange( seq_lengths, device=input_ids.device )
-        cls_idx = torch.where( input_ids == cls_id, seq_ids, -1 ).max( -1 )[0]
+    #     Returns:
+    #         DPHOutput: Model output
+    #     """
 
-        # TODO: some sort of assertion that there at least is a CLS ID somewhere
-        assert torch.all( cls_idx != -1 )
+    #     batch_size, seq_lengths = input_ids.shape[:2]
+    #     batch_ids = torch.arange( batch_size, device=last_hidden_states.device )
+    #     seq_ids = torch.arange( seq_lengths, device=input_ids.device )
+    #     cls_idx = torch.where( input_ids == cls_id, seq_ids, -1 ).max( -1 )[0]
 
-        pooled_states = last_hidden_states[ batch_ids, cls_idx ]
+    #     # TODO: some sort of assertion that there at least is a CLS ID somewhere
+    #     assert torch.all( cls_idx != -1 )
+
+    #     pooled_states = last_hidden_states[ batch_ids, cls_idx ]
         
-        return self.pooler( pooled_states, output_latent_states=output_latent_states, compute_sae_loss=compute_sae_loss )
+    #     return self.pooler( pooled_states, output_latent_states=output_latent_states, compute_sae_loss=compute_sae_loss )
         
 
     def get_param_groups(

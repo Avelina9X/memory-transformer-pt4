@@ -224,11 +224,12 @@ class DPHChoiceInstructionBatcher( ChoiceInstructionBatcher ):
             with torch.autocast( device_type='cuda', dtype=torch.float16 ):
                 outputs = self.model( prepared_batch.tokens )
 
-                cls_id = self.formatter.tokenizer.cls_token_id
+                start_id = self.formatter.tokenizer.sep_token_id
+                end_id = self.formatter.tokenizer.cls_token_id
 
                 logits = outputs.logits
                 states = outputs.hidden_states[-1]
-                rewards = self.model.compute_final_rewards( states, prepared_batch.tokens, cls_id )[ self.reward_head_key ]
+                rewards = self.model.compute_final_rewards( states, prepared_batch.tokens, start_id, end_id )[ self.reward_head_key ]
 
             log_results = self.compute_batch( prepared_batch, logits )
             dph_results = self.compute_batch_dph( rewards )
