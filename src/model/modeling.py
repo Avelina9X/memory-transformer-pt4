@@ -16,7 +16,7 @@ import torch
 import torch.nn.functional as F
 
 from .configuration import LSWTConfig
-from .layers import SharedEmbeddings, RotaryEmbedding, LSWTBlock, ActGLU
+from .layers import SharedEmbeddings, RotaryEmbedding, LSWTBlock, ActGLU, prolu_ste, prolu_relu
 
 class LSWTPreTrainedModel( PreTrainedModel ):
     """
@@ -406,13 +406,18 @@ class LSWTSparseAutoEncoder( torch.nn.Module ):
         super().__init__()
         
         self.config = config
+        self.pooler_config = config.pooler_config
+        
+        assert config.pooler_config
         
         n_dim = config.d_model
-        m_dim = config.reward_embedding_size
+        m_dim = config.pooler_config.embedding_size
         
         assert m_dim
-        assert config.reward_activation in [ 'relu' ]
-        assert not config.reward_activation_gated
+        assert config.pooler_config.pooler_activation in [ 'relu', 'prolu_ste', 'prolu_relu' ] # TODO: raise instead of assert
+        assert not config.pooler_config.pooler_activation_gated # TODO: raise instead of assert
+        
+        self.activation = config.pooler_config.pooler_activation
         
         self.encoder_weight = torch.nn.Parameter( torch.empty( m_dim, n_dim ) )
         self.encoder_bias = torch.nn.Parameter( torch.empty( m_dim ) )
@@ -420,10 +425,24 @@ class LSWTSparseAutoEncoder( torch.nn.Module ):
         self.decoder_weight = torch.nn.Parameter( torch.empty( n_dim, m_dim ) )
         self.decoder_bias = torch.nn.Parameter( torch.empty( n_dim ) )
     
+    def activate( self, x_prime: torch.Tensor, w: torch.Tensor, b: torch.Tensor ) -> torch.Tensor:
+        match self.activation:
+            case 'relu':
+                return torch.relu( F.linear( x_prime, w, b ) ) # pylint: disable=E1102
+            
+            case 'prolu_ste':
+                return prolu_ste( F.linear( x_prime, w, None ), b ) # pylint: disable=E1102
+            
+            case 'prolu_relu':
+                return prolu_relu( F.linear( x_prime, w, None ), b ) # pylint: disable=E1102
+            
+            case _:
+                raise ValueError( 'Invalid SAE activation!' )
+    
     def forward( self, hidden_states: torch.Tensor, output_auxiliary = False ):
         x_prime = hidden_states - self.decoder_bias
         
-        latent = torch.relu( F.linear( x_prime, self.encoder_weight, self.encoder_bias ) ) # pylint: disable=E1102
+        latent = self.activate( x_prime, self.encoder_weight, self.encoder_bias )
         
         if output_auxiliary:
             x_hat = F.linear( latent, self.decoder_weight, self.decoder_bias ) # pylint: disable=E1102
