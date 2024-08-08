@@ -57,28 +57,28 @@ class ProLU(torch.autograd.Function):
 
     @staticmethod
     @custom_fwd
-    def forward(ctx, m, b):
+    def forward(ctx, m, b): # pylint: disable=W0221
         gate = (m + b > 0) & (m > 0)
         ctx.save_for_backward(m, gate)
         return torch.where(gate, m, 0)
 
     @staticmethod
     @custom_bwd
-    def backward(ctx, grad_output):
+    def backward(ctx, grad_output): # pylint: disable=W0221
         raise NotImplementedError(
             "This method should be overridden by a subclass of ProLU to provide a backward implementation."
         )
 
-class ProLU_ReLU(ProLU):
+class ProLU_ReLU(ProLU): # pylint: disable=W0223
     @staticmethod
     @custom_bwd
     def backward(ctx, grad_output):
-        m, gate = ctx.saved_tensors
+        _, gate = ctx.saved_tensors
         gated_grad = torch.where(gate, grad_output, 0)
         grad_m, grad_b = gated_grad.clone(), gated_grad.clone()
         return grad_m, grad_b, None
 
-class ProLU_STE(ProLU):
+class ProLU_STE(ProLU): # pylint: disable=W0223
     @staticmethod
     @custom_bwd
     def backward(ctx, grad_output):
@@ -91,12 +91,15 @@ class ProLU_STE(ProLU):
 ProLU.STE = ProLU_STE # type: ignore
 ProLU.ReLU = ProLU_ReLU # type: ignore
 
-def prolu_ste(m, b):
-    return ProLU_STE.apply(m, b)
+def prolu_ste( m: torch.Tensor, b: torch.Tensor ) -> torch.Tensor:
+    out = ProLU_STE.apply( m, b )
+    assert out
+    return out
 
-
-def prolu_relu(m, b):
-    return ProLU_ReLU.apply(m, b)
+def prolu_relu( m: torch.Tensor, b: torch.Tensor ) -> torch.Tensor:
+    out = ProLU_ReLU.apply( m, b )
+    assert out
+    return out
 
 
 class RMSHeadNorm( torch.nn.Module ):
