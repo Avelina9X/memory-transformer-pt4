@@ -226,9 +226,10 @@ def instruct_align(
     train_utils.modify_dicts( config, model_config, train_config, dph_config )
 
     # Get reward head name
-    assert isinstance( model_config.reward_heads, Sequence )
-    assert len( model_config.reward_heads ) == 1
-    reward_head_name = model_config.reward_heads[0]
+    assert model_config.pooler_config
+    assert isinstance( model_config.pooler_config.reward_heads, Sequence )
+    assert len( model_config.pooler_config.reward_heads ) > 0
+    reward_head_name = model_config.pooler_config.reward_heads[0]
 
     # Load DPH model and set trainable
     dph_model = typing.cast( LSWTForDPH, LSWTForDPH.from_pretrained( pretrained_run_dir, **model_config.to_dict() ) )

@@ -17,7 +17,7 @@ import torch.distributed as dist
 from transformers import PreTrainedTokenizerBase, GenerationConfig
 from datasets import concatenate_datasets
 
-from model.configuration import LSWTConfigTraining, LSWTConfig, LSWTConfigTrainingDPH
+from model.configuration import LSWTConfigTraining, LSWTConfig, LSWTConfigTrainingDPH, LSWTPoolerConfig
 from model.modeling import LSWTForCausalLM
 from training.trainer import Trainer
 from training.data import load_awesome_prompts, load_savvas_prompts
@@ -56,8 +56,11 @@ def modify_dicts( config: dict, model_config: LSWTConfig, train_config: LSWTConf
         dph_key = find_and_extract( key, 'dph' )
 
         if model_key is not None:
-            getattr( model_config, model_key )
-            setattr( model_config, model_key, value )
+            if model_key != 'pooler_config':
+                getattr( model_config, model_key )
+                setattr( model_config, model_key, value )
+            else:
+                setattr( model_config, 'pooler_config', LSWTPoolerConfig( **value ) )
 
         if train_key is not None:
             getattr( train_config, train_key )
