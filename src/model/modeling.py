@@ -553,7 +553,7 @@ class LSWTPooler( torch.nn.Module ):
         start_id: int,
         end_id: int,
         return_all=False
-    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> torch.Tensor | dict[str, torch.Tensor]:
         assert self.pooler_config
         
         # Select the layer or subset of layers
@@ -628,7 +628,12 @@ class LSWTPooler( torch.nn.Module ):
         if not return_all:
             return token_pooled_states[ batch_ids, end_idx ]
         else:
-            return token_pooled_states, segment_mask, segment_pos
+            return {
+                'final_states': token_pooled_states[ batch_ids, end_idx ],
+                'pooled_states': token_pooled_states,
+                'segment_mask': segment_mask,
+                'segment_pos': segment_pos,
+            }
         
     
     def forward(
