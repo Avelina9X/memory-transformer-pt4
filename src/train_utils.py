@@ -60,7 +60,14 @@ def modify_dicts( config: dict, model_config: LSWTConfig, train_config: LSWTConf
                 getattr( model_config, model_key )
                 setattr( model_config, model_key, value )
             else:
-                setattr( model_config, 'pooler_config', LSWTPoolerConfig( **value ) )
+                assert isinstance( value, dict )
+                
+                if model_config.pooler_config:
+                    for dk, dv in value.items():
+                        getattr( model_config.pooler_config, dk )
+                        setattr( model_config.pooler_config, dk, dv )
+                else:
+                    setattr( model_config, 'pooler_config', LSWTPoolerConfig( **value ) )
 
         if train_key is not None:
             getattr( train_config, train_key )
