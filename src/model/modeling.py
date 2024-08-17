@@ -513,7 +513,7 @@ class LSWTPooler( torch.nn.Module ):
                 case 'global':
                     self.ema_weight = torch.nn.Parameter( torch.empty( [ 1, 1, 1 ] ), requires_grad=True )
                 case 'activation':
-                    self.ema_weight = torch.nn.Parameter( torch.empty( [ 1, config.d_model, 1 ] ), requires_grad=True )
+                    self.ema_weight = torch.nn.Parameter( torch.empty( [ 1, 1, config.d_model ] ), requires_grad=True )
                 case None:
                     self.ema_weight = torch.nn.Parameter( torch.empty( [ 1, 1, 1 ] ), requires_grad=False )
                 case _:
@@ -620,7 +620,7 @@ class LSWTPooler( torch.nn.Module ):
         segment_pos = segment_mask.float().cumsum( -1 ) * segment_mask
         
         segment_mask = segment_mask[ ..., None ]
-        segment_pos = segment_mask[ ..., None ]
+        segment_pos = segment_pos[ ..., None ]
         
         # Pre normalise tokens
         token_selected_states: torch.Tensor = self.token_norm_pre( layer_pooled_states )
