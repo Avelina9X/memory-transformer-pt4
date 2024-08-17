@@ -9,7 +9,7 @@ model:
       token_pooling: ema
       token_pooling_norm: both
       token_beta: 0.99
-      token_beta_learnable: global
+      token_beta_learnable: activation
 
       pooler_function: identity
 

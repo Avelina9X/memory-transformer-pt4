@@ -496,7 +496,7 @@ class LSWTPooler( torch.nn.Module ):
         self.token_norm_pre = torch.nn.LayerNorm( config.d_model ) if pooler_config.token_pooling_norm in [ 'pre', 'both' ] else torch.nn.Identity()
         self.token_norm_post = torch.nn.LayerNorm( config.d_model ) if pooler_config.token_pooling_norm in [ 'post', 'both' ] else torch.nn.Identity()
 
-        if pooler_config.layer_pooling == 'weighted_mean':
+        if pooler_config.layer_pooling == 'weighted_sum':
             assert not isinstance( pooler_config.layer_select, int )
             self.layer_weighting = torch.nn.Parameter( torch.empty( len( pooler_config.layer_select ) ), requires_grad=True )
             self.layer_weighting.data.zero_()
