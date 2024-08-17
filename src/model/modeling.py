@@ -645,8 +645,8 @@ class LSWTPooler( torch.nn.Module ):
                 token_pooled_states = token_pooled_states * segment_mask
             
             case 'ema':
-                assert self.ema_beta
-                assert self.ema_weight
+                assert self.ema_beta is not None
+                assert self.ema_weight is not None
                 
                 log_beta = F.logsigmoid( self.ema_beta + self.ema_weight ) # pylint: disable=E1102
                 
