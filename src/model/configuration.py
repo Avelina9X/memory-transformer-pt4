@@ -30,8 +30,10 @@ class LSWTPoolerConfig( PretrainedConfig ):
         layer_pooling: Literal['layer', 'mean', 'weighted_sum'] = 'layer',
         layer_pooling_norm: Literal['pre', 'post', 'both', None] = None,
         
-        token_pooling: Literal['cls', 'max', 'mean', 'sgpt'] = 'cls',
+        token_pooling: Literal['cls', 'max', 'mean', 'sgpt', 'ema'] = 'cls',
         token_pooling_norm: Literal['pre', 'post', 'both', None] = None,
+        token_beta: float | None = None,
+        token_beta_learnable: Literal['global', 'activation', None] = None,
         
         pooler_function: Literal['identity', 'projection'] = 'identity',
         pooler_activation: str | None = None,
@@ -59,8 +61,10 @@ class LSWTPoolerConfig( PretrainedConfig ):
         
         self.token_pooling = token_pooling
         self.token_pooling_norm = token_pooling_norm
+        self.token_beta = token_beta
+        self.token_beta_learnable = token_beta_learnable
         
-        if not ( layer_pooling == 'layer' and isinstance( layer_select, int ) ):
+        if ( layer_pooling == 'layer' ) ^ ( isinstance( layer_select, int ) ):
             raise ValueError( 'layer_select must be an int when layer_pooling is `layer`' )
                 
         if pooler_function == 'identity':
@@ -79,6 +83,12 @@ class LSWTPoolerConfig( PretrainedConfig ):
         
         else:
             raise ValueError( 'Invalid pooler_function type' )
+        
+        if ( token_pooling == 'ema' ) ^ ( isinstance( token_beta, float ) ):
+            raise ValueError( 'token_beta must be a float if and only if token_pooling=`ema`' )
+        
+        if ( token_pooling != 'ema' ) and token_beta_learnable:
+            raise ValueError( 'token_beta_learnable can only be set when token_pooling=`ema`' )
 
 
 class LSWTConfig( PretrainedConfig ):

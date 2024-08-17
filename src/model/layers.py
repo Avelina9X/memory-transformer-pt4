@@ -102,6 +102,13 @@ def prolu_relu( m: torch.Tensor, b: torch.Tensor ) -> torch.Tensor:
     return out
 
 
+def complex_log( float_input: torch.Tensor, eps=1e-6 ) -> torch.Tensor:
+    eps = float_input.new_tensor( eps )
+    real = float_input.abs().maximum( eps ).log()
+    imag = ( float_input < 0 ).to( float_input.dtype ) * torch.pi
+    return torch.complex( real, imag )
+
+
 class RMSHeadNorm( torch.nn.Module ):
     """ RMS Norm layer for query and keys heads.
     """
