@@ -228,7 +228,7 @@ class DPHChoiceInstructionBatcher( ChoiceInstructionBatcher ):
                 end_id = self.formatter.tokenizer.cls_token_id
 
                 logits = outputs.logits
-                states = outputs.hidden_states[-1]
+                states = outputs.hidden_states
                 rewards = self.model.compute_final_rewards( states, prepared_batch.tokens, start_id, end_id )[ self.reward_head_key ]
 
             log_results = self.compute_batch( prepared_batch, logits )
