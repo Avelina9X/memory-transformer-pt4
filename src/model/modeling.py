@@ -518,7 +518,9 @@ class LSWTPooler( torch.nn.Module ):
                     self.ema_weight = torch.nn.Parameter( torch.empty( [ 1, 1, 1 ] ), requires_grad=False )
                 case _:
                     raise ValueError( 'Invalid `token_beta_learnable` value' )
-            self.ema_weight.zero_()
+            
+            with torch.no_grad():
+                self.ema_weight.zero_()
         else:
             self.ema_weight = None
             self.ema_beta = None
