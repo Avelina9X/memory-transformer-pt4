@@ -12,6 +12,8 @@ import wandb
 
 import torch
 import torch.multiprocessing as mp
+from torch.multiprocessing import Queue
+from torch.multiprocessing.queue import Queue as QueueType
 
 import evaluate
 import datasets
@@ -180,7 +182,8 @@ def instruct_align(
     config: dict | None = None,
     wandb_mode: str | None = None,
     wandb_tags: list[str] | None = None,
-    wandb_run_name: str | None = None
+    wandb_run_name: str | None = None,
+    validation_queue: QueueType | None = None,
 ):
     """ Runs the DPH optimization pipeline.
 
@@ -191,9 +194,21 @@ def instruct_align(
         wandb_mode (str | None): WandB run mode. Defaults to None.
         wandb_tags (list[str] | None): WandB run tags. Defaults to None.
         wandb_run_name (str | None): WandB run name. Defaults to None.
+        validation_queue (Queue | None): Queue used to pass validation results back to rank 0. Defaults to None
     """
     
+    # Ensure config is not none
     assert config
+    
+    # Ensure DDP stuff is/isn't there if DDP is/isn't enabled
+    if world_size == 1:
+        assert validation_queue is None
+        assert rank == 0
+    else:
+        assert validation_queue
+    
+    # Make sure rank isn't larger than world size
+    assert rank < world_size
 
     # Log in to wandb
     wandb.require( 'core' )
@@ -263,16 +278,16 @@ def instruct_align(
     # Create task mixes
     train_tasks = train_utils.create_train_tasks( config[ 'finetune.dph_mix' ] )
     
+    validation_zeroshot_tasks = create_validation_zeroshot_tasks()
+        
     if rank == 0:
-        validation_zeroshot_tasks = create_validation_zeroshot_tasks()
         validation_prompts = train_utils.create_validation_prompts( tokenizer )
 
     # Instantiate instruct helpers
     train_formatter = InstructionFormatter( tokenizer, 0 )
     
-    if rank == 0:
-        validation_formatter = InstructionFormatter( tokenizer, None )
-        batcher = DPHChoiceInstructionBatcher( dph_model, validation_formatter, reward_head_name, 'mean' )
+    validation_formatter = InstructionFormatter( tokenizer, None )
+    batcher = DPHChoiceInstructionBatcher( dph_model, validation_formatter, reward_head_name, 'mean' )
     
     # Get mask type for this training variant
     mask_type = config.get( 'finetune.mask_override', {
@@ -369,23 +384,42 @@ def instruct_align(
         # Train for an epoch and get metrics
         train_metrics = trainer.train_epoch( iterator, i + 1 )
 
-        if rank == 0:
-            # Create empty validation metrics list
-            validation_lines = []
-            validation_dict = {}
-            validation_prompt_dict = {}
+        # Create empty validation metrics list
+        validation_lines = []
+        validation_dict = {}
+        validation_prompt_dict = {}
+        
+        validate_freq = config.get( 'meta.validate_freq', 1 )
+        should_validate = config[ 'meta.validate' ] and ( i % validate_freq == validate_freq - 1 )
+
+        # If validation flag is set (or it's the last epoch) run validation
+        if should_validate or i + 1 == trainer.get_total_epochs():
+            for task in validation_zeroshot_tasks[ rank : : world_size ]:
+                curr_line, curr_dict = evaluate_zero_shot_task( task, batcher )
+                validation_lines.append( curr_line )
+                validation_dict.update( **curr_dict )
+            torch.cuda.empty_cache()
             
-            validate_freq = config.get( 'meta.validate_freq', 1 )
-            should_validate = config[ 'meta.validate' ] and ( i % validate_freq == validate_freq - 1 )
+            if rank == 0:
+                validation_prompt_table = train_utils.perform_prompt_validation(
+                    validation_prompts,
+                    tokenizer,
+                    dph_model,
+                )
+                
+                validation_prompt_dict[ 'validation_generations' ] = validation_prompt_table
+            
+            if validation_queue:
+                if rank > 0:
+                    validation_queue.put( ( validation_lines, validation_dict ) )
+                else:
+                    for _ in range( world_size - 1):
+                        received = validation_queue.get()
+                        
+                        validation_lines += received[0]
+                        validation_dict.update( **received[1] )
 
-            # If validation flag is set (or it's the last epoch) run validation
-            if should_validate or i + 1 == trainer.get_total_epochs():
-                for task in validation_zeroshot_tasks:
-                    curr_line, curr_dict = evaluate_zero_shot_task( task, batcher )
-                    validation_lines.append( curr_line )
-                    validation_dict.update( **curr_dict )
-                torch.cuda.empty_cache()
-
+            if rank == 0:
                 validation_dict.update( {
                     **aggregate_gpt4all_score( validation_dict, 'dph' ),
                     **aggregate_glue_score( validation_dict, 'dph' ),
@@ -394,15 +428,8 @@ def instruct_align(
                     **aggregate_glue_score( validation_dict, 'log' ),
                     **aggregate_race_score( validation_dict, 'log' ),
                 } )
-                
-                validation_prompt_table = train_utils.perform_prompt_validation(
-                    validation_prompts,
-                    tokenizer,
-                    dph_model,
-                )
-                
-                validation_prompt_dict[ 'validation_generations' ] = validation_prompt_table
 
+        if rank == 0:
             # If we're not in debug mode log the metrics etc to the output dir
             if wandb_mode != 'disabled':
                 train_utils.log_stats( output_dir, train_metrics, validation_lines, trainer.optimizer_step )
@@ -473,9 +500,11 @@ def run():
 
     # Print the config to stdout
     rich.print( config )
+    
+    device_count = torch.cuda.device_count()
 
     # Launch program with our settings
-    if torch.cuda.device_count() == 1:
+    if device_count == 1:
         instruct_align(
             config=config,
             wandb_mode=arguments.wmode,
@@ -486,13 +515,14 @@ def run():
         mp.spawn( # type: ignore
             fn=instruct_align,
             args=(
-                torch.cuda.device_count(),
+                device_count,
                 config,
                 arguments.wmode,
                 tags,
-                config[ 'meta.run_name' ]
+                config[ 'meta.run_name' ],
+                Queue( device_count - 1 )
             ),
-            nprocs=torch.cuda.device_count(),
+            nprocs=device_count,
             join=True,
         )
 
