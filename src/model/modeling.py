@@ -598,7 +598,7 @@ class LSWTPooler( torch.nn.Module ):
             case 'mean':
                 layer_pooled_states = layer_selected_states.mean( 0 )
             
-            case 'weighted_mean':
+            case 'weighted_sum':
                 assert self.layer_weighting
                 layer_pooled_states = ( layer_selected_states * self.layer_weighting.softmax( 0 ) ).sum( 0 )
 
