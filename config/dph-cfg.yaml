@@ -10,11 +10,6 @@ model:
   trainable_embeddings: true
   recompute_kv: false
 
-  reward_heads: [ 'reward_head' ]
-  reward_head_bias: true
-  reward_pooler: identity
-  reward_dropout: 0.1
-
 train:
   batch_size: 64
   batch_size_step: 0
@@ -24,7 +19,7 @@ train:
   lr_max: 1.0e-5
   lr_warmup_steps: 200
   lr_cooldown_tokens: 10000000000
-  lr_cooldown_ratio: 0
+  lr_cooldown_ratio: 0.1
 
   opt_beta_1: 0.9
   opt_beta_2: 0.999
