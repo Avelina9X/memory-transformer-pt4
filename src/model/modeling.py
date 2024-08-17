@@ -600,7 +600,7 @@ class LSWTPooler( torch.nn.Module ):
             
             case 'weighted_sum':
                 assert self.layer_weighting is not None
-                layer_pooled_states = ( layer_selected_states * self.layer_weighting.softmax( 0 ) ).sum( 0 )
+                layer_pooled_states = ( layer_selected_states * self.layer_weighting.softmax( 0 ).view( -1, 1, 1, 1 ) ).sum( 0 )
 
             case _:
                 raise ValueError( 'Incorrect layer pooler type.' )
