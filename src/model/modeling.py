@@ -17,7 +17,7 @@ import torch
 import torch.nn.functional as F
 
 from .configuration import LSWTConfig
-from .layers import SharedEmbeddings, RotaryEmbedding, LSWTBlock, ActGLU, prolu_ste, prolu_relu, complex_log
+from .layers import SharedEmbeddings, RotaryEmbedding, LSWTBlock, ActGLU, complex_scan, prolu_ste, prolu_relu
 
 class LSWTPreTrainedModel( PreTrainedModel ):
     """
@@ -499,7 +499,7 @@ class LSWTPooler( torch.nn.Module ):
         if pooler_config.layer_pooling == 'weighted_sum':
             assert not isinstance( pooler_config.layer_select, int )
             self.layer_weighting = torch.nn.Parameter( torch.empty( len( pooler_config.layer_select ) ), requires_grad=True )
-            self.layer_weighting.data.zero_()
+            self.layer_weighting.data.fill_( 1.0 )
         else:
             self.layer_weighting = None
         
@@ -519,8 +519,7 @@ class LSWTPooler( torch.nn.Module ):
                 case _:
                     raise ValueError( 'Invalid `token_beta_learnable` value' )
             
-            with torch.no_grad():
-                self.ema_weight.zero_()
+            self.ema_weight.data.zero_()
         else:
             self.ema_weight = None
             self.ema_beta = None
@@ -650,9 +649,7 @@ class LSWTPooler( torch.nn.Module ):
                 
                 log_beta = F.logsigmoid( self.ema_beta + self.ema_weight ) # pylint: disable=E1102
                 
-                numer = torch.where( segment_mask, complex_log( token_selected_states ) - log_beta * segment_pos, -1e9 ).logcumsumexp( -2 )
-                denom = torch.where( segment_mask, - log_beta * segment_pos, -1e9 ).logcumsumexp( -2 )
-                token_pooled_states = ( numer - denom ).exp().real * segment_mask
+                token_pooled_states = complex_scan( segment_mask, token_selected_states, log_beta, segment_pos )
             
             case _:
                 raise ValueError( 'Incorrect token pooler type.' )

@@ -108,6 +108,12 @@ def complex_log( float_input: torch.Tensor, eps=1e-6 ) -> torch.Tensor:
     imag = ( float_input < 0 ).to( float_input.dtype ) * torch.pi
     return torch.complex( real, imag )
 
+@torch._dynamo.disable # type: ignore # pylint: disable=W0212
+def complex_scan( segment_mask, token_selected_states, log_beta, segment_pos ):
+    numer = torch.where( segment_mask, complex_log( token_selected_states ) - log_beta * segment_pos, -1e9 ).logcumsumexp( -2 )
+    denom = torch.where( segment_mask, - log_beta * segment_pos, -1e9 ).logcumsumexp( -2 )
+    return ( numer - denom ).exp().real * segment_mask
+
 
 class RMSHeadNorm( torch.nn.Module ):
     """ RMS Norm layer for query and keys heads.
