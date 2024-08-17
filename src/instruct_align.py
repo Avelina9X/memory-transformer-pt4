@@ -247,7 +247,7 @@ def instruct_align(
     reward_head_name = model_config.pooler_config.reward_heads[0]
 
     # Load DPH model and set trainable
-    dph_model = typing.cast( LSWTForDPH, LSWTForDPH.from_pretrained( pretrained_run_dir, **model_config.to_dict() ) )
+    dph_model = typing.cast( LSWTForDPH, LSWTForDPH.from_pretrained( pretrained_run_dir, config=model_config ) )
     train_utils.set_backbone_trainable( dph_model, config[ 'finetune.trainable_backbone' ] )
     dph_model = typing.cast( LSWTForDPH, dph_model.cuda() ) # type: ignore # pylance is confused
 
