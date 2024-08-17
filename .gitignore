@@ -24,3 +24,5 @@ scratch.py
 
 .ipynb_checkpoints/
 Dockerfile
+
+*.run.sh
