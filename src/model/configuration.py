@@ -40,9 +40,11 @@ class LSWTPoolerConfig( PretrainedConfig ):
         pooler_activation_gated=False,
         
         layer_select: int | Sequence[int] = -1,
+        
+        **kwargs
     ):
         
-        super().__init__()
+        super().__init__( **kwargs )
         
         self.reward_heads = reward_heads
         self.reward_head_bias = reward_head_bias
@@ -272,6 +274,8 @@ class LSWTConfig( PretrainedConfig ):
         
         if isinstance( pooler_config, dict ):
             self.pooler_config = LSWTPoolerConfig( **pooler_config )
+        elif pooler_config is None:
+            self.pooler_config = LSWTPoolerConfig()
         else:
             self.pooler_config = pooler_config
 
