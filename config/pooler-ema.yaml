@@ -4,10 +4,10 @@ model:
       reward_head_bias: true
 
       layer_pooling: weighted_sum
-      layer_pooling_norm: pre
+      layer_pooling_norm: null
 
       token_pooling: ema
-      token_pooling_norm: both
+      token_pooling_norm: post
       token_beta: 0.9
       token_beta_learnable: activation
 
