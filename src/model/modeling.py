@@ -732,7 +732,7 @@ class LSWTForDPH( LSWTForCausalLM ):
     ) -> Mapping[str, torch.Tensor]:
         dph_states = self.pooler.aggregate_states( hidden_states, input_ids, start_id, end_id, return_all=False )
         assert isinstance( dph_states, torch.Tensor )
-        return self.pooler.forward( dph_states, False, False )
+        return self.pooler( dph_states, False, False )
 
     # def compute_final_rewards(
     #     self,
