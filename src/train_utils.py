@@ -265,7 +265,7 @@ def compute_pooler_stats_dict( model: LSWTForDPH ):
         assert model.pooler.ema_weight is not None
         
         sigmoids = torch.sigmoid( model.pooler.ema_beta + model.pooler.ema_weight ).flatten()
-        sigmoids = sigmoids.detach().cpu().numpy()
+        sigmoids = list( sigmoids.detach().cpu().numpy() )
         
         stats_dict[ 'pooler/ema/betas' ] = wandb.Histogram( sigmoids )
     
