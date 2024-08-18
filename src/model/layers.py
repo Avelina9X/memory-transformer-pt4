@@ -115,6 +115,30 @@ def complex_scan( segment_mask, token_selected_states, log_beta, segment_pos ):
     return ( numer - denom ).exp().real * segment_mask
 
 
+class _RotateLayerInner( torch.nn.Module ):
+    def __init__( self, features ):
+        super().__init__()
+        
+        self.weight = torch.nn.Parameter( torch.empty( features, features ), requires_grad=True )
+        torch.nn.init.orthogonal_( self.weight )
+
+    def forward( self, x ):
+        return torch.matmul( x, self.weight )
+
+class RotateLayer( torch.nn.Module ):
+    def __init__( self, features ):
+        super().__init__()
+
+        rotate_layer = _RotateLayerInner( features )
+        self.rotate_layer = torch.nn.utils.parametrizations.orthogonal( rotate_layer )
+    
+    def forward( self, x ):
+        return self.rotate_layer( x )
+    
+    def forwardT( self, x ):
+        return torch.matmul( x, self.rotate_layer.weight.T )
+
+
 class RMSHeadNorm( torch.nn.Module ):
     """ RMS Norm layer for query and keys heads.
     """
