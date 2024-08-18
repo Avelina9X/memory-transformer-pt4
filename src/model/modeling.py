@@ -659,11 +659,12 @@ class LSWTPooler( torch.nn.Module ):
             case _:
                 raise ValueError( 'Incorrect token pooler type.' )
         
+        if self.token_rotate:
+            token_pooled_states = self.token_rotate.forwardT( token_pooled_states )
+            
         # Post normalise tokens
         token_pooled_states: torch.Tensor = self.token_norm_post( token_pooled_states )
         
-        if self.token_rotate:
-            token_pooled_states = self.token_rotate.forwardT( token_pooled_states )
         
         if not return_all:
             return token_pooled_states[ batch_ids, end_idx ]
