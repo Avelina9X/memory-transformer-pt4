@@ -626,6 +626,7 @@ class DPHTrainer():
     def _load_optimizer( self ) -> torch.optim.Optimizer:
         params = self.model_dph.get_param_groups(
             self.train_config.opt_decay_mask,
+            self.dph_config.dph_decay_mask,
             self.dph_config.dph_decay_init,
             self.dph_config.dph_weight_decay,
             self.dph_config.dph_lr_multiplier,
@@ -1015,6 +1016,7 @@ class DPHTrainerDDP( DPHTrainer ):
     def _load_optimizer( self ) -> torch.optim.Optimizer:
         params = self.model_dph.get_param_groups(
             self.train_config.opt_decay_mask,
+            self.dph_config.dph_decay_mask,
             self.dph_config.dph_decay_init,
             self.dph_config.dph_weight_decay,
             self.dph_config.dph_lr_multiplier,

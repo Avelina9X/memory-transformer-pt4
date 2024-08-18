@@ -777,6 +777,7 @@ class LSWTForDPH( LSWTForCausalLM ):
     def get_param_groups(
         self,
         decay_mask: Sequence[str],
+        dph_decay_mask: Sequence[str],
         dph_decay_init=False,
         dph_weight_decay=0.0,
         dph_lr_multiplier=1.0,
@@ -806,17 +807,15 @@ class LSWTForDPH( LSWTForCausalLM ):
                     return True
 
         for name, p in self.named_parameters():
-            if p.requires_grad:
-                if any( i in name for i in decay_mask ):
-
-                    if check_dph( p ):
+            if p.requires_grad:               
+                if check_dph( p ):
+                    if any( i in name for i in dph_decay_mask ):
                         dph_non_decay_params.append( p )
                     else:
-                        non_decay_params.append( p )
-
-                else:
-                    if check_dph( p ):
                         dph_decay_params.append( p )
+                else:
+                    if any( i in name for i in decay_mask ):
+                        non_decay_params.append( p )
                     else:
                         decay_params.append( p )
 
