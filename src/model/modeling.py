@@ -504,12 +504,12 @@ class LSWTPooler( torch.nn.Module ):
             self.layer_weighting = None
         
         if pooler_config.token_pooling == 'ema':
-            assert pooler_config.token_beta
+            assert pooler_config.token_pooling_ema_beta
             
-            beta = pooler_config.token_beta
+            beta = pooler_config.token_pooling_ema_beta
             self.ema_beta = torch.nn.Parameter( torch.tensor( beta / ( 1.0 - beta ) ).log(), requires_grad=False )
             
-            match pooler_config.token_beta_learnable:
+            match pooler_config.token_pooling_ema_beta_learnable:
                 case 'global':
                     self.ema_weight = torch.nn.Parameter( torch.empty( [ 1, 1, 1 ] ), requires_grad=True )
                 case 'activation':
