@@ -512,6 +512,7 @@ def run():
             wandb_run_name=config[ 'meta.run_name' ],
         )
     else:
+        mp.set_start_method( 'spawn' )
         mp.spawn( # type: ignore
             fn=instruct_align,
             args=(
