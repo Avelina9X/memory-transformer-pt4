@@ -779,6 +779,7 @@ class LSWTForDPH( LSWTForCausalLM ):
         decay_mask: Sequence[str],
         dph_decay_init=False,
         dph_weight_decay=0.0,
+        dph_lr_multiplier=1.0,
     ) -> list[dict]:
         """
         Returns optimizer parameter groups with weight decay disabled for certain params.
@@ -823,6 +824,6 @@ class LSWTForDPH( LSWTForCausalLM ):
             { 'params': decay_params },
             { 'params': non_decay_params, 'weight_decay': 0.0 },
 
-            { 'params': dph_decay_params, 'decay_init': dph_decay_init, 'weight_decay': dph_weight_decay },
-            { 'params': dph_non_decay_params, 'decay_init': dph_decay_init, 'weight_decay': 0.0 },
+            { 'params': dph_decay_params, 'decay_init': dph_decay_init, 'weight_decay': dph_weight_decay, 'lr_multiplier': dph_lr_multiplier },
+            { 'params': dph_non_decay_params, 'decay_init': dph_decay_init, 'weight_decay': 0.0, 'lr_multiplier': dph_lr_multiplier },
         ]

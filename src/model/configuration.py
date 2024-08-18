@@ -446,6 +446,7 @@ class LSWTConfigTrainingDPH():
 
         dph_decay_init=False,
         dph_weight_decay=0.1,
+        dph_lr_multiplier=1.0,
     ):
         """ LSW Transformer config class
 
@@ -498,6 +499,7 @@ class LSWTConfigTrainingDPH():
 
         self.dph_decay_init = dph_decay_init
         self.dph_weight_decay = dph_weight_decay
+        self.dph_lr_multiplier = dph_lr_multiplier
 
         # DPO Assertions
         if self.dpo_beta < 0:

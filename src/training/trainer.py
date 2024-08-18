@@ -628,6 +628,7 @@ class DPHTrainer():
             self.train_config.opt_decay_mask,
             self.dph_config.dph_decay_init,
             self.dph_config.dph_weight_decay,
+            self.dph_config.dph_lr_multiplier,
         )
 
         if self.train_config.optimizer == 'LaProp':
@@ -853,7 +854,7 @@ class DPHTrainer():
 
         # For all parameter groups apply LR schedule
         for p_group in self.optimizer.param_groups:
-            p_group[ 'lr' ] = self.get_schedule() * self.train_config.lr_max
+            p_group[ 'lr' ] = self.get_schedule() * self.train_config.lr_max * p_group.get( 'lr_multiplier', 1.0 )
 
         # If gradient norm clipping is enabled perform scaling and clipping
         if self.train_config.opt_max_grad_norm > 0.0:
@@ -1016,6 +1017,7 @@ class DPHTrainerDDP( DPHTrainer ):
             self.train_config.opt_decay_mask,
             self.dph_config.dph_decay_init,
             self.dph_config.dph_weight_decay,
+            self.dph_config.dph_lr_multiplier,
         )
 
         if self.train_config.optimizer == 'LaProp':
