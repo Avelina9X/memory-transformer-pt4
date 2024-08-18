@@ -17,7 +17,7 @@ import torch
 import torch.nn.functional as F
 
 from .configuration import LSWTConfig
-from .layers import SharedEmbeddings, RotaryEmbedding, LSWTBlock, ActGLU, complex_scan, prolu_ste, prolu_relu
+from .layers import RotateLayer, SharedEmbeddings, RotaryEmbedding, LSWTBlock, ActGLU, complex_scan, prolu_ste, prolu_relu
 
 class LSWTPreTrainedModel( PreTrainedModel ):
     """
@@ -495,6 +495,8 @@ class LSWTPooler( torch.nn.Module ):
 
         self.token_norm_pre = torch.nn.LayerNorm( config.d_model ) if pooler_config.token_pooling_norm in [ 'pre', 'both' ] else torch.nn.Identity()
         self.token_norm_post = torch.nn.LayerNorm( config.d_model ) if pooler_config.token_pooling_norm in [ 'post', 'both' ] else torch.nn.Identity()
+        
+        self.token_rotate = RotateLayer( config.d_model ) if pooler_config.token_pooling_rotation else None
 
         if pooler_config.layer_pooling == 'weighted_sum':
             assert not isinstance( pooler_config.layer_select, int )
@@ -624,6 +626,9 @@ class LSWTPooler( torch.nn.Module ):
         # Pre normalise tokens
         token_selected_states: torch.Tensor = self.token_norm_pre( layer_pooled_states )
         
+        if self.token_rotate:
+            token_selected_states = self.token_rotate( token_selected_states )
+        
         # Perform layer token pooling
         match pooler_config.token_pooling:
             case 'cls':
@@ -656,6 +661,9 @@ class LSWTPooler( torch.nn.Module ):
         
         # Post normalise tokens
         token_pooled_states: torch.Tensor = self.token_norm_post( token_pooled_states )
+        
+        if self.token_rotate:
+            token_pooled_states = self.token_rotate.forwardT( token_pooled_states )
         
         if not return_all:
             return token_pooled_states[ batch_ids, end_idx ]
