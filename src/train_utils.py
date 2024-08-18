@@ -18,7 +18,7 @@ from transformers import PreTrainedTokenizerBase, GenerationConfig
 from datasets import concatenate_datasets
 
 from model.configuration import LSWTConfigTraining, LSWTConfig, LSWTConfigTrainingDPH, LSWTPoolerConfig
-from model.modeling import LSWTForCausalLM
+from model.modeling import LSWTForCausalLM, LSWTForDPH
 from training.trainer import Trainer
 from training.data import load_awesome_prompts, load_savvas_prompts
 from training.data_instruct.tasks import DIRECTORY_ALL
@@ -245,6 +245,32 @@ def compute_stats_dict( trainer: Trainer, i: int, true_samples: int | None ) -> 
         'stats/learning_rate': trainer.get_schedule() * trainer.train_config.lr_max,
         'stats/true_samples': true_samples or trainer.optimizer_step * trainer.train_config.batch_size,
     }
+
+def compute_pooler_stats_dict( model: LSWTForDPH ):
+    stats_dict = {}
+    
+    pooler_config: LSWTPoolerConfig = model.config.pooler_config
+    
+    if pooler_config.layer_pooling == 'weighted_sum':
+        assert not isinstance( pooler_config.layer_select, int )
+        assert model.pooler.layer_weighting is not None
+        
+        layer_weights = list( model.pooler.layer_weighting.detach().softmax( 0 ).cpu().numpy() )
+        
+        for i, layer_idx in enumerate( pooler_config.layer_select ):
+            stats_dict[ f'pooler/layer_weights/{layer_idx}' ] = layer_weights[i]
+        
+    if pooler_config.token_pooling == 'ema':
+        assert model.pooler.ema_beta is not None
+        assert model.pooler.ema_weight is not None
+        
+        sigmoids = torch.sigmoid( model.pooler.ema_beta + model.pooler.ema_weight ).flatten()
+        sigmoids = sigmoids.detach().cpu().numpy()
+        
+        stats_dict[ 'pooler/ema/betas' ] = wandb.Histogram( sigmoids )
+    
+    return stats_dict
+        
 
 def parse_cmd_args() -> tuple[argparse.Namespace, dict]:
     argparser = argparse.ArgumentParser()
