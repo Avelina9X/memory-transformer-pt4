@@ -627,7 +627,7 @@ class LSWTPooler( torch.nn.Module ):
         token_selected_states: torch.Tensor = self.token_norm_pre( layer_pooled_states )
         
         if self.token_rotate:
-            token_selected_states = self.token_rotate( token_selected_states )
+            token_selected_states = self.token_rotate( token_selected_states ).float()
         
         # Perform layer token pooling
         match pooler_config.token_pooling:
@@ -660,7 +660,7 @@ class LSWTPooler( torch.nn.Module ):
                 raise ValueError( 'Incorrect token pooler type.' )
         
         if self.token_rotate:
-            token_pooled_states = self.token_rotate.forwardT( token_pooled_states )
+            token_pooled_states = self.token_rotate.forwardT( token_pooled_states ).float()
             
         # Post normalise tokens
         token_pooled_states: torch.Tensor = self.token_norm_post( token_pooled_states )

@@ -115,28 +115,20 @@ def complex_scan( segment_mask, token_selected_states, log_beta, segment_pos ):
     return ( numer - denom ).exp().real * segment_mask
 
 
-class _RotateLayerInner( torch.nn.Module ):
-    def __init__( self, features ):
-        super().__init__()
-        
-        self.weight = torch.nn.Parameter( torch.empty( features, features ), requires_grad=True )
-        torch.nn.init.orthogonal_( self.weight )
-
-    def forward( self, x ):
-        return torch.matmul( x, self.weight )
-
 class RotateLayer( torch.nn.Module ):
     def __init__( self, features ):
         super().__init__()
 
-        rotate_layer = _RotateLayerInner( features )
-        self.rotate_layer = torch.nn.utils.parametrizations.orthogonal( rotate_layer )
-    
+        self.weight = torch.nn.Parameter( torch.empty( features, features ), requires_grad=True )
+        torch.nn.init.orthogonal_( self.weight )
+        self.transform = torch.nn.utils.parametrizations._Orthogonal( self.weight, torch.nn.utils.parametrizations._OrthMaps.matrix_exp, use_trivialization=True )
+        self.weight.data = self.transform.right_inverse( self.weight )
+
     def forward( self, x ):
-        return self.rotate_layer( x )
+        return torch.matmul( x, self.transform( self.weight ) )
     
     def forwardT( self, x ):
-        return torch.matmul( x, self.rotate_layer.weight.T )
+        return torch.matmul( x, self.transform( self.weight ).T )
 
 
 class RMSHeadNorm( torch.nn.Module ):
