@@ -607,7 +607,7 @@ class LSWTPooler( torch.nn.Module ):
                 raise ValueError( 'Incorrect layer pooler type.' )
         
         # Post normalise layers
-        layer_pooled_states: torch.Tensor = self.layer_norm_post( layer_pooled_states ).float()
+        layer_pooled_states: torch.Tensor = self.layer_norm_post( layer_pooled_states )
         
         
         # Get some useful stuff
@@ -626,8 +626,15 @@ class LSWTPooler( torch.nn.Module ):
         # Pre normalise tokens
         token_selected_states: torch.Tensor = self.token_norm_pre( layer_pooled_states )
         
-        if self.token_rotate:
-            token_selected_states = self.token_rotate( token_selected_states ).float()
+        # Create rotation matrix if enabled
+        rotation_weight = self.token_rotate( token_selected_states.dtype ) if self.token_rotate else None
+        
+        # Perform rotation (if enabled)
+        if rotation_weight is not None:
+            token_selected_states = torch.matmul( token_selected_states, rotation_weight )
+        
+        # Cast to float
+        token_selected_states = token_selected_states.float()
         
         # Perform layer token pooling
         match pooler_config.token_pooling:
@@ -652,15 +659,16 @@ class LSWTPooler( torch.nn.Module ):
                 assert self.ema_beta is not None
                 assert self.ema_weight is not None
                 
-                log_beta = F.logsigmoid( self.ema_beta + self.ema_weight ) # pylint: disable=E1102
+                log_beta = F.logsigmoid( self.ema_beta + self.ema_weight ).float() # pylint: disable=E1102
                 
                 token_pooled_states = complex_scan( segment_mask, token_selected_states, log_beta, segment_pos )
             
             case _:
                 raise ValueError( 'Incorrect token pooler type.' )
         
-        if self.token_rotate:
-            token_pooled_states = self.token_rotate.forwardT( token_pooled_states ).float()
+        # Perform inverse rotation (if enabled)
+        if rotation_weight is not None:
+            token_selected_states = torch.matmul( token_selected_states, rotation_weight.T )
             
         # Post normalise tokens
         token_pooled_states: torch.Tensor = self.token_norm_post( token_pooled_states )
@@ -786,9 +794,11 @@ class LSWTForDPH( LSWTForCausalLM ):
         Returns optimizer parameter groups with weight decay disabled for certain params.
 
         Args:
-            decay_mask (Sequence[str]): list of string patterns which disable weight decay
+            decay_mask (Sequence[str]): list of string patterns which disable weight decay for model backbone
+            dph_decay_mask (Sequence[str]): list of string patterns which disable weight decay for pooler
             dph_decay_init (bool): if prior regularization should be enabled for DPH weights. Defaults to False.
             dph_weight_decay (float): the weight/prior decay amount. Defaults to 0.0.
+            dph_lr_multiplier (float): the learning rate multiplier for DPH pooler weights.
 
         Returns:
             List[Dict]: list of param groups to be used by the optimizer

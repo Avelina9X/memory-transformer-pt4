@@ -124,11 +124,9 @@ class RotateLayer( torch.nn.Module ):
         self.transform = torch.nn.utils.parametrizations._Orthogonal( self.weight, torch.nn.utils.parametrizations._OrthMaps.matrix_exp, use_trivialization=True )
         self.weight.data = self.transform.right_inverse( self.weight )
 
-    def forward( self, x ):
-        return torch.matmul( x, self.transform( self.weight ) )
-    
-    def forwardT( self, x ):
-        return torch.matmul( x, self.transform( self.weight ).T )
+    def forward( self, dtype ):
+        Q = self.transform( self.weight.to( dtype ) ).to( dtype )
+        return Q
 
 
 class RMSHeadNorm( torch.nn.Module ):
