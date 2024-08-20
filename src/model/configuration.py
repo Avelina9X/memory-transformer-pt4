@@ -331,6 +331,9 @@ class LSWTConfigTraining():
 
         loss_objective: Literal['MLE', 'SimCTG'] = 'MLE',
         loss_sim_margin=0.5,
+        
+        ortho_params: Sequence[str] = ( 'token_rotate.weight', ),
+        ortho_beta=0.01,
     ):
         """LSW Transformer Training Configuration
 
@@ -390,6 +393,10 @@ class LSWTConfigTraining():
         # Learning objective
         self.loss_objective=loss_objective
         self.loss_sim_margin=loss_sim_margin
+        
+        # Orthogonalisation
+        self.ortho_params = ortho_params
+        self.ortho_beta = ortho_beta
 
         # Assertions
         if batch_size % batch_size_step != 0:

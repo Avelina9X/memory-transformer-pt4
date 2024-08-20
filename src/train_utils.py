@@ -1,6 +1,6 @@
 """ Utilities and helper functions for training and pretraining """
 
-from collections.abc import Sequence
+from collections.abc import Sequence, Mapping
 from datetime import timedelta
 import json
 import os
@@ -269,6 +269,13 @@ def compute_pooler_stats_dict( model: LSWTForDPH ):
         
         stats_dict[ 'pooler/ema/betas' ] = wandb.Histogram( sigmoids )
     
+    if pooler_config.token_pooling_rotation:
+        assert model.pooler.token_rotate is not None
+        
+        with torch.no_grad():
+            Q = model.pooler.token_rotate.weight
+            stats_dict[ 'pooler/rotate/ortho' ] = torch.dist( Q @ Q.T, torch.eye( Q.size( 0 ) ).to( device=Q.device ) ).item()
+    
     return stats_dict
         
 
@@ -335,6 +342,14 @@ def parse_yaml_config( files: list[str] ) -> dict:
             for outer_k, outer_v in d.items()
             for inner_k, inner_v in outer_v.items()
         }
+    
+    def nested_update(d, u):
+        for k, v in u.items():
+            if isinstance(v, Mapping):
+                d[k] = nested_update(d.get(k, {}), v)
+            else:
+                d[k] = v
+        return d
 
     config = {}
 
@@ -344,7 +359,7 @@ def parse_yaml_config( files: list[str] ) -> dict:
 
         with open( file, 'r', encoding='utf-8' ) as f:
             obj = unpack_dict( yaml.load( f, yaml.FullLoader ) )
-            config.update( obj )
+            config = nested_update( config, obj )
 
     return config
 

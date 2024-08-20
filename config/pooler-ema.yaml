@@ -11,7 +11,7 @@ model:
       token_pooling_ema_beta: 0.9
       token_pooling_ema_beta_learnable: activation
 
-      token_pooling_rotation: false
+      token_pooling_rotation: true
 
       pooler_function: identity
 

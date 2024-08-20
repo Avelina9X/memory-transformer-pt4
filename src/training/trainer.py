@@ -23,6 +23,7 @@ from model.configuration import LSWTConfigTraining, LSWTConfigTrainingDPH
 from model.modeling import LSWTForCausalLM, LSWTForDPH
 
 from optimizer.laprop import LaProp
+from optimizer.ortho import Ortho
 from .data_instruct.task_loader import DPHMultiTaskLoader
 from .data import PileDataset
 from .losses import DPOLoss, DPHLoss, KLPairsLoss, MLELoss, ORPOLoss, SimCTGLoss, AccuracyMetric
@@ -66,6 +67,8 @@ class Trainer(): # pylint: disable=R0902
 
         self.optimizer = self._load_optimizer()
         self.optimizer_scaler = torch.cuda.amp.GradScaler() # type: ignore
+        
+        self.orthogonalize = self._load_ortho()
 
         self.batch_groups = train_config.batch_size // train_config.batch_size_step
 
@@ -130,6 +133,14 @@ class Trainer(): # pylint: disable=R0902
             )
 
         raise ValueError( 'Invalid optimizer' )
+    
+    def _load_ortho( self ):
+        params = [
+            p for name, p in self.model.named_parameters()
+            if any( i in name for i in self.train_config.ortho_params )
+        ]
+        
+        return Ortho( params, self.train_config.ortho_beta )
 
     def _load_loss_function( self ) -> torch.nn.Module:
         if self.train_config.loss_objective == 'MLE':
@@ -279,6 +290,8 @@ class Trainer(): # pylint: disable=R0902
         self.optimizer_scaler.step( self.optimizer )
         self.optimizer_scaler.update()
         self.optimizer.zero_grad()
+        
+        self.orthogonalize.step()
 
     def train_batch_step( self, batch ):
         self.model.train()
@@ -516,6 +529,8 @@ class DPHTrainer():
 
         self.optimizer = self._load_optimizer()
         self.optimizer_scaler = torch.cuda.amp.GradScaler() # type: ignore
+        
+        self.orthogonalize = self._load_ortho()
 
         self.batch_groups = train_config.batch_size // train_config.batch_size_step
 
@@ -643,6 +658,14 @@ class DPHTrainer():
             )
 
         raise ValueError( 'Invalid optimizer' )
+    
+    def _load_ortho( self ):
+        params = [
+            p for name, p in self.model_dph.named_parameters()
+            if any( i in name for i in self.train_config.ortho_params )
+        ]
+        
+        return Ortho( params, self.train_config.ortho_beta )
 
 
     """ ========================================================================
@@ -866,6 +889,8 @@ class DPHTrainer():
         self.optimizer_scaler.step( self.optimizer )
         self.optimizer_scaler.update()
         self.optimizer.zero_grad()
+        
+        self.orthogonalize.step()
 
     def train_batch_step( self, batch ):
         

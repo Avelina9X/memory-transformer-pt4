@@ -331,9 +331,9 @@ def instruct_align(
 
     # Print out our configs
     if rank == 0:
-        rich.print( trainer.train_config )
-        rich.print( trainer.dph_config )
-        rich.print( trainer.model_dph.config )
+        rich.print( 'LSWTConfigTraining =', trainer.train_config.__dict__ )
+        rich.print( 'LSWTConfigTrainingDPH =', trainer.dph_config.__dict__ )
+        rich.print( 'LSWTConfig =', trainer.model_dph.config.to_diff_dict() )
 
     # Compute params
     params_total = sum( p.numel() for p in dph_model.parameters() )
