@@ -2,7 +2,7 @@ meta:
   run_name: LoveLace-M-dph
   validate: true
   evaluate: false
-  validate_freq: 4
+  validate_freq: 16
   tags:
     - improved_dph
 
@@ -13,7 +13,7 @@ model:
 train:
   batch_size: 64
   batch_size_step: 0
-  batches_per_epoch: 256
+  batches_per_epoch: 64
   length_sequence: 2048
   length_cache: 2048
   lr_max: 1.0e-5
