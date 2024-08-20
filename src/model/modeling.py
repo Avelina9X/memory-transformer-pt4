@@ -488,7 +488,8 @@ class LSWTPooler( torch.nn.Module ):
             raise ValueError( 'reward_heads must be defined. If no heads are desired please use an empty list.' )
         
         self.pooler_pipeline = torch.nn.Sequential()
-        self.dropout = torch.nn.Dropout( p=pooler_config.embedding_dropout )
+        self.embedding_dropout = torch.nn.Dropout( p=pooler_config.embedding_dropout )
+        self.layer_dropout = torch.nn.Dropout( p=pooler_config.layer_dropout )
         
         self.layer_norm_pre = torch.nn.LayerNorm( config.d_model ) if pooler_config.layer_pooling_norm in [ 'pre', 'both' ] else torch.nn.Identity()
         self.layer_norm_post = torch.nn.LayerNorm( config.d_model ) if pooler_config.layer_pooling_norm in [ 'post', 'both' ] else torch.nn.Identity()
@@ -601,7 +602,21 @@ class LSWTPooler( torch.nn.Module ):
             
             case 'weighted_sum':
                 assert self.layer_weighting is not None
-                layer_pooled_states = ( layer_selected_states * self.layer_weighting.softmax( 0 ).view( -1, 1, 1, 1 ) ).sum( 0 )
+                
+                drop_mask = torch.ones(
+                    layer_selected_states.size( 0 ),
+                    layer_selected_states.size( 1 ),
+                    1,
+                    1,
+                    dtype=layer_selected_states.dtype,
+                    device=layer_selected_states.device
+                )
+                
+                layer_pooled_states = (
+                    layer_selected_states *
+                    self.layer_weighting.softmax( 0 ).view( -1, 1, 1, 1 ) *
+                    self.layer_dropout( drop_mask )
+                ).sum( 0 )
 
             case _:
                 raise ValueError( 'Incorrect layer pooler type.' )
@@ -700,7 +715,7 @@ class LSWTPooler( torch.nn.Module ):
             latent_states = self.pooler_pipeline( hidden_states )
             sae_loss = None
         
-        dropped_states = self.dropout( latent_states )
+        dropped_states = self.embedding_dropout( latent_states )
 
         rewards = {
             name: module( dropped_states )

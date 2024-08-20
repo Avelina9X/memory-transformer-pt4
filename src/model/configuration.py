@@ -25,7 +25,9 @@ class LSWTPoolerConfig( PretrainedConfig ):
         reward_head_bias: bool = False,
         
         embedding_size: int | None = None,
+        
         embedding_dropout=0.0,
+        layer_dropout=0.0,
         
         layer_pooling: Literal['layer', 'mean', 'weighted_sum'] = 'layer',
         layer_pooling_norm: Literal['pre', 'post', 'both', None] = None,
@@ -51,7 +53,9 @@ class LSWTPoolerConfig( PretrainedConfig ):
         self.reward_head_bias = reward_head_bias
         
         self.embedding_size = embedding_size
+        
         self.embedding_dropout = embedding_dropout
+        self.layer_dropout = layer_dropout
         
         self.pooler_function = pooler_function
         self.pooler_activation = pooler_activation
