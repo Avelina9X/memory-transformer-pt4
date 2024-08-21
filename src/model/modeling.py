@@ -865,3 +865,6 @@ class WrappedLSWTForDPH( LSWTForDPH ):
     
     def forward( self, *args, **kwargs ):
         return self.wrapped_model( *args, **kwargs )
+    
+    def get_input_embeddings( self ):
+        return self.wrapped_model.get_input_embeddings()
