@@ -20,7 +20,7 @@ from torcheval.metrics.toolkit import sync_and_compute
 
 from constants import PARAMETERS_AS_BUCKET_VIEW, TORCH_COMPILE_OPTIONS
 from model.configuration import LSWTConfigTraining, LSWTConfigTrainingDPH
-from model.modeling import LSWTForCausalLM, LSWTForDPH
+from model.modeling import DPHOutput, LSWTForCausalLM, LSWTForDPH
 
 from optimizer.laprop import LaProp
 from optimizer.ortho import Ortho
@@ -755,12 +755,15 @@ class DPHTrainer():
         # Chunk the logits and states into positive and negative respectively
         assert isinstance( dph_states, torch.Tensor )
         dph_pos_logits, dph_neg_logits = dph_logits.chunk( 2, dim=0 )
-        dph_pos_states, dph_neg_states = dph_states.chunk( 2, dim=0 )
+        # dph_pos_states, dph_neg_states = dph_states.chunk( 2, dim=0 )
 
         
         # Compute the positive and negative rewards (honestly could be batched and then chunked)
-        pos_rewards = self.model_dph.pooler.forward( dph_pos_states, False, False )
-        neg_rewards = self.model_dph.pooler.forward( dph_neg_states, False, False )
+        # pos_rewards = self.model_dph.pooler.forward( dph_pos_states, False, False )
+        # neg_rewards = self.model_dph.pooler.forward( dph_neg_states, False, False )
+        
+        both_rewards: DPHOutput = self.model_dph.pooler( dph_states, output_latent_states=False, compute_sae_loss=False )
+        pos_rewards, neg_rewards = both_rewards.rewards[ self.reward_head_key ].chunk( 2, dim=0 )
 
         with torch.no_grad():
             # Compute reference logits if we need a reference model (e.g. for DPO or KL)
@@ -784,8 +787,8 @@ class DPHTrainer():
             policy_neg_logits=dph_neg_logits,
             reference_pos_logits=ref_pos_logits,
             reference_neg_logits=ref_neg_logits,
-            reward_pos_logits=pos_rewards.rewards[ self.reward_head_key ],
-            reward_neg_logits=neg_rewards.rewards[ self.reward_head_key ],
+            reward_pos_logits=pos_rewards,
+            reward_neg_logits=neg_rewards,
         )
 
 
