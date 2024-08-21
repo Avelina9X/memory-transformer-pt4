@@ -44,6 +44,8 @@ class LSWTPoolerConfig( PretrainedConfig ):
         
         layer_select: int | Sequence[int] = -1,
         
+        prefix_sizes: dict[str, int] | None = None,
+        
         **kwargs
     ):
         
@@ -71,6 +73,15 @@ class LSWTPoolerConfig( PretrainedConfig ):
         self.token_pooling_ema_beta = token_pooling_ema_beta
         self.token_pooling_ema_beta_learnable = token_pooling_ema_beta_learnable
         self.token_pooling_rotation = token_pooling_rotation
+        
+        if prefix_sizes is None:
+            prefix_sizes = {
+                'system': 3,
+                'user': 3,
+                'assistant': 4,
+            }
+        
+        self.prefix_sizes = prefix_sizes
         
         if ( layer_pooling == 'layer' ) ^ ( isinstance( layer_select, int ) ):
             raise ValueError( 'layer_select must be an int when layer_pooling is `layer`' )

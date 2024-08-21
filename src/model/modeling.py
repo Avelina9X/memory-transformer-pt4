@@ -578,7 +578,8 @@ class LSWTPooler( torch.nn.Module ):
         input_ids: torch.LongTensor,
         start_id: int,
         end_id: int,
-        return_all=False
+        return_all=False,
+        prefix_type: str | None = 'assistant',
     ) -> torch.Tensor | dict[str, torch.Tensor]:
         pooler_config = self.pooler_config
         assert pooler_config
@@ -630,7 +631,12 @@ class LSWTPooler( torch.nn.Module ):
         batch_ids = torch.arange( batch_size, device=layer_pooled_states.device )
         seq_ids = torch.arange( seq_lengths, device=input_ids.device )
         
-        start_idx = torch.where( input_ids == start_id, seq_ids, -1 ).max( -1 )[0]
+        if prefix_type == None:
+            prefix_count = 0
+        else:
+            prefix_count = pooler_config.prefix_sizes[prefix_type]
+        
+        start_idx = torch.where( input_ids == start_id, seq_ids, -1 ).max( -1 )[0] + prefix_count
         end_idx = torch.where( input_ids == end_id, seq_ids, -1 ).max( -1 )[0]
         segment_mask = ( start_idx[ :, None ] <= seq_ids[ None, : ] ) * ( seq_ids[ None, : ] <= end_idx[ :, None ] )
         segment_pos = segment_mask.float().cumsum( -1 ) * segment_mask
@@ -757,9 +763,10 @@ class LSWTForDPH( LSWTForCausalLM ):
         hidden_states: tuple[torch.Tensor],
         input_ids: torch.LongTensor,
         start_id: int,
-        end_id: int
+        end_id: int,
+        prefix_type: str | None = 'assistant',
     ) -> Mapping[str, torch.Tensor]:
-        dph_states = self.pooler.aggregate_states( hidden_states, input_ids, start_id, end_id, return_all=False )
+        dph_states = self.pooler.aggregate_states( hidden_states, input_ids, start_id, end_id, return_all=False, prefix_type=prefix_type )
         assert isinstance( dph_states, torch.Tensor )
         return self.pooler( dph_states, False, False )
 
