@@ -255,7 +255,7 @@ def compute_pooler_stats_dict( model: LSWTForDPH ):
         assert not isinstance( pooler_config.layer_select, int )
         assert model.pooler.layer_weighting is not None
         
-        layer_weights = list( model.pooler.layer_weighting.detach().softmax( 0 ).cpu().numpy() )
+        layer_weights = list( model.pooler.layer_weighting.detach().softmax( 0 ).mean( [ 1, 2, 3 ] ).cpu().numpy() )
         
         for i, layer_idx in enumerate( pooler_config.layer_select ):
             stats_dict[ f'pooler/layer_weights/{layer_idx}' ] = layer_weights[i]

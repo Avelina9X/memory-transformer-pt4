@@ -501,7 +501,7 @@ class LSWTPooler( torch.nn.Module ):
 
         if pooler_config.layer_pooling == 'weighted_sum':
             assert not isinstance( pooler_config.layer_select, int )
-            self.layer_weighting = torch.nn.Parameter( torch.empty( len( pooler_config.layer_select ) ), requires_grad=True )
+            self.layer_weighting = torch.nn.Parameter( torch.empty( len( pooler_config.layer_select ), 1, 1, 1 ), requires_grad=True )
             self.layer_weighting.data.fill_( 0.0 )
         else:
             self.layer_weighting = None
@@ -615,7 +615,7 @@ class LSWTPooler( torch.nn.Module ):
                 
                 layer_pooled_states = (
                     layer_selected_states *
-                    self.layer_weighting.softmax( 0 ).view( -1, 1, 1, 1 ) *
+                    self.layer_weighting.softmax( 0 ) *
                     self.layer_dropout( drop_mask )
                 ).sum( 0 )
 
