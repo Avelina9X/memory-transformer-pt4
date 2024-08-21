@@ -228,12 +228,13 @@ def instruct_align(
     # Setup ddp if world size is greater than 1
     if world_size > 1:
         ddp_setup( rank, world_size, timedelta( hours=1.0 ) )
+    
+    output_dir = f'./checkpoints/{wandb_run_name}'
 
     if config.get( 'finetune.wrapped_model', None ) is None:
         # Get pretrained run name and checkpoint directory
         pretrained_run_name = config[ 'finetune.checkpoint' ]
         pretrained_run_dir = f'./checkpoints/{pretrained_run_name}'
-        output_dir = f'./checkpoints/{wandb_run_name}'
 
         # Grab configs
         model_config = typing.cast( LSWTConfig, LSWTConfig.from_pretrained( pretrained_run_dir, torch_dtype=None ) )
