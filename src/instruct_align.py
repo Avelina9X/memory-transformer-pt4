@@ -18,7 +18,7 @@ from torch.multiprocessing.queue import Queue as QueueType
 import evaluate
 import datasets
 import transformers
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, AutoConfig, AutoModelForCausalLM
 
 from training.trainer import DPHTrainer, DPHTrainerDDP
 
@@ -31,7 +31,7 @@ from training.data_instruct.batcher import DPHChoiceInstructionBatcher
 from evaluation import evaluate as evaluate_fn
 
 from model.configuration import LSWTConfigTraining, LSWTConfig, LSWTConfigTrainingDPH
-from model.modeling import LSWTForCausalLM, LSWTForDPH
+from model.modeling import LSWTForCausalLM, LSWTForDPH, WrappedLSWTForDPH
 
 from constants import GRADIENTS_AS_BUCKET_VIEW, HF_CACHE_DIR, WANDB_API_KEY, WANDB_PROJECT_NAME
 import train_utils
@@ -229,51 +229,117 @@ def instruct_align(
     if world_size > 1:
         ddp_setup( rank, world_size, timedelta( hours=1.0 ) )
 
-    # Get pretrained run name and checkpoint directory
-    pretrained_run_name = config[ 'finetune.checkpoint' ]
-    pretrained_run_dir = f'./checkpoints/{pretrained_run_name}'
-    output_dir = f'./checkpoints/{wandb_run_name}'
+    if config.get( 'finetune.wrapped_model', None ) is None:
+        # Get pretrained run name and checkpoint directory
+        pretrained_run_name = config[ 'finetune.checkpoint' ]
+        pretrained_run_dir = f'./checkpoints/{pretrained_run_name}'
+        output_dir = f'./checkpoints/{wandb_run_name}'
 
-    # Grab configs
-    model_config = typing.cast( LSWTConfig, LSWTConfig.from_pretrained( pretrained_run_dir, torch_dtype=None ) )
-    train_config = LSWTConfigTraining()
-    dph_config = LSWTConfigTrainingDPH()
-    train_utils.modify_dicts( config, model_config, train_config, dph_config )
+        # Grab configs
+        model_config = typing.cast( LSWTConfig, LSWTConfig.from_pretrained( pretrained_run_dir, torch_dtype=None ) )
+        train_config = LSWTConfigTraining()
+        dph_config = LSWTConfigTrainingDPH()
+        train_utils.modify_dicts( config, model_config, train_config, dph_config )
 
-    # Get reward head name
-    assert model_config.pooler_config
-    assert isinstance( model_config.pooler_config.reward_heads, Sequence )
-    assert len( model_config.pooler_config.reward_heads ) > 0
-    reward_head_name = model_config.pooler_config.reward_heads[0]
+        # Get reward head name
+        assert model_config.pooler_config
+        assert isinstance( model_config.pooler_config.reward_heads, Sequence )
+        assert len( model_config.pooler_config.reward_heads ) > 0
+        reward_head_name = model_config.pooler_config.reward_heads[0]
 
-    # Load DPH model and set trainable
-    dph_model = typing.cast( LSWTForDPH, LSWTForDPH.from_pretrained( pretrained_run_dir, config=model_config ) )
-    train_utils.set_backbone_trainable( dph_model, config[ 'finetune.trainable_backbone' ] )
-    dph_model = typing.cast( LSWTForDPH, dph_model.cuda() ) # type: ignore # pylance is confused
+        # Load DPH model and set trainable
+        dph_model = typing.cast( LSWTForDPH, LSWTForDPH.from_pretrained( pretrained_run_dir, config=model_config ) )
+        train_utils.set_backbone_trainable( dph_model, config[ 'finetune.trainable_backbone' ] )
+        dph_model = typing.cast( LSWTForDPH, dph_model.cuda() ) # type: ignore # pylance is confused
 
-    # Mask out parameters
-    if 'finetune.frozen_params' in config:
-        frozen_list = train_utils.set_training_mask( dph_model, config[ 'finetune.frozen_params' ] )
+        # Mask out parameters
+        if 'finetune.frozen_params' in config:
+            frozen_list = train_utils.set_training_mask( dph_model, config[ 'finetune.frozen_params' ] )
+            
+            if rank == 0:
+                rich.print( 'Frozen params:' )
+                rich.print( frozen_list )
+                print()
+
+        # Load reference model and set trainable
+        if dph_config.requires_reference_model:
+            ref_model = typing.cast( LSWTForCausalLM, LSWTForCausalLM.from_pretrained( pretrained_run_dir, **model_config.to_dict() ) )
+            ref_model.requires_grad_( False )
+            ref_model = typing.cast( LSWTForCausalLM, ref_model.half().eval().cuda() ) # type: ignore # pylance is confused
+        else:
+            ref_model = dph_model
+
+        # Load tokenizer and add new segment tokens
+        tokenizer = AutoTokenizer.from_pretrained( model_config.parent_embeddings, use_fast=True, cache_dir=HF_CACHE_DIR )
+        train_utils.add_special_tokens( tokenizer )
         
-        if rank == 0:
-            rich.print( 'Frozen params:' )
-            rich.print( frozen_list )
-            print()
-
-    # Load reference model and set trainable
-    if dph_config.requires_reference_model:
-        ref_model = typing.cast( LSWTForCausalLM, LSWTForCausalLM.from_pretrained( pretrained_run_dir, **model_config.to_dict() ) )
-        ref_model.requires_grad_( False )
-        ref_model = typing.cast( LSWTForCausalLM, ref_model.half().eval().cuda() ) # type: ignore # pylance is confused
-    else:
-        ref_model = dph_model
-
-    # Load tokenizer and add new segment tokens
-    tokenizer = AutoTokenizer.from_pretrained( model_config.parent_embeddings, use_fast=True, cache_dir=HF_CACHE_DIR )
-    train_utils.add_special_tokens( tokenizer )
+        # Set generation config
+        dph_model.generation_config = train_utils.create_generation_config( tokenizer )
     
-    # Set generation config
-    dph_model.generation_config = train_utils.create_generation_config( tokenizer )
+    else:
+        wrapped_model_name = config[ 'finetune.wrapped_model' ]
+        
+        source_config = AutoConfig.from_pretrained( wrapped_model_name )
+        source_model = AutoModelForCausalLM.from_pretrained(
+            wrapped_model_name,
+            cache_dir=HF_CACHE_DIR,
+            torch_dtype=source_config.torch_dtype,
+            output_hidden_states=True,
+        ).cuda().eval()
+        
+        model_config = LSWTConfig(
+            n_layers=0,
+            n_heads=1,
+
+            d_model=source_config.hidden_size,
+            d_ffn=source_config.intermediate_size,
+        )
+        
+        train_config = LSWTConfigTraining()
+        dph_config = LSWTConfigTrainingDPH()
+        train_utils.modify_dicts( config, model_config, train_config, dph_config )
+        
+        # Get reward head name
+        assert model_config.pooler_config
+        assert isinstance( model_config.pooler_config.reward_heads, Sequence )
+        assert len( model_config.pooler_config.reward_heads ) > 0
+        reward_head_name = model_config.pooler_config.reward_heads[0]
+        
+        dph_model = WrappedLSWTForDPH( model_config, source_model ).cuda()
+        
+        # Mask out parameters
+        if 'finetune.frozen_params' in config:
+            frozen_list = train_utils.set_training_mask( dph_model, config[ 'finetune.frozen_params' ] )
+            
+            if rank == 0:
+                rich.print( 'Frozen params:' )
+                rich.print( frozen_list )
+                print()
+        
+        tokenizer = AutoTokenizer.from_pretrained( wrapped_model_name, cache_dir=HF_CACHE_DIR )
+        
+        if not tokenizer.cls_token_id:
+            tokenizer.cls_token_id = tokenizer.get_vocab()[ '<|im_end|>' ]
+            
+        if not tokenizer.sep_token_id:
+            tokenizer.sep_token_id = tokenizer.get_vocab()[ '<|im_start|>' ]
+
+        if not tokenizer.bos_token_id:
+            tokenizer.bos_token_id = tokenizer.eos_token_id
+            
+        # Set generation config
+        dph_model.generation_config = train_utils.create_generation_config( tokenizer )
+        
+        # Load reference model and set trainable
+        if dph_config.requires_reference_model:
+            ref_model = AutoModelForCausalLM.from_pretrained(
+                wrapped_model_name,
+                cache_dir=HF_CACHE_DIR,
+                torch_dtype=source_config.torch_dtype,
+                output_hidden_states=True,
+            ).cuda().eval().requires_grad_( False )
+        else:
+            ref_model = dph_model
 
     # Create task mixes
     train_tasks = train_utils.create_train_tasks( config[ 'finetune.dph_mix' ] )
@@ -376,8 +442,9 @@ def instruct_align(
             settings=wandb.Settings( _disable_stats=True )
         )
 
-        input_artifact = train_utils.get_model_artifact( pretrained_run_name )
-        wandb.use_artifact( input_artifact )
+        if config.get( 'finetune.wrapped_model', None ) is None:
+            input_artifact = train_utils.get_model_artifact( pretrained_run_name )
+            wandb.use_artifact( input_artifact )
 
     # Train loop
     for i in range( trainer.get_total_epochs() ):
@@ -449,20 +516,21 @@ def instruct_align(
             } )
 
     if rank == 0:
-        # Cast the model to half, save the model and tokenizer
-        dph_model.half().save_pretrained( output_dir )
-        tokenizer.save_pretrained( output_dir )
+        if config.get( 'finetune.wrapped_model', None ) is None:
+            # Cast the model to half, save the model and tokenizer
+            dph_model.half().save_pretrained( output_dir )
+            tokenizer.save_pretrained( output_dir )
 
-        # Create artifact for the model
-        model_artifact = wandb.Artifact( name=dph_model.config.model_type, type="model" )
-        model_artifact.add_dir( output_dir )
+            # Create artifact for the model
+            model_artifact = wandb.Artifact( name=dph_model.config.model_type, type="model" )
+            model_artifact.add_dir( output_dir )
 
-        # Link the model artificat (if we're even a real run)
-        assert wandb.run is not None
-        wandb.run.log_artifact( model_artifact )
+            # Link the model artificat (if we're even a real run)
+            assert wandb.run is not None
+            wandb.run.log_artifact( model_artifact )
 
-        if config[ 'meta.evaluate' ]:
-            evaluate_fn( output_dir, 'all' )
+            if config[ 'meta.evaluate' ]:
+                evaluate_fn( output_dir, 'all' )
 
         # Aaand we're done!
         wandb.finish()
