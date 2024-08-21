@@ -451,7 +451,7 @@ class LSWTConfigTrainingDPH():
         dpo_average_logprobs=False,
         dpo_weight=1.0,
         
-        orpo_enabled=True,
+        orpo_enabled=False,
         orpo_alpha_orpo=0.25,
         orpo_alpha_mle=1.0,
         orpo_weight=1.0,
