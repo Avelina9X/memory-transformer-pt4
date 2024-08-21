@@ -33,7 +33,7 @@ from evaluation import evaluate as evaluate_fn
 from model.configuration import LSWTConfigTraining, LSWTConfig, LSWTConfigTrainingDPH
 from model.modeling import LSWTForCausalLM, LSWTForDPH
 
-from constants import HF_CACHE_DIR, WANDB_API_KEY, WANDB_PROJECT_NAME
+from constants import GRADIENTS_AS_BUCKET_VIEW, HF_CACHE_DIR, WANDB_API_KEY, WANDB_PROJECT_NAME
 import train_utils
 from train_utils import ddp_cleanup, ddp_setup, DDPModelWrapper
 from instruct_tune import create_validation_zeroshot_tasks
@@ -316,7 +316,7 @@ def instruct_align(
             task_loader
         )
     else:
-        dph_model = DDPModelWrapper( dph_model, device_ids=[ rank ], gradient_as_bucket_view=True )
+        dph_model = DDPModelWrapper( dph_model, device_ids=[ rank ], gradient_as_bucket_view=GRADIENTS_AS_BUCKET_VIEW )
         trainer = DPHTrainerDDP(
             train_config,
             dph_config,

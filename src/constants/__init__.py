@@ -56,3 +56,6 @@ OPTIMIZER_KWARGS = { # pylint: disable=R6101
         'train.opt_rho': 0.05,
     },
 }
+
+PARAMETERS_AS_BUCKET_VIEW = False
+GRADIENTS_AS_BUCKET_VIEW = False
