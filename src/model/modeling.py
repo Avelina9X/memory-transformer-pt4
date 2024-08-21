@@ -807,10 +807,10 @@ class LSWTForDPH( LSWTForCausalLM ):
     def get_param_groups(
         self,
         decay_mask: Sequence[str],
-        dph_decay_mask: Sequence[str],
-        dph_decay_init=False,
-        dph_weight_decay=0.0,
-        dph_lr_multiplier=1.0,
+        dph_decay_mask: Sequence[str] = tuple(),
+        dph_decay_init: bool = False,
+        dph_weight_decay: float = 0.0,
+        dph_lr_multiplier: float = 1.0,
     ) -> list[dict]:
         """
         Returns optimizer parameter groups with weight decay disabled for certain params.
