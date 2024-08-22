@@ -108,7 +108,7 @@ def save_model( model: LSWTForCausalLM, log_wandb: bool=False ):
     """
     root_dir, config_dir, model_dir = get_checkpoint_path()
 
-    model.half().save_pretrained( root_dir, safe_serialization=True )
+    model.to( dtype=torch.bfloat16 if model.config.use_bfloat16 else torch.float16 ).save_pretrained( root_dir, safe_serialization=True )
 
     if log_wandb:
         model_name = model.config.model_type
@@ -171,7 +171,7 @@ def set_backbone_trainable( model: LSWTForCausalLM, trainable: bool ):
     """
     model.model.blocks.requires_grad_( trainable )
     if not trainable:
-        model.model.blocks = model.model.blocks.half()
+        model.model.blocks = model.model.blocks.to( dtype=torch.bfloat16 if model.config.use_bfloat16 else torch.float16 )
 
 
 @torch.no_grad
@@ -517,7 +517,7 @@ def perform_prompt_validation( ds, tokenizer: PreTrainedTokenizerBase, model ): 
             prompt = doc[ 'prompt' ]
             tokens = doc[ 'tokens' ]
             
-            with torch.autocast( device_type='cuda', dtype=torch.float16 ): # type: ignore
+            with torch.autocast( device_type='cuda', dtype=torch.bfloat16 if model.config.use_bfloat16 else torch.float16 ): # type: ignore
                 response = tokenizer.decode(
                     model.generate(
                         inputs=torch.LongTensor( [ tokens ] ).cuda(),

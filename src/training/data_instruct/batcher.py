@@ -163,7 +163,7 @@ class ChoiceInstructionBatcher( BaseInstructionBatcher ):
             device = self.model.get_input_embeddings().weight.device
             prepared_batch = self.prepare_batch( task, doc, device, fewshot, fewshot_allsys )
 
-            with torch.autocast( device_type='cuda', dtype=torch.float16 ):
+            with torch.autocast( device_type='cuda', dtype=torch.bfloat16 if self.model.config.use_bfloat16 else torch.float16 ):
                 logits = self.model( prepared_batch.tokens ).logits
 
             results = self.compute_batch( prepared_batch, logits )
@@ -221,7 +221,7 @@ class DPHChoiceInstructionBatcher( ChoiceInstructionBatcher ):
             device = self.model.get_input_embeddings().weight.device
             prepared_batch = self.prepare_batch( task, doc, device, fewshot, fewshot_allsys )
 
-            with torch.autocast( device_type='cuda', dtype=torch.float16 ):
+            with torch.autocast( device_type='cuda', dtype=torch.bfloat16 if self.model.config.use_bfloat16 else torch.float16 ):
                 outputs = self.model( prepared_batch.tokens )
 
                 start_id = self.formatter.tokenizer.sep_token_id

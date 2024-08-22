@@ -256,7 +256,7 @@ class Trainer(): # pylint: disable=R0902
 
     @torch.compile( **TORCH_COMPILE_OPTIONS )
     def train_sub_step( self, tokens_x, tokens_y, past_key_values ):
-        with torch.autocast( device_type='cuda', dtype=torch.float16 ): # type: ignore
+        with torch.autocast( device_type='cuda', dtype=torch.bfloat16 if self.model.config.use_bfloat16 else torch.float16 ): # type: ignore
             logits, past_key_values, hidden_states = self.forward_pass( tokens_x, past_key_values, self.train_config.length_cache )
 
             y_pred = logits
@@ -800,7 +800,7 @@ class DPHTrainer():
     def train_sub_step( self, pos_tokens, pos_target, neg_tokens, neg_target ):
         
         # Set autocast context # TODO: support bf16 in addition to fp16
-        with torch.autocast( device_type='cuda', dtype=torch.float16 ):
+        with torch.autocast( device_type='cuda', dtype=torch.bfloat16 if self.model_dph.config.use_bfloat16 else torch.float16 ):
             # Perform forward pass to get all relevant outputs
             outputs = self.forward_pass( pos_tokens, neg_tokens )
 

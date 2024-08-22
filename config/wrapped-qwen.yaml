@@ -1,10 +1,11 @@
 train:
-  batch_size_step: 4
+  batch_size_step: 1
 
 finetune:
   wrapped_model: Qwen/Qwen1.5-0.5B-Chat
   frozen_params:
-    - wrapped_model
+    - embed_tokens.weight
+    - lm_head.weight
 
 model:
   pooler_config:

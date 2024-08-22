@@ -284,7 +284,7 @@ def instruct_align(
         source_model = AutoModelForCausalLM.from_pretrained(
             wrapped_model_name,
             cache_dir=HF_CACHE_DIR,
-            torch_dtype=source_config.torch_dtype,
+            torch_dtype=None,
             output_hidden_states=True,
         ).cuda().eval()
         
@@ -307,6 +307,8 @@ def instruct_align(
         reward_head_name = model_config.pooler_config.reward_heads[0]
         
         dph_model = typing.cast( WrappedLSWTForDPH, WrappedLSWTForDPH( model_config, source_model ).cuda() ) # type: ignore
+        dph_model.config.use_bfloat16 = source_config.torch_dtype == torch.bfloat16
+        
         
         # Mask out parameters
         if 'finetune.frozen_params' in config:
@@ -337,10 +339,15 @@ def instruct_align(
                 wrapped_model_name,
                 cache_dir=HF_CACHE_DIR,
                 torch_dtype=source_config.torch_dtype,
-                output_hidden_states=True,
-            ).cuda().eval().requires_grad_( False )
+                output_hidden_states=False,
+            ).cuda().to( dtype=torch.bfloat16 if dph_model.config.use_bfloat16 else torch.float16 ).eval().requires_grad_( False )
         else:
             ref_model = dph_model
+        ref_model.config.use_bfloat16 = dph_model.config.use_bfloat16
+        
+        model_config.pooler_config.prefix_sizes[ 'system' ] = len( tokenizer.encode( '<|im_start|>system\n', add_special_tokens=False ) )
+        model_config.pooler_config.prefix_sizes[ 'user' ] = len( tokenizer.encode( '<|im_start|>user\n', add_special_tokens=False ) )
+        model_config.pooler_config.prefix_sizes[ 'assistant' ] = len( tokenizer.encode( '<|im_start|>user\n', add_special_tokens=False ) )
 
     # Create task mixes
     train_tasks = train_utils.create_train_tasks( config[ 'finetune.dph_mix' ] )

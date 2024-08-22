@@ -75,7 +75,7 @@ class Eval():
         accuracy = 0.0
         total_num_true = 0
 
-        with torch.autocast( device_type='cuda', dtype=torch.float16 ): # type: ignore
+        with torch.autocast( device_type='cuda', dtype=torch.bfloat16 if self.model.config.use_bfloat16 else torch.float16 ): # type: ignore
             with torch.no_grad():
                 tokens_xs = torch.split( tokens_x, chunk_size, dim=1 )
                 tokens_ys = torch.split( tokens_y, chunk_size, dim=1 )
