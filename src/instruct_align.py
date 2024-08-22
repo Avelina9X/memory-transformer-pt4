@@ -306,7 +306,7 @@ def instruct_align(
         assert len( model_config.pooler_config.reward_heads ) > 0
         reward_head_name = model_config.pooler_config.reward_heads[0]
         
-        dph_model = WrappedLSWTForDPH( model_config, source_model ).cuda()
+        dph_model = typing.cast( WrappedLSWTForDPH, WrappedLSWTForDPH( model_config, source_model ).cuda() ) # type: ignore
         
         # Mask out parameters
         if 'finetune.frozen_params' in config:
@@ -463,7 +463,7 @@ def instruct_align(
         # If validation flag is set (or it's the last epoch) run validation
         if should_validate or i + 1 == trainer.get_total_epochs():
             for task in validation_zeroshot_tasks[ rank : : world_size ]:
-                curr_line, curr_dict = evaluate_zero_shot_task( task, batcher )
+                curr_line, curr_dict = evaluate_zero_shot_task( task, batcher, zero_nan=True )
                 validation_lines.append( curr_line )
                 validation_dict.update( **curr_dict )
             torch.cuda.empty_cache()

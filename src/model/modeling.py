@@ -864,6 +864,7 @@ class WrappedLSWTForDPH( LSWTForDPH ):
         self.wrapped_model = wrapped_model
     
     def forward( self, *args, **kwargs ):
+        kwargs.pop( 'max_key_values', None )
         return self.wrapped_model( *args, **kwargs )
     
     def get_input_embeddings( self ):
