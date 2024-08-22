@@ -1,0 +1,3 @@
+model:
+  pooler_config:
+      token_pooling_ema_beta: 0.95
