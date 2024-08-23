@@ -49,6 +49,14 @@ except ModuleNotFoundError:
         return out
     
     attention_func = sdpa_attention
+
+
+class Exp( torch.nn.Module ):
+    def forward( self, x: torch.Tensor ):
+        return x.exp()
+
+ACT2FN['softplus'] = torch.nn.Softplus
+ACT2FN['exp'] = Exp
     
 
 class ProLU(torch.autograd.Function):
