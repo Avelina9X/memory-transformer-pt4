@@ -17,7 +17,7 @@ import torch
 import torch.nn.functional as F
 
 from .configuration import LSWTConfig, LSWTPoolerConfig
-from .layers import RotateLayer, SharedEmbeddings, RotaryEmbedding, LSWTBlock, ActGLU, complex_scan, prolu_ste, prolu_relu
+from .layers import RotateLayer, SharedEmbeddings, RotaryEmbedding, LSWTBlock, ActGLU, complex_scan, complex_selective_scan, prolu_ste, prolu_relu
 
 class LSWTPreTrainedModel( PreTrainedModel ):
     """
@@ -492,6 +492,9 @@ class LSWTPooler( torch.nn.Module ):
         self.token_norm_post = torch.nn.LayerNorm( d_model ) if pooler_config.token_pooling_norm in [ 'post', 'both' ] else torch.nn.Identity()
         
         self.token_rotate = RotateLayer( d_model ) if pooler_config.token_pooling_rotation else None
+        
+        self.token_gate = torch.nn.Linear( d_model, d_model, True ) if pooler_config.token_pooling_gate else None
+        self.token_gate_act = ACT2FN[pooler_config.token_pooling_gate] if pooler_config.token_pooling_gate else None
 
         if pooler_config.layer_pooling == 'weighted_sum':
             assert not isinstance( pooler_config.layer_select, int )
@@ -676,7 +679,15 @@ class LSWTPooler( torch.nn.Module ):
                 
                 log_beta = F.logsigmoid( self.ema_beta + self.ema_weight ).float() # pylint: disable=E1102
                 
-                token_pooled_states = complex_scan( segment_mask, token_selected_states, log_beta, segment_pos )
+                if self.token_gate is None:
+                    token_pooled_states = complex_scan( segment_mask, token_selected_states, log_beta, segment_pos )
+                else:
+                    assert self.token_gate_act is not None
+                    
+                    gate = self.token_gate_act( self.token_gate( token_selected_states ) ).float()
+                    segment_weight = segment_mask.float() * gate
+                    
+                    token_pooled_states = complex_selective_scan( segment_mask, token_selected_states, log_beta, segment_weight )
             
             case _:
                 raise ValueError( 'Incorrect token pooler type.' )

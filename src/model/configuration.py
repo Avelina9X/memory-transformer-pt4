@@ -37,6 +37,7 @@ class LSWTPoolerConfig( PretrainedConfig ):
         token_pooling_ema_beta: float | None = None,
         token_pooling_ema_beta_learnable: Literal['global', 'activation', None] = None,
         token_pooling_rotation: bool = False,
+        token_pooling_gate: str | None = None,
         
         pooler_function: Literal['identity', 'projection'] = 'identity',
         pooler_activation: str | None = None,
@@ -73,6 +74,7 @@ class LSWTPoolerConfig( PretrainedConfig ):
         self.token_pooling_ema_beta = token_pooling_ema_beta
         self.token_pooling_ema_beta_learnable = token_pooling_ema_beta_learnable
         self.token_pooling_rotation = token_pooling_rotation
+        self.token_pooling_gate = token_pooling_gate
         
         if prefix_sizes is None:
             prefix_sizes = {
@@ -111,6 +113,10 @@ class LSWTPoolerConfig( PretrainedConfig ):
         
         if ( token_pooling_ema_beta_learnable != 'activation' ) and token_pooling_rotation:
             raise ValueError( 'token_pooling_rotation can only be true if token_pooling_ema_beta_learnable=`activation`' )
+        
+        if ( token_pooling != 'ema' ) and token_pooling_gate:
+            raise ValueError( 'token_pooling_gate cannot be set when token_pooling != `ema`' )
+            
 
 class LSWTConfig( PretrainedConfig ):
     """
