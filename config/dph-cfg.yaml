@@ -30,7 +30,7 @@ train:
     - norm
     - bias
   
-  ortho_beta: 0.01
+  ortho_beta: 1.0
 
 finetune:
   mask_override: train

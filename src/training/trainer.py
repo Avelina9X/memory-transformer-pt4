@@ -280,15 +280,16 @@ class Trainer(): # pylint: disable=R0902
     def train_optim_step( self ):
         self.optimizer_step += 1
 
+        reg_loss = self.orthogonalize.compute_loss()
+        self.optimizer_scaler.scale( reg_loss ).backward()
+        
         for p_group in self.optimizer.param_groups:
             p_group[ 'lr' ] = self.get_schedule() * self.train_config.lr_max
 
-        self.optimizer_scaler.unscale_( self.optimizer )
-        
         if self.train_config.opt_max_grad_norm > 0.0:
+            self.optimizer_scaler.unscale_( self.optimizer )
             torch.nn.utils.clip_grad_norm_( self.model.parameters(), self.train_config.opt_max_grad_norm ) # type: ignore
 
-        self.orthogonalize.step()
         self.optimizer_scaler.step( self.optimizer )
         self.optimizer_scaler.update()
         self.optimizer.zero_grad()
@@ -880,18 +881,20 @@ class DPHTrainer():
         # Increment optimizer step
         self.optimizer_step += 1
 
+        reg_loss = self.orthogonalize.compute_loss()
+        self.optimizer_scaler.scale( reg_loss ).backward()
+        
         # For all parameter groups apply LR schedule
         for p_group in self.optimizer.param_groups:
             p_group[ 'lr' ] = self.get_schedule() * self.train_config.lr_max * p_group.get( 'lr_multiplier', 1.0 )
 
-        self.optimizer_scaler.unscale_( self.optimizer )
         
         # If gradient norm clipping is enabled perform scaling and clipping
         if self.train_config.opt_max_grad_norm > 0.0:
+            self.optimizer_scaler.unscale_( self.optimizer )
             torch.nn.utils.clip_grad_norm_( self.model_dph.parameters(), self.train_config.opt_max_grad_norm ) # type: ignore
 
         # Perform optimizer update
-        self.orthogonalize.step()
         self.optimizer_scaler.step( self.optimizer )
         self.optimizer_scaler.update()
         self.optimizer.zero_grad()
