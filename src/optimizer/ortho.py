@@ -48,7 +48,7 @@ class Ortho( torch.optim.Optimizer ):
                 
                 I = torch.eye( p.shape[0], device=p.device, dtype=p.dtype )
                 
-                l = torch.dist( torch.matmul( p, p.T ), I ).sum() * beta
+                l = torch.dist( torch.matmul( p, p.T ), I, p=1 ) * beta
                 
                 if loss is None:
                     loss = l
