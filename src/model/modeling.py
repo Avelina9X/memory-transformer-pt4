@@ -694,13 +694,13 @@ class LSWTPooler( torch.nn.Module ):
             
             case _:
                 raise ValueError( 'Incorrect token pooler type.' )
-        
-        # Perform inverse rotation (if enabled)
-        if rotation_weight is not None:
-            token_selected_states = torch.matmul( token_selected_states, rotation_weight.T )
             
         # Post normalise tokens
         token_pooled_states: torch.Tensor = self.token_norm_post( token_pooled_states )
+        
+        # Perform inverse rotation (if enabled)
+        if rotation_weight is not None:
+            token_pooled_states = torch.matmul( token_pooled_states, rotation_weight.T )
         
         
         if not return_all:
