@@ -491,7 +491,7 @@ class LSWTPooler( torch.nn.Module ):
         self.token_norm_pre = torch.nn.LayerNorm( d_model ) if pooler_config.token_pooling_norm in [ 'pre', 'both' ] else torch.nn.Identity()
         self.token_norm_post = torch.nn.LayerNorm( d_model ) if pooler_config.token_pooling_norm in [ 'post', 'both' ] else torch.nn.Identity()
         
-        self.token_rotate = RotateLayer( d_model ) if pooler_config.token_pooling_rotation else None
+        self.token_rotate = RotateLayer( d_model, d_model * pooler_config.token_pooling_rotation_expansion ) if pooler_config.token_pooling_rotation else None
         
         self.token_gate = torch.nn.Linear( d_model, d_model, True ) if pooler_config.token_pooling_gate else None
         self.token_gate_act = ACT2FN[pooler_config.token_pooling_gate] if pooler_config.token_pooling_gate else None
