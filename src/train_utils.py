@@ -108,7 +108,8 @@ def save_model( model: LSWTForCausalLM, log_wandb: bool=False ):
     """
     root_dir, config_dir, model_dir = get_checkpoint_path()
 
-    model.to( dtype=torch.bfloat16 if model.config.use_bfloat16 else torch.float16 ).save_pretrained( root_dir, safe_serialization=True )
+    model = model.to( dtype=torch.bfloat16 if model.config.use_bfloat16 else torch.float16 ) # type: ignore
+    model.save_pretrained( root_dir, safe_serialization=True )
 
     if log_wandb:
         model_name = model.config.model_type
@@ -246,11 +247,14 @@ def compute_stats_dict( trainer: Trainer, i: int, true_samples: int | None ) -> 
         'stats/true_samples': true_samples or trainer.optimizer_step * trainer.train_config.batch_size,
     }
 
+@torch.no_grad()
 def compute_pooler_stats_dict( model: LSWTForDPH ):
     stats_dict = {}
     
     pooler_config: LSWTPoolerConfig = model.config.pooler_config
     
+    
+    # Layer weighted sum graph
     if pooler_config.layer_pooling == 'weighted_sum':
         assert not isinstance( pooler_config.layer_select, int )
         assert model.pooler.layer_weighting is not None
@@ -260,6 +264,8 @@ def compute_pooler_stats_dict( model: LSWTForDPH ):
         for i, layer_idx in enumerate( pooler_config.layer_select ):
             stats_dict[ f'pooler/layer_weights/{layer_idx}' ] = layer_weights[i]
         
+        
+    # EMA histogram
     if pooler_config.token_pooling == 'ema':
         assert model.pooler.ema_beta is not None
         assert model.pooler.ema_weight is not None
@@ -269,12 +275,24 @@ def compute_pooler_stats_dict( model: LSWTForDPH ):
         
         stats_dict[ 'pooler/ema/betas' ] = wandb.Histogram( sigmoids )
     
+    
+    # Token rotation orthogonality graph 
     if pooler_config.token_pooling_rotation:
         assert model.pooler.token_rotate is not None
         
-        with torch.no_grad():
-            Q = model.pooler.token_rotate.weight
-            stats_dict[ 'pooler/rotate/ortho' ] = torch.dist( Q @ Q.T, torch.eye( Q.size( 0 ) ).to( device=Q.device ) ).item()
+        Q = model.pooler.token_rotate.weight
+        stats_dict[ 'pooler/rotate/ortho' ] = torch.dist( Q @ Q.T, torch.eye( Q.size( 0 ) ).to( device=Q.device ) ).item()
+    
+    
+    # Token gate weight and bias
+    if model.pooler.token_gate is not None:
+        token_gate_weight = model.pooler.token_gate.weight.data.flatten().cpu().numpy()
+        stats_dict[ 'pooler/token_gate/weight' ] = wandb.Histogram( list( token_gate_weight ) )
+        
+        if model.pooler.token_gate.bias is not None:
+            token_gate_bias = model.pooler.token_gate.bias.flatten().cpu().numpy()
+            stats_dict[ 'pooler/token_gate/bias' ] = wandb.Histogram( list( token_gate_bias ) )
+    
     
     return stats_dict
         

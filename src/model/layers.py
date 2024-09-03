@@ -55,8 +55,13 @@ class Exp( torch.nn.Module ):
     def forward( self, x: torch.Tensor ):
         return x.exp()
 
+class ELU1( torch.nn.Module ):
+    def forward( self, x: torch.Tensor ):
+        return torch.nn.functional.elu( x ) + 1.0
+
 ACT2FN['softplus'] = torch.nn.Softplus
 ACT2FN['exp'] = Exp
+ACT2FN['elu1'] = ELU1
     
 
 class ProLU(torch.autograd.Function):

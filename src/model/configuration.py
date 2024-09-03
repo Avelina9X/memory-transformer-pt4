@@ -354,7 +354,8 @@ class LSWTConfigTraining():
         loss_sim_margin=0.5,
         
         ortho_params: Sequence[str] = ( 'token_rotate.weight', ),
-        ortho_beta=1.0,
+        ortho_beta: float = 1.0,
+        ortho_norm_p: float = 2,
     ):
         """LSW Transformer Training Configuration
 
@@ -418,6 +419,7 @@ class LSWTConfigTraining():
         # Orthogonalisation
         self.ortho_params = ortho_params
         self.ortho_beta = ortho_beta
+        self.ortho_norm_p = ortho_norm_p
 
         # Assertions
         if batch_size % batch_size_step != 0:

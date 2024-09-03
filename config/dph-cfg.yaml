@@ -22,7 +22,7 @@ train:
   lr_cooldown_ratio: 0.1
 
   opt_beta_1: 0.9
-  opt_beta_2: 0.999
+  opt_beta_2: 0.95
   opt_weight_decay: 0.1
   opt_decay_init: true
   opt_decay_mask:
@@ -30,7 +30,8 @@ train:
     - norm
     - bias
   
-  ortho_beta: 1.0
+  ortho_beta: 0.01
+  ortho_norm_p: 2
 
 finetune:
   mask_override: train

@@ -140,7 +140,7 @@ class Trainer(): # pylint: disable=R0902
             if any( i in name for i in self.train_config.ortho_params )
         ]
         
-        return Ortho( params, self.train_config.ortho_beta )
+        return Ortho( params, self.train_config.ortho_beta, self.train_config.ortho_norm_p )
 
     def _load_loss_function( self ) -> torch.nn.Module:
         if self.train_config.loss_objective == 'MLE':
@@ -667,7 +667,7 @@ class DPHTrainer():
             if any( i in name for i in self.train_config.ortho_params )
         ]
         
-        return Ortho( params, self.train_config.ortho_beta )
+        return Ortho( params, self.train_config.ortho_beta, self.train_config.ortho_norm_p )
 
 
     """ ========================================================================

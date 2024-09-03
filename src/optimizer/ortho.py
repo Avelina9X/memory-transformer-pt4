@@ -6,9 +6,11 @@ class Ortho( torch.optim.Optimizer ):
         self,
         params,
         beta=1.0,
+        norm_p=2.0,
     ):
         defaults = dict(
-            beta=beta
+            beta=beta,
+            norm_p=norm_p,
         )
         
         super().__init__( params, defaults )
@@ -45,10 +47,11 @@ class Ortho( torch.optim.Optimizer ):
         for group in self.param_groups:
             for p in group[ 'params' ]:
                 beta = group[ 'beta' ]
+                norm_p = group[ 'norm_p' ]
                 
                 I = torch.eye( p.shape[0], device=p.device, dtype=p.dtype )
                 
-                l = torch.dist( torch.matmul( p, p.T ), I, p=1 ) * beta
+                l = torch.dist( torch.matmul( p, p.T ), I, p=norm_p ) * beta
                 
                 if loss is None:
                     loss = l
