@@ -513,7 +513,7 @@ class LSWTPooler( torch.nn.Module ):
                 case 'global':
                     self.ema_weight = torch.nn.Parameter( torch.empty( [ 1, 1, 1 ] ), requires_grad=True )
                 case 'activation':
-                    self.ema_weight = torch.nn.Parameter( torch.empty( [ 1, 1, d_model ] ), requires_grad=True )
+                    self.ema_weight = torch.nn.Parameter( torch.empty( [ 1, 1, d_model * pooler_config.token_pooling_rotation_expansion ] ), requires_grad=True )
                 case None:
                     self.ema_weight = torch.nn.Parameter( torch.empty( [ 1, 1, 1 ] ), requires_grad=False )
                 case _:
