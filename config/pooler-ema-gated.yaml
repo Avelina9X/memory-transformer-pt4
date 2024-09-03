@@ -13,6 +13,7 @@ model:
       token_pooling_gate: softplus
 
       token_pooling_rotation: true
+      token_pooling_rotation_expansion: 4
 
       pooler_function: identity
 
