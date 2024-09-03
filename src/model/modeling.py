@@ -583,35 +583,35 @@ class LSWTPooler( torch.nn.Module ):
         
         # Select the layer or subset of layers
         if isinstance( pooler_config.layer_select, int ):
-            layer_selected_states = hidden_states[pooler_config.layer_select][ None, ... ]
+            states = hidden_states[pooler_config.layer_select][ None, ... ]
         else:
-            layer_selected_states = torch.stack( itemgetter( *pooler_config.layer_select )( hidden_states ) )
+            states = torch.stack( itemgetter( *pooler_config.layer_select )( hidden_states ) )
         
         # Pre normalise layers
-        layer_selected_states: torch.Tensor = self.layer_norm_pre( layer_selected_states )
+        states: torch.Tensor = self.layer_norm_pre( states )
         
         # Perform layer pooling type
         match pooler_config.layer_pooling:
             case 'layer':
-                layer_pooled_states = layer_selected_states.squeeze( 0 )
+                states = states.squeeze( 0 )
             
             case 'mean':
-                layer_pooled_states = layer_selected_states.mean( 0 )
+                states = states.mean( 0 )
             
             case 'weighted_sum':
                 assert self.layer_weighting is not None
                 
                 drop_mask = torch.ones(
-                    layer_selected_states.size( 0 ),
-                    layer_selected_states.size( 1 ),
+                    states.size( 0 ),
+                    states.size( 1 ),
                     1,
                     1,
-                    dtype=layer_selected_states.dtype,
-                    device=layer_selected_states.device
+                    dtype=states.dtype,
+                    device=states.device
                 )
                 
-                layer_pooled_states = (
-                    layer_selected_states *
+                states = (
+                    states *
                     self.layer_weighting.softmax( 0 ) *
                     self.layer_dropout( drop_mask )
                 ).sum( 0 )
@@ -620,12 +620,12 @@ class LSWTPooler( torch.nn.Module ):
                 raise ValueError( 'Incorrect layer pooler type.' )
         
         # Post normalise layers
-        layer_pooled_states: torch.Tensor = self.layer_norm_post( layer_pooled_states )
+        states: torch.Tensor = self.layer_norm_post( states )
         
         
         # Get some useful stuff
         batch_size, seq_lengths = input_ids.shape[:2]
-        batch_ids = torch.arange( batch_size, device=layer_pooled_states.device )
+        batch_ids = torch.arange( batch_size, device=states.device )
         seq_ids = torch.arange( seq_lengths, device=input_ids.device )
         
         if prefix_type == None:
@@ -642,43 +642,43 @@ class LSWTPooler( torch.nn.Module ):
         segment_pos = segment_pos[ ..., None ]
         
         # Pre normalise tokens
-        token_selected_states: torch.Tensor = self.token_norm_pre( layer_pooled_states )
+        states: torch.Tensor = self.token_norm_pre( states )
         
         # Compute gate before rotation
         if self.token_gate:
             assert self.token_gate_act is not None
-            gate = self.token_gate_act( self.token_gate( token_selected_states ) ).float()
+            gate = self.token_gate_act( self.token_gate( states ) ).float()
         else:
             gate = None
         
         # Create rotation matrix if enabled
-        rotation_weight = self.token_rotate( token_selected_states.dtype ) if self.token_rotate else None
+        rotation_weight = self.token_rotate( states.dtype ) if self.token_rotate else None
         
         # Perform rotation (if enabled)
         if rotation_weight is not None:
-            token_selected_states = torch.matmul( token_selected_states, rotation_weight )
+            states = torch.matmul( states, rotation_weight )
         
         # Cast to float
-        token_selected_states = token_selected_states.float()
+        states = states.float()
         
         # Perform layer token pooling
         match pooler_config.token_pooling:
             case 'cls':
-                token_pooled_states = token_selected_states * segment_mask
+                states = states * segment_mask
             
             case 'max':
-                token_pooled_states = torch.where( segment_mask, token_selected_states, -1e9 ).cummax( -2 )[0]
-                token_pooled_states = token_pooled_states * segment_mask
+                states = torch.where( segment_mask, states, -1e9 ).cummax( -2 )[0]
+                states = states * segment_mask
             
             case 'mean':
-                token_pooled_states = torch.where( segment_mask, token_selected_states, 0 ).cumsum( -2 )
-                token_pooled_states = token_pooled_states / ( segment_pos + 1e-9 )
-                token_pooled_states = token_pooled_states * segment_mask
+                states = torch.where( segment_mask, states, 0 ).cumsum( -2 )
+                states = states / ( segment_pos + 1e-9 )
+                states = states * segment_mask
             
             case 'sgpt':
-                token_pooled_states = torch.where( segment_mask, token_selected_states * segment_pos, 0 ).cumsum( -2 )
-                token_pooled_states = token_pooled_states / segment_pos.cumsum( -2 )
-                token_pooled_states = token_pooled_states * segment_mask
+                states = torch.where( segment_mask, states * segment_pos, 0 ).cumsum( -2 )
+                states = states / segment_pos.cumsum( -2 )
+                states = states * segment_mask
             
             case 'ema':
                 assert self.ema_beta is not None
@@ -687,28 +687,28 @@ class LSWTPooler( torch.nn.Module ):
                 log_beta = F.logsigmoid( self.ema_beta + self.ema_weight ).float() # pylint: disable=E1102
                 
                 if gate is None:
-                    token_pooled_states = complex_scan( segment_mask, token_selected_states, log_beta, segment_pos )
+                    states = complex_scan( segment_mask, states, log_beta, segment_pos )
                 else:
                     segment_weight = segment_mask.float() * gate
-                    token_pooled_states = complex_selective_scan( segment_mask, token_selected_states, log_beta, segment_weight )
+                    states = complex_selective_scan( segment_mask, states, log_beta, segment_weight )
             
             case _:
                 raise ValueError( 'Incorrect token pooler type.' )
-            
-        # Post normalise tokens
-        token_pooled_states: torch.Tensor = self.token_norm_post( token_pooled_states )
         
         # Perform inverse rotation (if enabled)
         if rotation_weight is not None:
-            token_pooled_states = torch.matmul( token_pooled_states, rotation_weight.T )
+            states = torch.matmul( states, rotation_weight.T )
+            
+        # Post normalise tokens
+        states: torch.Tensor = self.token_norm_post( states )
         
         
         if not return_all:
-            return token_pooled_states[ batch_ids, end_idx ]
+            return states[ batch_ids, end_idx ]
         else:
             return {
-                'final_states': token_pooled_states[ batch_ids, end_idx ],
-                'pooled_states': token_pooled_states,
+                'final_states': states[ batch_ids, end_idx ],
+                'pooled_states': states,
                 'segment_mask': segment_mask,
                 'segment_pos': segment_pos,
             }
