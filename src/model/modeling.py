@@ -644,6 +644,13 @@ class LSWTPooler( torch.nn.Module ):
         # Pre normalise tokens
         token_selected_states: torch.Tensor = self.token_norm_pre( layer_pooled_states )
         
+        # Compute gate before rotation
+        if self.token_gate:
+            assert self.token_gate_act is not None
+            gate = self.token_gate_act( self.token_gate( token_selected_states ) ).float()
+        else:
+            gate = None
+        
         # Create rotation matrix if enabled
         rotation_weight = self.token_rotate( token_selected_states.dtype ) if self.token_rotate else None
         
@@ -679,14 +686,10 @@ class LSWTPooler( torch.nn.Module ):
                 
                 log_beta = F.logsigmoid( self.ema_beta + self.ema_weight ).float() # pylint: disable=E1102
                 
-                if self.token_gate is None:
+                if gate is None:
                     token_pooled_states = complex_scan( segment_mask, token_selected_states, log_beta, segment_pos )
                 else:
-                    assert self.token_gate_act is not None
-                    
-                    gate = self.token_gate_act( self.token_gate( token_selected_states ) ).float()
                     segment_weight = segment_mask.float() * gate
-                    
                     token_pooled_states = complex_selective_scan( segment_mask, token_selected_states, log_beta, segment_weight )
             
             case _:
