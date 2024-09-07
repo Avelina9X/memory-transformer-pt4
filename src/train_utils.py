@@ -281,7 +281,7 @@ def compute_pooler_stats_dict( model: LSWTForDPH ):
         assert model.pooler.token_rotate is not None
         
         Q = model.pooler.token_rotate.weight
-        stats_dict[ 'pooler/rotate/ortho' ] = torch.dist( Q @ Q.T, torch.eye( Q.size( 0 ) ).to( device=Q.device ) ).item()
+        stats_dict[ 'pooler/rotate/ortho' ] = torch.dist( Q.T @ Q, torch.eye( Q.size( 1 ) ).to( device=Q.device ) ).item()
     
     
     # Token gate weight and bias

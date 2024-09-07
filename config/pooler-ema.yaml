@@ -4,7 +4,7 @@ model:
       reward_head_bias: true
 
       layer_pooling: weighted_sum
-      layer_pooling_norm: both
+      layer_pooling_norm: post
 
       token_pooling: ema
       token_pooling_norm: post
@@ -18,4 +18,4 @@ model:
       layer_select: [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18 ]
       
       embedding_dropout: 0.1
-      layer_dropout: 0.2
+      layer_dropout: 0.0

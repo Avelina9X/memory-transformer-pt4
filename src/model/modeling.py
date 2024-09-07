@@ -481,6 +481,8 @@ class LSWTPooler( torch.nn.Module ):
         if pooler_config.reward_heads is None:
             raise ValueError( 'reward_heads must be defined. If no heads are desired please use an empty list.' )
         
+        inter_dim = d_model * pooler_config.token_pooling_rotation_expansion
+        
         self.pooler_pipeline = torch.nn.Sequential()
         self.embedding_dropout = torch.nn.Dropout( p=pooler_config.embedding_dropout )
         self.layer_dropout = torch.nn.Dropout( p=pooler_config.layer_dropout )
@@ -491,9 +493,9 @@ class LSWTPooler( torch.nn.Module ):
         self.token_norm_pre = torch.nn.LayerNorm( d_model ) if pooler_config.token_pooling_norm in [ 'pre', 'both' ] else torch.nn.Identity()
         self.token_norm_post = torch.nn.LayerNorm( d_model ) if pooler_config.token_pooling_norm in [ 'post', 'both' ] else torch.nn.Identity()
         
-        self.token_rotate = RotateLayer( d_model, d_model * pooler_config.token_pooling_rotation_expansion ) if pooler_config.token_pooling_rotation else None
+        self.token_rotate = RotateLayer( d_model, inter_dim ) if pooler_config.token_pooling_rotation else None
         
-        self.token_gate = torch.nn.Linear( d_model, d_model * pooler_config.token_pooling_rotation_expansion, True ) if pooler_config.token_pooling_gate else None
+        self.token_gate = torch.nn.Linear( d_model, inter_dim, pooler_config.token_pooling_gate_bias ) if pooler_config.token_pooling_gate else None
         self.token_gate_act = ACT2FN[pooler_config.token_pooling_gate] if pooler_config.token_pooling_gate else None
 
         if pooler_config.layer_pooling == 'weighted_sum':
@@ -513,7 +515,7 @@ class LSWTPooler( torch.nn.Module ):
                 case 'global':
                     self.ema_weight = torch.nn.Parameter( torch.empty( [ 1, 1, 1 ] ), requires_grad=True )
                 case 'activation':
-                    self.ema_weight = torch.nn.Parameter( torch.empty( [ 1, 1, d_model * pooler_config.token_pooling_rotation_expansion ] ), requires_grad=True )
+                    self.ema_weight = torch.nn.Parameter( torch.empty( [ 1, 1, inter_dim ] ), requires_grad=True )
                 case None:
                     self.ema_weight = torch.nn.Parameter( torch.empty( [ 1, 1, 1 ] ), requires_grad=False )
                 case _:
@@ -654,10 +656,11 @@ class LSWTPooler( torch.nn.Module ):
         # Create rotation matrix if enabled
         rotation_weight = self.token_rotate( states.dtype ) if self.token_rotate else None
         
+        
         # Perform rotation (if enabled)
         if rotation_weight is not None:
-            states = torch.matmul( states, rotation_weight )
-        
+            states = F.linear( states, rotation_weight ) # pylint: disable=E1102
+            
         # Cast to float
         states = states.float()
         
@@ -697,7 +700,7 @@ class LSWTPooler( torch.nn.Module ):
         
         # Perform inverse rotation (if enabled)
         if rotation_weight is not None:
-            states = torch.matmul( states, rotation_weight.T )
+            states = F.linear( states, rotation_weight.mT ) # pylint: disable=E1102
             
         # Post normalise tokens
         states: torch.Tensor = self.token_norm_post( states )

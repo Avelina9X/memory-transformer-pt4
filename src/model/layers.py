@@ -3,6 +3,7 @@ Module containing all the layers required for the LSWTransformer architecture.
 """
 
 import torch
+import torch.nn.functional as F
 from torch.cuda.amp import custom_bwd, custom_fwd
 
 from transformers.activations import ACT2FN
@@ -116,18 +117,17 @@ def prolu_relu( m: torch.Tensor, b: torch.Tensor ) -> torch.Tensor:
 
 
 def complex_log( float_input: torch.Tensor, eps=1e-6 ) -> torch.Tensor:
-    eps = float_input.new_tensor( eps )
-    real = float_input.abs().maximum( eps ).log()
+    real = float_input.abs().clamp( min=eps ).log()
     imag = ( float_input < 0 ).to( float_input.dtype ) * torch.pi
     return torch.complex( real, imag )
 
-@torch._dynamo.disable # type: ignore # pylint: disable=W0212
+# @torch._dynamo.disable # type: ignore # pylint: disable=W0212
 def complex_scan( segment_mask, token_selected_states, log_beta, segment_pos ):
     numer = torch.where( segment_mask, complex_log( token_selected_states ) - log_beta * segment_pos, -1e9 ).logcumsumexp( -2 )
     denom = torch.where( segment_mask, - log_beta * segment_pos, -1e9 ).logcumsumexp( -2 )
     return ( numer - denom ).exp().real * segment_mask
 
-@torch._dynamo.disable # type: ignore # pylint: disable=W0212
+# @torch._dynamo.disable # type: ignore # pylint: disable=W0212
 def complex_selective_scan( segment_mask, token_selected_states, log_beta, segment_weight ):
     sw_cumsum = segment_weight.cumsum( -2 )
     sw_log = segment_weight.clamp( min=1e-6 ).log()
@@ -136,12 +136,32 @@ def complex_selective_scan( segment_mask, token_selected_states, log_beta, segme
     denom = torch.where( segment_mask, bias_correction, -1e9 ).logcumsumexp( -2 )
     return ( numer - denom ).exp().real * segment_mask
 
+# def complex_selective_scan_fast( segment_mask, states, log_beta, segment_weight ):
+#     sw_cumsum = segment_weight.cumsum( -2 )
+#     sw_log = segment_weight.clamp( min=1e-6 ).log()
+#     bias_correction = - log_beta * sw_cumsum + sw_log
+    
+#     pos_logs = F.relu( states ).clamp( min=1e-6 ).log()
+#     neg_logs = F.relu( -states ).clamp( min=1e-6 ).log()
+    
+#     logs = torch.stack( [ pos_logs, neg_logs ], -2 )
+    
+#     bias_correction = bias_correction.unsqueeze( -2 )
+#     segment_mask = segment_mask.unsqueeze( -2 )
+    
+#     numer = torch.where( segment_mask, logs + bias_correction, -1e9 ).logcumsumexp( -3 )
+#     denom = torch.where( segment_mask, bias_correction, -1e9 ).logcumsumexp( -3 )
+    
+#     out = ( numer - denom ).exp() * segment_mask
+    
+#     return out[ ..., 0, : ] - out[ ..., 1, : ]
+
 
 class RotateLayer( torch.nn.Module ):
-    def __init__( self, n, m ):
+    def __init__( self, in_features, out_features ):
         super().__init__()
 
-        self.weight = torch.nn.Parameter( torch.empty( n, m ), requires_grad=True )
+        self.weight = torch.nn.Parameter( torch.empty( out_features, in_features ), requires_grad=True )
         torch.nn.init.orthogonal_( self.weight )
         
         # self.transform = torch.nn.utils.parametrizations._Orthogonal( self.weight, torch.nn.utils.parametrizations._OrthMaps.matrix_exp, use_trivialization=True )

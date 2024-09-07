@@ -29,9 +29,6 @@ train:
     - embedding.weight
     - norm
     - bias
-  
-  ortho_beta: 0.01
-  ortho_norm_p: 2
 
 finetune:
   mask_override: train

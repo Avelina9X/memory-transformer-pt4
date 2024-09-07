@@ -39,6 +39,7 @@ class LSWTPoolerConfig( PretrainedConfig ):
         token_pooling_rotation: bool = False,
         token_pooling_rotation_expansion: int = 1,
         token_pooling_gate: str | None = None,
+        token_pooling_gate_bias: bool = True,
         
         pooler_function: Literal['identity', 'projection'] = 'identity',
         pooler_activation: str | None = None,
@@ -77,6 +78,7 @@ class LSWTPoolerConfig( PretrainedConfig ):
         self.token_pooling_rotation = token_pooling_rotation
         self.token_pooling_rotation_expansion = token_pooling_rotation_expansion
         self.token_pooling_gate = token_pooling_gate
+        self.token_pooling_gate_bias = token_pooling_gate_bias
         
         if prefix_sizes is None:
             prefix_sizes = {
@@ -360,7 +362,7 @@ class LSWTConfigTraining():
         
         ortho_params: Sequence[str] = ( 'token_rotate.weight', ),
         ortho_beta: float = 1.0,
-        ortho_norm_p: float = 2,
+        ortho_norm_p: float | str = 2,
     ):
         """LSW Transformer Training Configuration
 
