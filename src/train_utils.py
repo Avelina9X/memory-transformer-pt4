@@ -286,12 +286,18 @@ def compute_pooler_stats_dict( model: LSWTForDPH ):
     
     # Token gate weight and bias
     if model.pooler.token_gate is not None:
-        token_gate_weight = model.pooler.token_gate.weight.data.flatten().cpu().numpy()
-        stats_dict[ 'pooler/token_gate/weight' ] = wandb.Histogram( list( token_gate_weight ) )
+        decay_weight, sustain_weight = model.pooler.token_gate.weight.data.chunk( 2, dim=0 )
+        decay_weight = decay_weight.flatten().cpu().numpy()
+        sustain_weight = sustain_weight.flatten().cpu().numpy()
+        stats_dict[ 'pooler/token_gate/decay_weight' ] = wandb.Histogram( list( decay_weight ) )
+        stats_dict[ 'pooler/token_gate/sustain_weight' ] = wandb.Histogram( list( sustain_weight ) )
         
         if model.pooler.token_gate.bias is not None:
-            token_gate_bias = model.pooler.token_gate.bias.flatten().cpu().numpy()
-            stats_dict[ 'pooler/token_gate/bias' ] = wandb.Histogram( list( token_gate_bias ) )
+            decay_bias, sustain_bias = model.pooler.token_gate.bias.data.chunk( 2, dim=0 )
+            decay_bias = decay_bias.flatten().cpu().numpy()
+            sustain_bias = sustain_bias.flatten().cpu().numpy()
+            stats_dict[ 'pooler/token_gate/decay_bias' ] = wandb.Histogram( list( decay_bias ) )
+            stats_dict[ 'pooler/token_gate/sustain_bias' ] = wandb.Histogram( list( sustain_bias ) )
     
     
     return stats_dict

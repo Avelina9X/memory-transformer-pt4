@@ -696,7 +696,7 @@ class LSWTPooler( torch.nn.Module ):
                 else:
                     segment_weight = segment_mask.float() * gate
                     states = complex_selective_scan( segment_mask, states, log_beta, segment_weight )
-            
+
             case _:
                 raise ValueError( 'Incorrect token pooler type.' )
         
