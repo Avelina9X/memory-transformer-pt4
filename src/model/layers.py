@@ -138,26 +138,6 @@ def complex_selective_scan( segment_mask, token_selected_states, log_beta, segme
     denom = torch.where( segment_mask, bias_correction, -1e9 ).logcumsumexp( -2 )
     return ( numer - denom ).exp().real * segment_mask
 
-# def complex_selective_scan_fast( segment_mask, states, log_beta, segment_weight ):
-#     sw_cumsum = segment_weight.cumsum( -2 )
-#     sw_log = segment_weight.clamp( min=1e-6 ).log()
-#     bias_correction = - log_beta * sw_cumsum + sw_log
-    
-#     pos_logs = F.relu( states ).clamp( min=1e-6 ).log()
-#     neg_logs = F.relu( -states ).clamp( min=1e-6 ).log()
-    
-#     logs = torch.stack( [ pos_logs, neg_logs ], -2 )
-    
-#     bias_correction = bias_correction.unsqueeze( -2 )
-#     segment_mask = segment_mask.unsqueeze( -2 )
-    
-#     numer = torch.where( segment_mask, logs + bias_correction, -1e9 ).logcumsumexp( -3 )
-#     denom = torch.where( segment_mask, bias_correction, -1e9 ).logcumsumexp( -3 )
-    
-#     out = ( numer - denom ).exp() * segment_mask
-    
-#     return out[ ..., 0, : ] - out[ ..., 1, : ]
-
 
 class RotateLayer( torch.nn.Module ):
     def __init__( self, in_features, out_features ):
