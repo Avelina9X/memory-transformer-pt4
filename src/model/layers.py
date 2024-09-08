@@ -142,15 +142,10 @@ def complex_selective_scan( segment_mask, token_selected_states, log_beta, segme
 class RotateLayer( torch.nn.Module ):
     def __init__( self, in_features, out_features ):
         super().__init__()
-
         self.weight = torch.nn.Parameter( torch.empty( out_features, in_features ), requires_grad=True )
         torch.nn.init.orthogonal_( self.weight )
-        
-        # self.transform = torch.nn.utils.parametrizations._Orthogonal( self.weight, torch.nn.utils.parametrizations._OrthMaps.matrix_exp, use_trivialization=True )
-        # self.weight.data = self.transform.right_inverse( self.weight )
 
     def forward( self, dtype ):
-        # Q = self.transform( self.weight.to( dtype ) ).to( dtype )
         return self.weight.to( dtype )
 
 
