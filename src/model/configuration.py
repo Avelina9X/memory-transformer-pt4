@@ -36,10 +36,10 @@ class LSWTPoolerConfig( PretrainedConfig ):
         token_pooling_norm: Literal['pre', 'post', 'both', None] = None,
         token_pooling_ema_beta: float | None = None,
         token_pooling_ema_beta_learnable: Literal['global', 'activation', None] = None,
-        token_pooling_rotation: bool = False,
-        token_pooling_rotation_expansion: int = 1,
+        token_pooling_rotation: bool | None = None,
+        token_pooling_rotation_expansion: int | None = None,
         token_pooling_gate: str | None = None,
-        token_pooling_gate_bias: bool = True,
+        token_pooling_gate_bias: bool | None = None,
         
         pooler_function: Literal['identity', 'projection'] = 'identity',
         pooler_activation: str | None = None,
@@ -112,16 +112,19 @@ class LSWTPoolerConfig( PretrainedConfig ):
         if ( token_pooling == 'ema' ) ^ ( isinstance( token_pooling_ema_beta, float ) ):
             raise ValueError( 'token_pooling_ema_beta must be a float if and only if token_pooling=`ema`' )
         
+        if ( token_pooling == 'ema' ) ^ ( isinstance( token_pooling_rotation_expansion, int ) ):
+            raise ValueError( 'token_pooling_rotation_expansion must be a int if and only if token_pooling=`ema`' )
+        
         if ( token_pooling != 'ema' ) and token_pooling_ema_beta_learnable:
             raise ValueError( 'token_pooling_ema_beta_learnable can only be set when token_pooling=`ema`' )
         
-        if ( token_pooling_ema_beta_learnable != 'activation' ) and token_pooling_rotation:
+        if ( token_pooling_ema_beta_learnable != 'activation' ) and isinstance( token_pooling_rotation, bool ):
             raise ValueError( 'token_pooling_rotation can only be true if token_pooling_ema_beta_learnable=`activation`' )
         
-        if ( token_pooling != 'ema' ) and token_pooling_gate:
+        if ( token_pooling == 'ema' ) ^ isinstance( token_pooling_gate, str ):
             raise ValueError( 'token_pooling_gate cannot be set when token_pooling != `ema`' )
         
-        if  not token_pooling_rotation and token_pooling_rotation_expansion != 1:
+        if  not token_pooling_rotation and token_pooling_rotation_expansion is not None:
             raise ValueError( 'token_pooling_rotation_expansion != 1 can only be set when token_pooling_rotation is true')
             
 

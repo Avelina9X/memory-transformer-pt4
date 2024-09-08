@@ -11,7 +11,7 @@ model:
       token_pooling_ema_beta: 0.95
       token_pooling_ema_beta_learnable: activation
       token_pooling_gate: exp
-      token_pooling_gate_bias: false
+      token_pooling_gate_bias: true
 
       token_pooling_rotation: true
       token_pooling_rotation_expansion: 1

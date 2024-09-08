@@ -129,8 +129,10 @@ def complex_scan( segment_mask, token_selected_states, log_beta, segment_pos ):
 
 # @torch._dynamo.disable # type: ignore # pylint: disable=W0212
 def complex_selective_scan( segment_mask, token_selected_states, log_beta, segment_weight ):
-    sw_cumsum = segment_weight.cumsum( -2 )
-    sw_log = segment_weight.clamp( min=1e-6 ).log()
+    weight_a, weight_b = segment_weight.chunk( 2, dim=-1 )
+    
+    sw_cumsum = weight_a.cumsum( -2 )
+    sw_log = weight_b.clamp( min=1e-6 ).log()
     bias_correction = - log_beta * sw_cumsum + sw_log
     numer = torch.where( segment_mask, complex_log( token_selected_states ) + bias_correction, -1e9 ).logcumsumexp( -2 )
     denom = torch.where( segment_mask, bias_correction, -1e9 ).logcumsumexp( -2 )

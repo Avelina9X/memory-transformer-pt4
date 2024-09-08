@@ -481,7 +481,9 @@ class LSWTPooler( torch.nn.Module ):
         if pooler_config.reward_heads is None:
             raise ValueError( 'reward_heads must be defined. If no heads are desired please use an empty list.' )
         
-        inter_dim = d_model * pooler_config.token_pooling_rotation_expansion
+        assert pooler_config.token_pooling_gate_bias is not None
+        
+        inter_dim = d_model * ( pooler_config.token_pooling_rotation_expansion or 1 )
         
         self.pooler_pipeline = torch.nn.Sequential()
         self.embedding_dropout = torch.nn.Dropout( p=pooler_config.embedding_dropout )
@@ -495,7 +497,7 @@ class LSWTPooler( torch.nn.Module ):
         
         self.token_rotate = RotateLayer( d_model, inter_dim ) if pooler_config.token_pooling_rotation else None
         
-        self.token_gate = torch.nn.Linear( d_model, inter_dim, pooler_config.token_pooling_gate_bias ) if pooler_config.token_pooling_gate else None
+        self.token_gate = torch.nn.Linear( d_model, inter_dim * 2, pooler_config.token_pooling_gate_bias ) if pooler_config.token_pooling_gate else None
         self.token_gate_act = ACT2FN[pooler_config.token_pooling_gate] if pooler_config.token_pooling_gate else None
 
         if pooler_config.layer_pooling == 'weighted_sum':
