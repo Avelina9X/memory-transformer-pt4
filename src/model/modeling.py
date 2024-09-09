@@ -573,15 +573,7 @@ class LSWTPooler( torch.nn.Module ):
             for name in pooler_config.reward_heads
         } )
     
-    def aggregate_states(
-        self,
-        hidden_states: tuple[torch.Tensor],
-        input_ids: torch.LongTensor,
-        start_id: int,
-        end_id: int,
-        return_all=False,
-        prefix_type: str | None = 'assistant',
-    ) -> torch.Tensor | dict[str, torch.Tensor]:
+    def pool_layers( self, hidden_states: tuple[torch.Tensor] ) -> torch.Tensor:
         pooler_config = self.pooler_config
         assert pooler_config
         
@@ -626,27 +618,13 @@ class LSWTPooler( torch.nn.Module ):
         # Post normalise layers
         states: torch.Tensor = self.layer_norm_post( states )
         
-        
-        # Get some useful stuff
-        batch_size, seq_lengths = input_ids.shape[:2]
-        batch_ids = torch.arange( batch_size, device=states.device )
-        seq_ids = torch.arange( seq_lengths, device=input_ids.device )
-        
-        if prefix_type == None:
-            prefix_count = 0
-        else:
-            prefix_count = pooler_config.prefix_sizes[prefix_type]
-        
-        start_idx = torch.where( input_ids == start_id, seq_ids, -1 ).max( -1 )[0] + prefix_count
-        end_idx = torch.where( input_ids == end_id, seq_ids, -1 ).max( -1 )[0]
-        segment_mask = ( start_idx[ :, None ] <= seq_ids[ None, : ] ) * ( seq_ids[ None, : ] <= end_idx[ :, None ] )
-        segment_pos = segment_mask.float().cumsum( -1 ) * segment_mask
-        
-        segment_mask = segment_mask[ ..., None ]
-        segment_pos = segment_pos[ ..., None ]
+        return states
+    
+    def pool_tokens( self, input_states: torch.Tensor, segment_mask: torch.Tensor, segment_pos: torch.Tensor ):
+        pooler_config = self.pooler_config
         
         # Pre normalise tokens
-        states: torch.Tensor = self.token_norm_pre( states )
+        states: torch.Tensor = self.token_norm_pre( input_states )
         
         # Compute gate before rotation
         if self.token_gate:
@@ -706,6 +684,43 @@ class LSWTPooler( torch.nn.Module ):
             
         # Post normalise tokens
         states: torch.Tensor = self.token_norm_post( states )
+        
+        return states
+    
+    def aggregate_states(
+        self,
+        hidden_states: tuple[torch.Tensor],
+        input_ids: torch.LongTensor,
+        start_id: int,
+        end_id: int,
+        return_all=False,
+        prefix_type: str | None = 'assistant',
+    ) -> torch.Tensor | dict[str, torch.Tensor]:
+        pooler_config = self.pooler_config
+        
+        # Perform layer pooling
+        states = self.pool_layers( hidden_states )
+        
+        # Get some useful stuff
+        batch_size, seq_lengths = input_ids.shape[:2]
+        batch_ids = torch.arange( batch_size, device=states.device )
+        seq_ids = torch.arange( seq_lengths, device=input_ids.device )
+        
+        if prefix_type is None:
+            prefix_count = 0
+        else:
+            prefix_count = pooler_config.prefix_sizes[prefix_type]
+        
+        start_idx = torch.where( input_ids == start_id, seq_ids, -1 ).max( -1 )[0] + prefix_count
+        end_idx = torch.where( input_ids == end_id, seq_ids, -1 ).max( -1 )[0]
+        segment_mask = ( start_idx[ :, None ] <= seq_ids[ None, : ] ) * ( seq_ids[ None, : ] <= end_idx[ :, None ] )
+        segment_pos = segment_mask.float().cumsum( -1 ) * segment_mask
+        
+        segment_mask = segment_mask[ ..., None ]
+        segment_pos = segment_pos[ ..., None ]
+        
+        # Perform token pooling
+        states = self.pool_tokens( states, segment_mask, segment_pos )
         
         
         if not return_all:
