@@ -498,7 +498,7 @@ class LSWTPooler( torch.nn.Module ):
         self.token_rotate = RotateLayer( d_model, inter_dim ) if pooler_config.token_pooling_rotation else None
         
         self.token_gate = torch.nn.Linear( d_model, inter_dim * 2, pooler_config.token_pooling_gate_bias ) if pooler_config.token_pooling_gate else None
-        self.token_gate_act = ACT2FN[pooler_config.token_pooling_gate] if pooler_config.token_pooling_gate else None
+        # self.token_gate_act = ACT2FN[pooler_config.token_pooling_gate] if pooler_config.token_pooling_gate else None
 
         if pooler_config.layer_pooling == 'weighted_sum':
             assert not isinstance( pooler_config.layer_select, int )
@@ -667,15 +667,13 @@ class LSWTPooler( torch.nn.Module ):
                 
                 if gate is None:
                     states = complex_scan( segment_mask, states, log_beta, segment_pos )
-                else:
-                    assert self.token_gate_act is not None
-                    
+                else:                    
                     # Split the gate into the two components: decay and sustain
                     decay_gate, sustain_gate = gate.chunk( 2, dim=-1 )
                     
                     # Activate the gates and multiply by segment mask to nullify
-                    decay_gate = self.token_gate_act( decay_gate ).float() * segment_mask.float()
-                    sustain_gate = self.token_gate_act( sustain_gate ).float() * segment_mask.float()
+                    decay_gate = F.softplus( -decay_gate ) * segment_mask.float() # pylint: disable=E1102
+                    sustain_gate = sustain_gate.exp() * segment_mask.float()
                     
                     states = complex_selective_scan( segment_mask, states, log_beta, decay_gate, sustain_gate )
 

@@ -38,7 +38,7 @@ class LSWTPoolerConfig( PretrainedConfig ):
         token_pooling_ema_beta_learnable: Literal['global', 'activation', None] = None,
         token_pooling_rotation: bool | None = None,
         token_pooling_rotation_expansion: int | None = None,
-        token_pooling_gate: str | None = None,
+        token_pooling_gate: bool | None = None,
         token_pooling_gate_bias: bool | None = None,
         
         pooler_function: Literal['identity', 'projection'] = 'identity',
@@ -121,7 +121,7 @@ class LSWTPoolerConfig( PretrainedConfig ):
         if ( token_pooling_ema_beta_learnable != 'activation' ) and isinstance( token_pooling_rotation, bool ):
             raise ValueError( 'token_pooling_rotation can only be true if token_pooling_ema_beta_learnable=`activation`' )
         
-        if ( token_pooling == 'ema' ) ^ isinstance( token_pooling_gate, str ):
+        if ( token_pooling == 'ema' ) ^ isinstance( token_pooling_gate, bool ):
             raise ValueError( 'token_pooling_gate cannot be set when token_pooling != `ema`' )
         
         if  not token_pooling_rotation and token_pooling_rotation_expansion is not None:
