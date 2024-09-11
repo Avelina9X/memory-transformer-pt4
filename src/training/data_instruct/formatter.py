@@ -153,3 +153,26 @@ class InstructionFormatter():
     #         'train_mask': None,
     #         'test_mask': None,
     #     }
+
+class SteerInstructionFormatter( InstructionFormatter ):
+    def __init__(self, tokenizer: PreTrainedTokenizerBase, max_cache_size: int | None = None, min_trainable_tokens: int | None = None ):
+        super().__init__( tokenizer, max_cache_size )
+        
+        self.min_trainable_tokens = min_trainable_tokens or 2
+        
+    def _apply_chat_template( self, conversation: MessageList ):
+        lines = [ self._apply_chat_template_line( line ) for line in conversation[ : -1 ] ]
+        final_line = self._apply_chat_template_line( conversation[ -1 ] )
+        
+        if sum( 1 for i in final_line[ 'train_mask' ] if i ) < self.min_trainable_tokens:
+            raise ValueError( f'Less than {self.min_trainable_tokens} trainable tokens. Skipping sample.' )
+
+        tokens = [ line[ 'tokens' ] for line in lines ] + [ final_line[ 'tokens' ] ]
+        train_mask = [ [ False ] * len( line[ 'train_mask' ] ) for line in lines ] + [ final_line[ 'train_mask' ] ]
+        test_mask = [ [ False ] * len( line[ 'test_mask' ] ) for line in lines ] + [ final_line[ 'test_mask' ] ]
+
+        return {
+            'tokens': list( itertools.chain( *tokens ) ),
+            'train_mask': list( itertools.chain( *train_mask ) ),
+            'test_mask': list( itertools.chain( *test_mask ) ),
+        }
