@@ -627,15 +627,10 @@ class LSWTPooler( torch.nn.Module ):
         states: torch.Tensor = self.token_norm_pre( input_states )
         
         # Compute gate before rotation
-        if self.token_gate:
-            assert self.token_gate_act is not None
-            gate = self.token_gate_act( self.token_gate( states ) ).float()
-        else:
-            gate = None
+        gate = self.token_gate( states ).float() if self.token_gate else None
         
         # Create rotation matrix if enabled
         rotation_weight = self.token_rotate( states.dtype ) if self.token_rotate else None
-        
         
         # Perform rotation (if enabled)
         if rotation_weight is not None:
@@ -667,13 +662,22 @@ class LSWTPooler( torch.nn.Module ):
                 assert self.ema_beta is not None
                 assert self.ema_weight is not None
                 
+                # Compute the log beta
                 log_beta = F.logsigmoid( self.ema_beta + self.ema_weight ).float() # pylint: disable=E1102
                 
                 if gate is None:
                     states = complex_scan( segment_mask, states, log_beta, segment_pos )
                 else:
-                    segment_weight = segment_mask.float() * gate
-                    states = complex_selective_scan( segment_mask, states, log_beta, segment_weight )
+                    assert self.token_gate_act is not None
+                    
+                    # Split the gate into the two components: decay and sustain
+                    decay_gate, sustain_gate = gate.chunk( 2, dim=-1 )
+                    
+                    # Activate the gates and multiply by segment mask to nullify
+                    decay_gate = self.token_gate_act( decay_gate ).float() * segment_mask.float()
+                    sustain_gate = self.token_gate_act( sustain_gate ).float() * segment_mask.float()
+                    
+                    states = complex_selective_scan( segment_mask, states, log_beta, decay_gate, sustain_gate )
 
             case _:
                 raise ValueError( 'Incorrect token pooler type.' )
