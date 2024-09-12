@@ -1,6 +1,7 @@
 import functools
 import itertools
 from transformers import PreTrainedTokenizerBase
+import numpy as np
 
 from .task_base import Message, MessageList
 
@@ -204,9 +205,18 @@ class SteerInstructionFormatter( InstructionFormatter ):
         if len( outputs[ 'tokens' ] ) + 1 > self.max_total_tokens:
             raise ValueError( f'More than {self.max_total_tokens} total tokens. Skipping sample.' )
 
+        tokens = [ self.tokenizer.eos_token_id ] + outputs[ 'tokens' ]
+        targets = outputs[ 'tokens' ] + [ self.tokenizer.eos_token_id ]
+        train_mask = outputs[ 'train_mask' ] + [ False ]
+        test_mask = outputs[ 'test_mask' ] + [ False ]
+        
+        segment_mask = np.array( [ False ] + outputs[ 'train_mask' ] )
+        segment_pos = list( segment_mask.cumsum() * segment_mask )
+
         return {
-            'tokens': [ self.tokenizer.eos_token_id ] + outputs[ 'tokens' ],
-            'targets': outputs[ 'tokens' ] + [ self.tokenizer.eos_token_id ],
-            'train_mask': outputs[ 'train_mask' ] + [ False ],
-            'test_mask': outputs[ 'test_mask' ] + [ False ],
+            'tokens': tokens,
+            'targets': targets,
+            'train_mask': train_mask,
+            'test_mask': test_mask,
+            'segment_pos': segment_pos
         }
