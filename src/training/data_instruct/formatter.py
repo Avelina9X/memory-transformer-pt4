@@ -166,7 +166,7 @@ class SteerInstructionFormatter( InstructionFormatter ):
         super().__init__( tokenizer, max_cache_size )
         
         self.min_trainable_tokens = min_trainable_tokens or 2
-        self.max_total_tokens = max_total_tokens or 1e9
+        self.max_total_tokens = max_total_tokens or int( 1e9 )
         
     def _apply_chat_template( self, conversation: MessageList ):
         lines = [ self._apply_chat_template_line( line ) for line in conversation[ : -1 ] ]

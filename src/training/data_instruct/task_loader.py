@@ -6,8 +6,8 @@ from typing import TypeAlias
 import torch
 from torch.utils.data import IterableDataset, DataLoader
 
-from .task_base import BaseInstructDataset, MessageList
-from .formatter import InstructionFormatter
+from .task_base import BaseInstructDataset, BaseSteerInstructDataset, MessageList
+from .formatter import InstructionFormatter, SteerInstructionFormatter
 
 
 def generate_forever( iterator: Iterable ) -> Generator[dict, None, None]:
@@ -523,6 +523,153 @@ class DPHMultiTaskLoader( IterableDataset ):
                     torch.stack( pos_y_list ),
                     torch.stack( neg_x_list ),
                     torch.stack( neg_y_list ),
+                )
+        except StopIteration:
+            return
+
+    def __iter__( self ):
+        return iter( self.batch_generator() )
+
+    def as_data_loader( self ):
+        return DataLoader(
+            self,
+            num_workers=1,
+            batch_size=None,
+            prefetch_factor=4,
+            pin_memory=True,
+            pin_memory_device='cuda',
+        )
+
+    def __getitem__( self, index ):
+        raise NotImplementedError( "This dataset does not support random access using __getitem__" )
+
+
+class SteerTaskLoader( IterableDataset ):
+    def __init__(
+        self,
+        task: BaseSteerInstructDataset,
+        formatter: SteerInstructionFormatter,
+        batch_size: int,
+        mask_type: str,
+        num_probes: int,
+        labels: list[str]
+    ):
+        
+        self.task = task
+        self.task_docs = task.get_training_docs().shuffle() # type: ignore
+
+        self.formatter = formatter
+        self.batch_size = batch_size
+        self.mask_type = 'train'
+        
+        self.labels = labels
+        
+        self.num_probes = num_probes
+        self.seq_length = self.formatter.max_total_tokens
+        
+        if num_probes > self.formatter.min_trainable_tokens:
+            raise ValueError( 'num_probes must not be larger than the formatter\'s min_trainable_tokens!' )
+
+        if mask_type not in [ 'all', 'train', 'test' ]:
+            raise ValueError( 'mask_type must be `all`, `train` or `test`' )
+
+    def pad_doc( self, line: dict ):
+        curr_len = len( line[ 'tokens' ] )
+        pad_len = self.seq_length - curr_len
+
+        if pad_len < 0:
+            raise ValueError( 'Sequence too long!' )
+
+        pad_token_id = self.formatter.tokenizer.pad_token_id
+
+        tokens = line[ 'tokens' ] + [ pad_token_id ] * pad_len
+        targets = line[ 'targets' ] + [ -100 ] * pad_len
+        train_mask = line[ 'train_mask' ] + [ False ] * pad_len
+        test_mask = line[ 'test_mask' ] + [ False ] * pad_len
+        segment_pos = line[ 'segment_pos' ] * [ 0 ] * pad_len
+
+        match self.mask_type:
+            case 'all':
+                return tokens, targets, segment_pos
+            case 'train':
+                if not any( train_mask ):
+                    raise ValueError( 'Train mask is empty!' )
+                return tokens, [ t if m else -100 for t, m in zip( targets, train_mask ) ], segment_pos
+            case 'test':
+                if not any( test_mask ):
+                    raise ValueError( 'Test mask is empty!' )
+                return tokens, [ t if m else -100 for t, m in zip( targets, test_mask ) ], segment_pos
+            case _:
+                assert False, 'We should not be here!'
+
+    def get_sample( self, doc: dict ):
+        convos = self.task.create_target_message_list( doc )
+
+        candidate = random.choice( convos )
+        
+        if candidate[-1].role != 'assistant':
+            raise ValueError( 'Last message must be an assistant message!' )
+
+        messages = self.formatter.tokenize_chat( candidate )
+
+        tokens, targets, segment_pos = self.pad_doc( messages )
+        labels = self.task.get_labels( doc, self.labels )
+        
+        segment_pos = torch.tensor( segment_pos, dtype=torch.long )
+        final_pos, final_pos_idx = segment_pos.max( dim=-1, keepdims=True ) #type: ignore
+        
+        trimmed_pos = segment_pos * ( segment_pos != final_pos )
+        
+        selected_pos_idx = torch.multinomial( trimmed_pos, num_samples=self.num_probes - 1 )
+        selected_pos_idx = torch.sort( selected_pos_idx, dim=-1 )[0]
+        selected_pos_idx = torch.cat( [ selected_pos_idx, final_pos_idx ], dim=-1 )
+        
+        selected_pos_pos = segment_pos.gather( -1, selected_pos_idx )
+        
+        selected_pos_weight = selected_pos_pos / selected_pos_pos.sum()
+
+        return (
+            torch.LongTensor( tokens ),
+            torch.LongTensor( targets ),
+            torch.LongTensor( selected_pos_idx ),
+            torch.LongTensor( selected_pos_weight ),
+            torch.tensor( labels )
+        )
+
+    def example_generator( self ):
+        iterator = iter( self.task_docs )
+
+        while True:
+            doc = next( iterator )
+            assert isinstance( doc, dict )
+            try:
+                yield self.get_sample( doc )
+            except ValueError:
+                continue
+
+    def batch_generator( self ):
+        iterator = iter( self.example_generator() )
+
+        try:
+            while True:
+                tokens_list = []
+                targets_list = []
+                idx_list = []
+                weight_list = []
+                labels_list = []
+                for _ in range( self.batch_size ):
+                    tokens, targets, selected_pos_idx, selected_pos_weight, labels = next( iterator )
+                    tokens_list.append( tokens )
+                    targets_list.append( targets )
+                    idx_list.append( selected_pos_idx )
+                    weight_list.append( selected_pos_weight )
+                    labels_list.append( labels )
+                yield (
+                    torch.stack( tokens_list ),
+                    torch.stack( targets_list ),
+                    torch.stack( idx_list ),
+                    torch.stack( weight_list ),
+                    torch.stack( labels_list ),
                 )
         except StopIteration:
             return
