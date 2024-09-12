@@ -445,4 +445,14 @@ class BaseChoiceInstructDataset( BaseInstructDataset ):
         ]
 
 class BaseSteerInstructDataset( BaseInstructDataset ):
-    ...
+    @abstractmethod
+    def get_labels( self, doc: dict, labels: list[str] ) -> list[float]:
+        """ Returns the floating point steer labels given a list of label names
+
+        Args:
+            doc (dict): the input document
+            labels (list[str]): list of requested label names
+
+        Returns:
+            list[float]: steer labels given requested labels
+        """
