@@ -443,3 +443,6 @@ class BaseChoiceInstructDataset( BaseInstructDataset ):
             for i, msg in enumerate( self.format_unlabelled_messages( doc ) )
             if i != self.create_unlabelled_message_target( doc )
         ]
+
+class BaseSteerInstructDataset( BaseInstructDataset ):
+    ...
