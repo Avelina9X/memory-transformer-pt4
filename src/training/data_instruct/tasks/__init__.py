@@ -10,6 +10,7 @@ from . import (
     glue,
     gsm8k,
     hellaswag,
+    help_steer,
     hh,
     mmlu,
     obqa,
@@ -29,7 +30,7 @@ from . import (
     winogrande
 )
 
-from ..task_base import BaseInstructDataset, BaseChoiceInstructDataset
+from ..task_base import BaseInstructDataset, BaseChoiceInstructDataset, BaseSteerInstructDataset
 
 DIRECTORY_CHOICE: dict[str, Mapping[str, Callable[[str], BaseChoiceInstructDataset]]] = {
     'arc': arc.DIRECTORY,
@@ -72,10 +73,15 @@ DIRECTORY_CONVERSATIONAL: dict[str, Mapping[str, Callable[[str], BaseInstructDat
     'ultrachat': ultrachat.DIRECTORY,
 }
 
+DIRECTORY_STEER: dict[str, Mapping[str, Callable[[str], BaseSteerInstructDataset]]] = {
+    'HelpSteer': help_steer.DIRECTORY,
+}
+
 DIRECTORY_ALL: dict[str, Mapping[str, Callable[[str], BaseInstructDataset]]] = {
     **DIRECTORY_CHOICE,
     **DIRECTORY_EXTRACT,
     **DIRECTORY_SUMMARY,
     **DIRECTORY_CONVERSATIONAL,
     **DIRECTORY_GENERATIVE,
+    **DIRECTORY_STEER,
 }
