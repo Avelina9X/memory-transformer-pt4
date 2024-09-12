@@ -401,6 +401,7 @@ class SAELoss( ModelOutput ):
     
     reconstruction_loss: torch.Tensor
     l1_penalty: torch.Tensor
+    sparsity: torch.Tensor
 
 class LSWTSparseAutoEncoder( torch.nn.Module ):
     def __init__( self, pooler_config: LSWTPoolerConfig, d_model: int ):
@@ -447,8 +448,9 @@ class LSWTSparseAutoEncoder( torch.nn.Module ):
             
             l2_penalty = ( hidden_states.detach() - x_hat ).pow( 2 ).mean()
             l1_penalty = torch.norm( latent, p=1, dim=-1 ).mean()
+            l0_penalty = ( latent > 0 ).float().sum( -1 ).mean()
             
-            return latent, SAELoss( l2_penalty, l1_penalty )
+            return latent, SAELoss( l2_penalty, l1_penalty, l0_penalty )
         else:
             return latent
             
