@@ -120,29 +120,29 @@ class InstructionFormatter():
             'test_mask': f_outputs[ 'test_mask' ] + t_outputs[ 'test_mask' ] + [ False ],
         }
 
-    def tokenize_chat_training(
-        self,
-        target_list: MessageList
-    ) -> dict:
-        """ Tokenizes a message list for zero-shot or few-shot.
+    # def tokenize_chat_training(
+    #     self,
+    #     target_list: MessageList
+    # ) -> dict:
+    #     """ Tokenizes a message list for zero-shot or few-shot.
 
-        All assistant message are enabled in the mask.
+    #     All assistant message are enabled in the mask.
 
-        Args:
-            target_list (MessageList): List of target messages.
+    #     Args:
+    #         target_list (MessageList): List of target messages.
 
-        Returns:
-            dict: dictionary of tokens and masks
-        """
+    #     Returns:
+    #         dict: dictionary of tokens and masks
+    #     """
 
-        outputs = self._apply_chat_template( target_list )
+    #     outputs = self._apply_chat_template( target_list )
 
-        return {
-            'tokens': [ self.tokenizer.eos_token_id ] + outputs[ 'tokens' ],
-            'targets': outputs[ 'tokens' ] + [ self.tokenizer.eos_token_id ],
-            'train_mask': outputs[ 'train_mask' ] + [ False ],
-            'test_mask': outputs[ 'test_mask' ] + [ False ],
-        }
+    #     return {
+    #         'tokens': [ self.tokenizer.eos_token_id ] + outputs[ 'tokens' ],
+    #         'targets': outputs[ 'tokens' ] + [ self.tokenizer.eos_token_id ],
+    #         'train_mask': outputs[ 'train_mask' ] + [ False ],
+    #         'test_mask': outputs[ 'test_mask' ] + [ False ],
+    #     }
 
 
     # def tokenize_generation( self, conversation: MessageList ):
@@ -182,7 +182,7 @@ class SteerInstructionFormatter( InstructionFormatter ):
             'test_mask': list( itertools.chain( *test_mask ) ),
         }
     
-    def tokenize_chat_training(
+    def tokenize_chat(
         self,
         target_list: MessageList
     ) -> dict:

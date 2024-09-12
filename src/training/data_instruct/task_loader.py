@@ -97,7 +97,7 @@ class TaskLoader( IterableDataset ):
 
     def message_tokens_generator( self, shard_idx: int ) -> Generator[tuple[list[int], list[int]], None, None]:
         for message_list in self.message_list_generator( shard_idx ):
-            token_dict = self.formatter.tokenize_chat_training( message_list )
+            token_dict = self.formatter.tokenize_chat( message_list )
 
             tokens = token_dict[ 'tokens' ]
             targets = token_dict[ 'targets' ]
@@ -586,7 +586,7 @@ class SteerTaskLoader( IterableDataset ):
         targets = line[ 'targets' ] + [ -100 ] * pad_len
         train_mask = line[ 'train_mask' ] + [ False ] * pad_len
         test_mask = line[ 'test_mask' ] + [ False ] * pad_len
-        segment_pos = line[ 'segment_pos' ] * [ 0 ] * pad_len
+        segment_pos = line[ 'segment_pos' ] + [ 0 ] * pad_len
 
         match self.mask_type:
             case 'all':
@@ -620,7 +620,7 @@ class SteerTaskLoader( IterableDataset ):
         
         trimmed_pos = segment_pos * ( segment_pos != final_pos )
         
-        selected_pos_idx = torch.multinomial( trimmed_pos, num_samples=self.num_probes - 1 )
+        selected_pos_idx = torch.multinomial( trimmed_pos.float(), num_samples=self.num_probes - 1 )
         selected_pos_idx = torch.sort( selected_pos_idx, dim=-1 )[0]
         selected_pos_idx = torch.cat( [ selected_pos_idx, final_pos_idx ], dim=-1 )
         
@@ -632,12 +632,12 @@ class SteerTaskLoader( IterableDataset ):
             torch.LongTensor( tokens ),
             torch.LongTensor( targets ),
             torch.LongTensor( selected_pos_idx ),
-            torch.LongTensor( selected_pos_weight ),
+            selected_pos_weight,
             torch.tensor( labels )
         )
 
     def example_generator( self ):
-        iterator = iter( self.task_docs )
+        iterator = generate_forever( self.task_docs )
 
         while True:
             doc = next( iterator )
