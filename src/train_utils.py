@@ -17,7 +17,7 @@ import torch.distributed as dist
 from transformers import PreTrainedTokenizerBase, GenerationConfig
 from datasets import concatenate_datasets
 
-from model.configuration import LSWTConfigTraining, LSWTConfig, LSWTConfigTrainingDPH, LSWTPoolerConfig
+from model.configuration import LSWTConfigTraining, LSWTConfig, LSWTConfigTrainingDPH, LSWTConfigTrainingSteer, LSWTPoolerConfig
 from model.modeling import LSWTForCausalLM, LSWTForDPH
 from training.trainer import Trainer
 from training.data import load_awesome_prompts, load_savvas_prompts
@@ -41,7 +41,13 @@ def find_and_extract( source: str, prefix: str ) -> str | None:
     return source[ len( prefix ) + 1 : ]
 
 
-def modify_dicts( config: dict, model_config: LSWTConfig, train_config: LSWTConfigTraining, dph_config: LSWTConfigTrainingDPH | None = None ):
+def modify_dicts(
+    config: dict,
+    model_config: LSWTConfig,
+    train_config: LSWTConfigTraining,
+    dph_config: LSWTConfigTrainingDPH | None = None,
+    steer_config: LSWTConfigTrainingSteer | None = None
+):
     """ Updates Model and Training config given a wandb dict
 
     Args:
@@ -49,11 +55,13 @@ def modify_dicts( config: dict, model_config: LSWTConfig, train_config: LSWTConf
         model_config (LSWTConfig): model config destination
         train_config (LSWTConfigTraining): train config destination
         dph_config (LSWTConfigTrainingDPH | None): dph config destination
+        steer_config (LSWTConfigTrainingSteer | None): steer config destination
     """
     for key, value in config.items():
         model_key = find_and_extract( key, 'model' )
         train_key = find_and_extract( key, 'train' )
         dph_key = find_and_extract( key, 'dph' )
+        steer_key = find_and_extract( key, 'steer' )
 
         if model_key is not None:
             if model_key != 'pooler_config':
@@ -76,6 +84,10 @@ def modify_dicts( config: dict, model_config: LSWTConfig, train_config: LSWTConf
         if dph_key is not None and dph_config is not None:
             getattr( dph_config, dph_key )
             setattr( dph_config, dph_key, value )
+        
+        if steer_key is not None and steer_config is not None:
+            getattr( steer_config, steer_key )
+            setattr( steer_config, steer_key, value )
 
 
 def get_checkpoint_path( name: str | None=None ) -> tuple[ pathlib.Path, pathlib.Path, pathlib.Path ]:
