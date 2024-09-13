@@ -627,13 +627,14 @@ class LSWTConfigTrainingSteer():
         sae_l1_coef=0.1,
         sae_l2_coef=1.0,
         
-
         dph_weight=1.0,
 
         dph_decay_init=False,
         dph_weight_decay=0.1,
         dph_lr_multiplier=1.0,
         dph_decay_mask: Sequence[str] = ( 'norm', 'bias', 'ema', 'layer_weighting', 'token_rotate' ),
+        
+        label_keys: Sequence[str] = (),
     ):
         """ LSW Transformer config class
 
@@ -655,6 +656,8 @@ class LSWTConfigTrainingSteer():
         self.dph_weight_decay = dph_weight_decay
         self.dph_lr_multiplier = dph_lr_multiplier
         self.dph_decay_mask = dph_decay_mask
+        
+        self.label_keys = label_keys
 
         # KL Assertions        
         if self.kl_penalty < 0:
