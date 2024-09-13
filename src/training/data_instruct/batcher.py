@@ -365,8 +365,8 @@ class SteerInstructionBatcher( BaseInstructionBatcher ):
             metrics[key] = {
                 'pearsonr': pearsonr.statistic, # type: ignore
                 'spearmanr': spearmanr.statistic, # type: ignore
-                'pearsonr_pvalue': pearsonr.pvalue, # type: ignore
-                'spearmanr_pvalue': spearmanr.pvalue, # type: ignore
+                # 'pearsonr_pvalue': pearsonr.pvalue, # type: ignore
+                # 'spearmanr_pvalue': spearmanr.pvalue, # type: ignore
             }
         
         return metrics
