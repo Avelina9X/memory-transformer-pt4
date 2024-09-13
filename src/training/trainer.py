@@ -12,6 +12,7 @@ import tqdm
 import numpy as np
 from transformers import PreTrainedTokenizerBase
 import torch
+import torch.nn.functional as F
 import torch.distributed as dist
 from torch.distributed.optim import ZeroRedundancyOptimizer # type: ignore
 from torch.optim import AdamW
@@ -19,12 +20,12 @@ from torcheval import metrics
 from torcheval.metrics.toolkit import sync_and_compute
 
 from constants import PARAMETERS_AS_BUCKET_VIEW, TORCH_COMPILE_OPTIONS
-from model.configuration import LSWTConfigTraining, LSWTConfigTrainingDPH
+from model.configuration import LSWTConfigTraining, LSWTConfigTrainingDPH, LSWTConfigTrainingSteer
 from model.modeling import DPHOutput, LSWTForCausalLM, LSWTForDPH
 
 from optimizer.laprop import LaProp
 from optimizer.ortho import Ortho
-from .data_instruct.task_loader import DPHMultiTaskLoader
+from .data_instruct.task_loader import DPHMultiTaskLoader, SteerTaskLoader
 from .data import PileDataset
 from .losses import DPOLoss, DPHLoss, KLPairsLoss, MLELoss, ORPOLoss, SimCTGLoss, AccuracyMetric
 
@@ -1172,4 +1173,406 @@ class DPHTrainerDDP( DPHTrainer ):
 
         # Get and reset metrics
         return self.reset_metrics()
+
+class SteerTrainer():
+    def __init__(
+        self,
+        train_config: LSWTConfigTraining,
+        steer_config: LSWTConfigTrainingSteer,
+        model_ref: LSWTForCausalLM,
+        model_dph: LSWTForDPH,
+        task_loader: SteerTaskLoader,
+    ):
+        self.train_config = train_config
+        self.steer_config = steer_config
+
+        self.model_ref = model_ref
+        self.model_dph = model_dph
+        
+        self.task_loader = task_loader
+        self.formatter = task_loader.formatter
+        self.tokenizer = self.formatter.tokenizer
+        
+        self.label_keys = self.task_loader.labels
+        
+        self.optimizer = self._load_optimizer()
+        self.optimizer_scaler = torch.cuda.amp.GradScaler() # type: ignore
+        self.optimizer_step = 0
+        
+        self.orthogonalize = self._load_ortho()
+
+        self.batch_groups = train_config.batch_size // train_config.batch_size_step
+        
+        self.metrics = {
+            'loss_reward': metrics.Mean().to( 'cuda' )
+        }
+        
+        for key in self.label_keys:
+            self.metrics[ f'reward/{key}' ] = metrics.Mean().to( 'cuda' )
+        
+        if self.steer_config.sae_enabled:
+            self.metrics[ 'loss_sae' ] = metrics.Mean().to( 'cuda' )
+            self.metrics[ 'sae/l0' ] = metrics.Mean().to( 'cuda' )
+            self.metrics[ 'sae/l1' ] = metrics.Mean().to( 'cuda' )
+            self.metrics[ 'sae/l2' ] = metrics.Mean().to( 'cuda' )
+        
+        if self.steer_config.kl_enabled:
+            self.metrics[ 'loss_kl' ] = metrics.Mean().to( 'cuda' )
+            self.metrics[ 'kl/div' ] = metrics.Mean().to( 'cuda' )
+        
+        
+    """ ========================================================================
+        Internal Utility functions
+        ======================================================================== """
     
+    def _bar_format( self, iter_n, iter_total, elapsed, epoch ) -> str:
+        postfix = 'reward={0:.3f}'.format(
+            self.metrics[ 'loss_reward' ].compute()
+        )
+        
+        if self.steer_config.sae_enabled:
+            postfix += ' | saeL0={0:.1f}, saeL1={1:.3f}, saeL2={2:.3f}'.format(
+                self.metrics[ 'sae/l0' ].compute(),
+                self.metrics[ 'sae/l1' ].compute(),
+                self.metrics[ 'sae/l2' ].compute(),
+            )
+        
+        if self.steer_config.kl_enabled:
+            postfix += ' | kl={0:.3f}'.format(
+                self.metrics[ 'loss_kl' ].compute(),
+            )
+            
+        return tqdm.tqdm.format_meter(
+            n=iter_n,
+            total=iter_total,
+            elapsed=elapsed,
+            ncols=100,
+            unit='it',
+            bar_format='{desc}: {percentage:.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}, {rate_fmt}{postfix}]',
+            postfix=postfix,
+            prefix=f'Epoch {epoch}',
+        )
+    
+    def _load_optimizer( self ) -> torch.optim.Optimizer:
+        params = self.model_dph.get_param_groups(
+            self.train_config.opt_decay_mask,
+            self.steer_config.dph_decay_mask,
+            self.steer_config.dph_decay_init,
+            self.steer_config.dph_weight_decay,
+            self.steer_config.dph_lr_multiplier,
+        )
+
+        if self.train_config.optimizer == 'LaProp':
+            return LaProp(
+                params=params,
+                lr=0.0,
+                betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
+                eps=self.train_config.opt_eps,
+                weight_decay=( self.train_config.opt_weight_decay ),
+                decay_init=self.train_config.opt_decay_init,
+            )
+
+        raise ValueError( 'Invalid optimizer' )
+    
+    def _load_ortho( self ):
+        params = [
+            p for name, p in self.model_dph.named_parameters()
+            if any( i in name for i in self.train_config.ortho_params )
+        ]
+        
+        return Ortho( params, self.train_config.ortho_beta, self.train_config.ortho_norm_p )
+    
+    """ ========================================================================
+        Utility functions
+        ======================================================================== """
+
+    def reset_metrics( self ) -> dict[ str, float ]:
+        """ Computes the end of epoch metrics and resets them for the next epoch.
+
+        Returns:
+            dict[ str, float ]: dictionary of { metric_name : computed_mean }
+        """
+
+        stats = {}
+        for name, metric in self.metrics.items():
+            stats[name] = float( metric.compute() )
+            metric.reset()
+        return stats
+
+    def get_schedule( self ) -> float:
+        """ Returns the learning rate percentage based on the Chinchilla schedule.
+
+        Note, you must manually scale by the max learning rate.
+
+        Returns:
+            float: LR ratio in range [0.0, 1.0]
+        """
+
+        warmup_ratio = min( self.optimizer_step / self.train_config.lr_warmup_steps, 1.0 )
+
+        tokens_seen = self.optimizer_step * self.train_config.batch_size * self.train_config.length_sequence
+        warmup_tokens = self.train_config.lr_warmup_steps * self.train_config.batch_size * self.train_config.length_sequence
+
+        cooldown_ratio = min( max( tokens_seen - warmup_tokens, 0.0 ) / ( self.train_config.lr_cooldown_tokens - warmup_tokens ), 1.0 )
+        cooldown_ratio = np.cos( cooldown_ratio * np.pi ) * 0.5 + 0.5
+        cooldown_ratio = cooldown_ratio * ( 1.0 - self.train_config.lr_cooldown_ratio ) + self.train_config.lr_cooldown_ratio
+
+        return min( warmup_ratio, cooldown_ratio )
+
+    def get_total_epochs( self ) -> int:
+        """ Compute the total number of epochs based on the number of total tokens.
+
+        Returns:
+            int: total epochs
+        """
+
+        tokens_per_epoch = self.train_config.batch_size * self.train_config.length_sequence * self.train_config.batches_per_epoch
+        return int( np.ceil( self.train_config.lr_cooldown_tokens / tokens_per_epoch ) )
+
+
+    """ ========================================================================
+        Forward Pass
+        ======================================================================== """
+    
+    @dataclass
+    class ForwardPassOutputs:
+        policy_logits: torch.Tensor
+        reference_logits: torch.Tensor | None
+        dph_outputs: DPHOutput
+    
+    def forward_pass( self, tokens: torch.Tensor, selected_idx: torch.Tensor ) -> ForwardPassOutputs:
+
+        # Mark start of forward pass (may not be needed as we aren't using graphs)
+        torch._inductor.cudagraph_mark_step_begin() # type: ignore # pylint: disable=W0212
+        
+        # Compute outputs for positive and negative sequences
+        dph_model_outputs = self.model_dph(
+            input_ids=tokens,
+            past_key_values=None,
+            use_cache=False,
+        )
+        
+        # Assert that there is a CLS token ID set
+        assert self.tokenizer.sep_token_id is not None
+        assert self.tokenizer.cls_token_id is not None
+        
+        # Get the logits and states
+        dph_logits = dph_model_outputs.logits
+        dph_states = self.model_dph.pooler.aggregate_states(
+            dph_model_outputs.hidden_states,
+            tokens,
+            self.tokenizer.sep_token_id,
+            self.tokenizer.cls_token_id,
+            return_all=True
+        )
+        
+        assert isinstance( dph_states, dict )
+        
+        # Get the individual states selected for this batch
+        selected_states = dph_states[ 'pooled_states' ].gather( -2, selected_idx[ ..., None ] )
+        
+        # Compute the rewards and optionally the SAE outputs
+        dph_outputs = self.model_dph.pooler( selected_states, output_latent_states=False, compute_sae_loss=self.steer_config.sae_enabled )
+        
+        with torch.no_grad():
+            # Compute reference logits if we need a reference model (e.g. for DPO or KL)
+            if self.steer_config.requires_reference_model:
+                ref_outputs = self.model_ref(
+                    input_ids=tokens,
+                    past_key_values=None,
+                    use_cache=False,
+                )
+
+                # Get reference logits and chunk into positive and negative
+                ref_logits = ref_outputs.logits
+            else:
+                ref_logits = None
+        
+        return self.ForwardPassOutputs(
+            policy_logits=dph_logits,
+            reference_logits=ref_logits,
+            dph_outputs=dph_outputs
+        )
+    
+    """ ========================================================================
+        Training Functions
+        ======================================================================== """
+
+    @torch.compile( **TORCH_COMPILE_OPTIONS )
+    def train_sub_step( self, tokens: torch.Tensor, targets: torch.Tensor, selected_idx: torch.Tensor, selected_weights: torch.Tensor, y_true: torch.Tensor ):
+        
+        # Set autocast context
+        with torch.autocast( device_type='cuda', dtype=torch.bfloat16 if self.model_dph.config.use_bfloat16 else torch.float16 ):
+            # Perform forward pass to get all relevant outputs
+            outputs = self.forward_pass( tokens, selected_idx )
+            
+            # Create the y_pred, weight and y_true tensors
+            labelled_rewards = torch.stack( [ outputs.dph_outputs.rewards[key] for key in self.label_keys ], dim=-1 ) # [ Batch, Seq, Reward ]
+            reward_weights = selected_weights[ ..., None ] # [ Batch, Seq, 1 ]
+            true_rewards = y_true[ :, None, : ] # [ Batch, 1, Rewards ]
+            
+            # Compute the per attribute and overall reward losses
+            reward_losses = ( ( labelled_rewards - true_rewards ).square() * reward_weights ).sum( -2 ).mean( 0 )
+            reward_loss = reward_losses.mean()
+            
+            # Compute the reward metrics
+            reward_metrics = {
+                f'reward/{key}': reward_losses[i].detach() for i, key in enumerate( self.label_keys )
+            }
+            
+            # If SAE is enabled compute those losses and metrics
+            if self.steer_config.sae_enabled:
+                assert outputs.dph_outputs.aux_loss
+                
+                l1_loss = outputs.dph_outputs.aux_loss.l1_penalty
+                l2_loss = outputs.dph_outputs.aux_loss.reconstruction_loss
+                l0_loss = outputs.dph_outputs.aux_loss.sparsity
+                
+                sae_loss = (
+                    l1_loss * self.steer_config.sae_l1_coef +
+                    l2_loss * self.steer_config.sae_l2_coef
+                )
+                
+                sae_metrics = {
+                    'sae/l0': l0_loss.detach(),
+                    'sae/l1': l1_loss.detach(),
+                    'sae/l2': l2_loss.detach(),
+                }
+            else:
+                sae_loss = torch.zeros_like( reward_loss )
+                sae_metrics = {}
+            
+            
+            # If KL is enabled compute KL
+            if self.steer_config.kl_enabled:
+                assert outputs.reference_logits is not None
+                
+                pol_logp = F.log_softmax( outputs.policy_logits, -1, dtype=torch.float32 )
+                ref_logp = F.log_softmax( outputs.reference_logits, -1, dtype=torch.float32 )
+                
+                mask = targets != -100
+                
+                kl_div = F.kl_div( pol_logp, ref_logp, reduction='none', log_target=True ).sum( -1 )
+                kl_div = ( kl_div * mask ).sum( -1 )
+                kl_div = kl_div.mean()
+                
+                kl_loss = kl_div * self.steer_config.kl_penalty
+                kl_metrics = {
+                    'kl/div': kl_div.detach()
+                }
+            else:
+                kl_loss = torch.zeros_like( reward_loss )
+                kl_metrics = {}
+        
+            # Compute weighted sum of losses and divide by accumulation count
+            accu_loss = (
+                self.steer_config.dph_weight * reward_loss +
+                self.steer_config.sae_weight * sae_loss +
+                self.steer_config.kl_weight * kl_loss
+            ) / self.batch_groups
+        
+        # Scaled backwards pass
+        self.optimizer_scaler.scale( accu_loss ).backward()
+        
+        return {
+            'loss_reward': reward_loss.detach(),
+            'loss_sae': sae_loss.detach(),
+            'loss_kl': kl_loss.detach(),
+        }, {
+            **reward_metrics,
+            **sae_metrics,
+            **kl_metrics
+        }
+    
+    def train_optim_step( self ):
+        
+        # Increment optimizer step
+        self.optimizer_step += 1
+
+        # Compute ortho regularisation loss
+        reg_loss = self.orthogonalize.compute_loss()
+        
+        # If there are any ortho weights, do the backward pass
+        if reg_loss is not None:
+            self.optimizer_scaler.scale( reg_loss ).backward()
+        
+        # For all parameter groups apply LR schedule
+        for p_group in self.optimizer.param_groups:
+            p_group[ 'lr' ] = self.get_schedule() * self.train_config.lr_max * p_group.get( 'lr_multiplier', 1.0 )
+        
+        # If gradient norm clipping is enabled perform scaling and clipping
+        if self.train_config.opt_max_grad_norm > 0.0:
+            self.optimizer_scaler.unscale_( self.optimizer )
+            torch.nn.utils.clip_grad_norm_( self.model_dph.parameters(), self.train_config.opt_max_grad_norm ) # type: ignore
+
+        # Perform optimizer update
+        self.optimizer_scaler.step( self.optimizer )
+        self.optimizer_scaler.update()
+        self.optimizer.zero_grad()
+    
+    def train_batch_step( self, batch ):
+        
+        # Set reference model to eval state if present
+        if self.steer_config.requires_reference_model:
+            self.model_ref.eval()
+        
+        # Set policy model to train state
+        self.model_dph.train()
+        
+        # Unpack batch TODO: there has to be a better way to do this, right?
+        tokens, targets, sel_idx, sel_wht, labels = batch
+        
+        # Split into microbatches
+        tokens = torch.split( tokens.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
+        targets = torch.split( targets.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
+        sel_idx = torch.split( sel_idx.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
+        sel_wht = torch.split( sel_wht.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
+        labels = torch.split( labels.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
+        
+        # Iterate through all microbatches
+        for idx in range( self.batch_groups ):
+            # Perform forward pass sub step
+            losses, metrics_dict = self.train_sub_step(
+                tokens=tokens[idx],
+                targets=targets[idx],
+                selected_idx=sel_idx[idx],
+                selected_weights=sel_wht[idx],
+                y_true=labels[idx],
+            )
+            
+            # Update losses
+            for key, value in losses.items():
+                self.metrics[ key ].update( value )
+            
+            # Update metrics
+            for key, value in metrics_dict.items():
+                self.metrics[ key ].update( value )
+        
+        # Perform optimizer update
+        self.train_optim_step()
+    
+    def train_epoch( self, iterator, epoch ):
+        
+        # Get time of epoch start
+        start_time = time.time()
+
+        # For all batches in epoch perform step and update progress bar
+        for batch in range( self.train_config.batches_per_epoch ):
+            self.train_batch_step( next( iterator ) )
+
+            bar_string = self._bar_format(
+                iter_n=batch + 1,
+                iter_total=self.train_config.batches_per_epoch,
+                elapsed=time.time() - start_time,
+                epoch=epoch
+            )
+
+            print( '\r' + bar_string, end='', flush=True )
+        print()
+
+        # Clear the cache for validation loop
+        torch.cuda.empty_cache()
+        gc.collect()
+
+        # Get and reset metrics
+        return self.reset_metrics()
