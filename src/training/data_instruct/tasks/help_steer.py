@@ -15,11 +15,11 @@ class HelpSteerInstructDataset( BaseSteerInstructDataset ):
 
     @property
     def task_name( self ) -> str:
-        return '2'
+        return 'HelpSteer'
 
     @property
     def task_subset( self ) -> str:
-        return 'HelpSteer'
+        return '2'
 
     def get_training_docs( self ) -> Dataset:
         return self.dataset[ 'train' ]
