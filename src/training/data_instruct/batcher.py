@@ -1,13 +1,16 @@
 import math
 from dataclasses import dataclass
-from typing import cast
+from typing import Sequence, cast
 from collections.abc import Iterable
+
+from scipy import stats
+import numpy as np
 
 import torch
 from transformers import PreTrainedModel
 
-from .formatter import InstructionFormatter
-from .task_base import BaseChoiceInstructDataset
+from .formatter import InstructionFormatter, SteerInstructionFormatter
+from .task_base import BaseChoiceInstructDataset, BaseSteerInstructDataset
 
 class BaseInstructionBatcher:
     def __init__(
@@ -264,3 +267,107 @@ class DPHChoiceInstructionBatcher( ChoiceInstructionBatcher ):
             'log': task.compute_metric( references=correct_list, predictions=log_answer_list ),
             'dph': task.compute_metric( references=correct_list, predictions=dph_answer_list ),
         }
+
+class SteerInstructionBatcher( BaseInstructionBatcher ):
+    def __init__(
+        self,
+        model: PreTrainedModel,
+        formatter: SteerInstructionFormatter,
+        aggregation: str = 'mean',
+        pad_rounding: int = 16,
+        label_keys: Sequence[str] = (),
+    ):
+        super().__init__( model, formatter, aggregation, pad_rounding )
+        
+        self.label_keys = list( label_keys )
+    
+    def prepare_batch(
+        self,
+        task: BaseSteerInstructDataset,
+        target_doc: dict,
+        device: str | torch.device,
+    ):
+        messages_list = task.create_target_message_list( target_doc )
+        assert len( messages_list ) == 1
+        messages = messages_list[0]
+        
+        correct = task.get_labels( target_doc, self.label_keys )
+        
+        tokenized_messages = self.formatter.tokenize_chat( messages )
+        
+        tokens = tokenized_messages[ 'tokens' ]
+        
+        pad_token_id = self.formatter.tokenizer.pad_token_id
+        
+        pad_len = math.ceil( len( tokens ) / self.pad_rounding ) * self.pad_rounding - len( tokens )
+        
+        tokens = tokens + [ pad_token_id ] * pad_len
+        
+        return torch.LongTensor( [ tokens ] ).to( device=device, non_blocking=True ), correct
+    
+    def compute_batch( self, rewards: dict[str, torch.Tensor] ):
+        return [
+            rewards[key].squeeze().detach() for key in self.label_keys
+        ]
+    
+    def evaluate_document(
+        self,
+        task: BaseSteerInstructDataset,
+        doc: dict,
+    ) -> dict:
+        with torch.inference_mode():
+            self.model.eval()
+            device = self.model.get_input_embeddings().weight.device
+            tokens, labels = self.prepare_batch( task, doc, device )
+
+            with torch.autocast( device_type='cuda', dtype=torch.bfloat16 if self.model.config.use_bfloat16 else torch.float16 ):
+                outputs = self.model( tokens )
+                
+                start_id = self.formatter.tokenizer.sep_token_id
+                end_id = self.formatter.tokenizer.cls_token_id
+
+                states = outputs.hidden_states
+                rewards = self.model.compute_final_rewards( states, tokens, start_id, end_id )
+            reward_list = self.compute_batch( rewards )
+        
+        return {
+            'y_true': labels,
+            'y_pred': reward_list
+        }
+    
+    def evaluate_dataset(
+        self,
+        task: BaseSteerInstructDataset,
+        dataset: Iterable,
+    ):
+        true_list = []
+        pred_list = []
+        
+        for line in dataset:
+            results = self.evaluate_document( task, line )
+            true_list.append( results[ 'y_true' ] )
+            pred_list.append( results[ 'y_pred' ] )
+        
+        pred_list = [ [ i.item() for i in preds ] for preds in pred_list ]
+        
+        true_array = np.array( true_list )
+        pred_array = np.array( pred_list )
+        
+        metrics = {}
+        
+        for i, key in enumerate( self.label_keys ):
+            curr_true = true_array[ :, i ]
+            curr_pred = pred_array[ :, i ]
+            
+            pearsonr = stats.pearsonr( curr_true, curr_pred )
+            spearmanr = stats.spearmanr( curr_true, curr_pred )
+            
+            metrics[key] = {
+                'pearsonr': pearsonr.statistic, # type: ignore
+                'spearmanr': spearmanr.statistic, # type: ignore
+                'pearsonr_pvalue': pearsonr.pvalue, # type: ignore
+                'spearmanr_pvalue': spearmanr.pvalue, # type: ignore
+            }
+        
+        return metrics
+            
