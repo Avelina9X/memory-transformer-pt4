@@ -108,7 +108,7 @@ def instruct_steer(
         frozen_list = train_utils.set_training_mask( dph_model, config[ 'finetune.frozen_params' ] )
         
         if rank == 0:
-            if not __debug__:
+            if __debug__:
                 rich.print( 'Frozen params:' )
                 rich.print( frozen_list )
                 print()
