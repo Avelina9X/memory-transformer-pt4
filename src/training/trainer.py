@@ -1541,9 +1541,14 @@ class SteerTrainer():
                 y_true=labels[idx],
             )
             
-            # Update losses
-            for key, value in losses.items():
-                self.metrics[ key ].update( value )
+            # Update losses            
+            self.metrics[ 'loss_reward' ].update( losses[ 'loss_reward' ] )
+            
+            if self.steer_config.sae_enabled:
+                self.metrics[ 'loss_sae' ].update( losses[ 'loss_sae' ] )
+            
+            if self.steer_config.kl_enabled:
+                self.metrics[ 'loss_kl' ].update( losses[ 'loss_kl' ] )
             
             # Update metrics
             for key, value in metrics_dict.items():
