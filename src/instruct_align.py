@@ -426,6 +426,7 @@ def instruct_align(
     config.update( {
         **model_config.to_wandb_dict(),
         **train_config.to_wandb_dict(),
+        **dph_config.to_wandb_dict(),
         'params.total': params_total,
         'params.trainable': params_trainable,
         'params.non_trainable': params_non_trainable,
