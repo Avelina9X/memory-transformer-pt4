@@ -612,3 +612,85 @@ class LSWTConfigTrainingDPH():
     @property
     def requires_reference_model( self ):
         return self.dpo_enabled or self.kl_enabled
+
+
+class LSWTConfigTrainingSteer():
+    def __init__(
+        self,
+        
+        kl_enabled=False,
+        kl_penalty=0.2,
+        kl_weight=1.0,
+        
+        sae_enabled=False,
+        sae_weight=1.0,
+        sae_l1_coef=0.1,
+        sae_l2_coef=1.0,
+        
+
+        dph_weight=1.0,
+
+        dph_decay_init=False,
+        dph_weight_decay=0.1,
+        dph_lr_multiplier=1.0,
+        dph_decay_mask: Sequence[str] = ( 'norm', 'bias', 'ema', 'layer_weighting', 'token_rotate' ),
+    ):
+        """ LSW Transformer config class
+
+        Args:
+        """
+        
+        self.kl_enabled = kl_enabled
+        self.kl_penalty = kl_penalty
+        self.kl_weight = kl_weight
+        
+        self.sae_enabled = sae_enabled
+        self.sae_weight = sae_weight
+        self.sae_l1_coef = sae_l1_coef
+        self.sae_l2_coef = sae_l2_coef
+
+        self.dph_weight = dph_weight
+
+        self.dph_decay_init = dph_decay_init
+        self.dph_weight_decay = dph_weight_decay
+        self.dph_lr_multiplier = dph_lr_multiplier
+        self.dph_decay_mask = dph_decay_mask
+
+        # KL Assertions        
+        if self.kl_penalty < 0:
+            raise ValueError( f'KL penalty must be at least 0.0, but receive {self.kl_penalty}' )
+        
+        if self.kl_weight < 0:
+            raise ValueError( f'KL weight must be at least 0.0, but received {self.kl_weight}' )
+
+
+        # DPH Assertions        
+        if self.dph_weight < 0:
+            raise ValueError( f'DPH weight must be at least 0.0, but received {self.dph_weight}' )
+
+
+    def to_json_string( self ) -> str:
+        """ Serializes this instance to a JSON string.
+
+        Returns:
+            str: JSON string of the attributes that make up this configuration instance.
+        """
+        return json.dumps( self.__dict__, indent=2 )
+
+    def to_wandb_dict( self, prefix='dph' ) -> dict[str, Any]:
+        """ Serializes this instance to WandB style dict.
+
+        Args:
+            prefix (str, optional): Prefix for all attributes. Defaults to 'train'.
+
+        Returns:
+            dict[str, Any]: Dict of all attributes that make up this configuration instance
+        """
+        return { f'{prefix}.{key}': value for key, value in self.__dict__.items() }
+
+    def __repr__( self ):
+        return f'{self.__class__.__name__} {self.to_json_string()}'
+    
+    @property
+    def requires_reference_model( self ):
+        return self.kl_enabled
