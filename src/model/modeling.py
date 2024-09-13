@@ -694,7 +694,7 @@ class LSWTPooler( torch.nn.Module ):
     def aggregate_states(
         self,
         hidden_states: tuple[torch.Tensor],
-        input_ids: torch.LongTensor,
+        input_ids: torch.Tensor,
         start_id: int,
         end_id: int,
         return_all=False,
@@ -793,7 +793,7 @@ class LSWTForDPH( LSWTForCausalLM ):
     def compute_final_rewards(
         self,
         hidden_states: tuple[torch.Tensor],
-        input_ids: torch.LongTensor,
+        input_ids: torch.Tensor,
         start_id: int,
         end_id: int,
         prefix_type: str | None = 'assistant',
