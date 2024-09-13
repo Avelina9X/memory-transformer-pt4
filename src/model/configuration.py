@@ -683,7 +683,7 @@ class LSWTConfigTrainingSteer():
         """
         return json.dumps( self.__dict__, indent=2 )
 
-    def to_wandb_dict( self, prefix='dph' ) -> dict[str, Any]:
+    def to_wandb_dict( self, prefix='steer' ) -> dict[str, Any]:
         """ Serializes this instance to WandB style dict.
 
         Args:
