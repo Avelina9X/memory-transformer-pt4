@@ -635,6 +635,8 @@ class LSWTConfigTrainingSteer():
         dph_decay_mask: Sequence[str] = ( 'norm', 'bias', 'ema', 'layer_weighting', 'token_rotate' ),
         
         label_keys: Sequence[str] = (),
+        
+        num_probes: int = 16,
     ):
         """ LSW Transformer config class
 
@@ -658,6 +660,7 @@ class LSWTConfigTrainingSteer():
         self.dph_decay_mask = dph_decay_mask
         
         self.label_keys = label_keys
+        self.num_probes = num_probes
 
         # KL Assertions        
         if self.kl_penalty < 0:
