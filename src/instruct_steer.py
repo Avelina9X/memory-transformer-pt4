@@ -20,7 +20,7 @@ import transformers
 from transformers import AutoTokenizer
 
 from training.data_instruct.tasks import DIRECTORY_STEER
-from training.trainer import SteerTrainer
+from training.trainer import SteerTrainer, SteerTrainerDDP
 
 from training.data_instruct.formatter import SteerInstructionFormatter
 from training.data_instruct.task_loader import SteerTaskLoader
@@ -166,7 +166,17 @@ def instruct_steer(
             task_loader
         )
     else:
-        assert False
+        dph_model = DDPModelWrapper( dph_model, device_ids=[ rank ], gradient_as_bucket_view=GRADIENTS_AS_BUCKET_VIEW )
+        trainer = SteerTrainerDDP(
+            train_config,
+            steer_config,
+            ref_model,
+            dph_model, # type: ignore
+            task_loader,
+            rank,
+            world_size
+        )
+        
     
     # Print out our configs
     if rank == 0:

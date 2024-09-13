@@ -1582,3 +1582,182 @@ class SteerTrainer():
 
         # Get and reset metrics
         return self.reset_metrics()
+
+
+class SteerTrainerDDP( SteerTrainer ):
+    def __init__(
+        self,
+        train_config: LSWTConfigTraining,
+        steer_config: LSWTConfigTrainingSteer,
+        model_ref: LSWTForCausalLM,
+        model_dph: LSWTForDPH,
+        task_loader: SteerTaskLoader,
+        ddp_rank: int,
+        ddp_world_size: int,
+    ):
+        self.ddp_rank = ddp_rank
+        self.ddp_world_size = ddp_world_size
+        
+        super().__init__(
+            train_config,
+            steer_config,
+            model_ref,
+            model_dph,
+            task_loader,
+        )
+        
+        # Modify batch_groups for DDP
+        self.batch_groups = train_config.batch_size // ( train_config.batch_size_step * self.ddp_world_size )        
+        
+    """ ========================================================================
+        Overridden Utility functions
+        ======================================================================== """
+    
+    def _bar_format( self, iter_n, iter_total, elapsed, epoch ) -> str:
+        postfix = 'reward={0:.3f}'.format(
+            sync_and_compute( self.metrics[ 'loss_reward' ] )
+        )
+        
+        if self.steer_config.sae_enabled:
+            postfix += ' | saeL0={0:.1f}, saeL1={1:.3f}, saeL2={2:.3f}'.format(
+                sync_and_compute( self.metrics[ 'sae/l0' ] ),
+                sync_and_compute( self.metrics[ 'sae/l1' ] ),
+                sync_and_compute( self.metrics[ 'sae/l2' ] ),
+            )
+        
+        if self.steer_config.kl_enabled:
+            postfix += ' | kl={0:.3f}'.format(
+                sync_and_compute( self.metrics[ 'loss_kl' ] ),
+            )
+            
+        return tqdm.tqdm.format_meter(
+            n=iter_n,
+            total=iter_total,
+            elapsed=elapsed,
+            ncols=100,
+            unit='it',
+            bar_format='{desc}: {percentage:.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}, {rate_fmt}{postfix}]',
+            postfix=postfix,
+            prefix=f'Epoch {epoch}',
+        )
+    
+    def _load_optimizer( self ) -> torch.optim.Optimizer:
+        params = self.model_dph.get_param_groups(
+            self.train_config.opt_decay_mask,
+            self.steer_config.dph_decay_mask,
+            self.steer_config.dph_decay_init,
+            self.steer_config.dph_weight_decay,
+            self.steer_config.dph_lr_multiplier,
+        )
+
+        if self.train_config.optimizer == 'LaProp':
+            return ZeroRedundancyOptimizer(
+                params=params,
+                optimizer_class=LaProp,
+                parameters_as_bucket_view=PARAMETERS_AS_BUCKET_VIEW,
+                lr=0.0,
+                betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
+                eps=self.train_config.opt_eps,
+                weight_decay=( self.train_config.opt_weight_decay ),
+                decay_init=self.train_config.opt_decay_init,
+            )
+
+        raise ValueError( 'Invalid optimizer' )
+    
+    """ ========================================================================
+        Utility functions
+        ======================================================================== """
+
+    def reset_metrics( self ) -> dict[ str, float ]:
+        stats = {}
+        for name, metric in self.metrics.items():
+            # Syncronise and compute metrics from all devices
+            stats[name] = float( sync_and_compute( metric ) )
+
+            # Ensure all devices wait for barrier before resetting
+            dist.barrier()
+            metric.reset()
+        return stats
+    
+    """ ========================================================================
+        Training Functions
+        ======================================================================== """
+    
+    def train_batch_step( self, batch ):
+        
+        # Set reference model to eval state if present
+        if self.steer_config.requires_reference_model:
+            self.model_ref.eval()
+        
+        # Set policy model to train state
+        self.model_dph.train()
+        
+        # Unpack batch TODO: there has to be a better way to do this, right?
+        tokens, targets, sel_idx, sel_wht, labels = batch
+        
+        # Split into microbatches
+        tokens = torch.split( tokens.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
+        targets = torch.split( targets.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
+        sel_idx = torch.split( sel_idx.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
+        sel_wht = torch.split( sel_wht.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
+        labels = torch.split( labels.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
+        
+        # Iterate through all microbatches
+        for idx in range( self.batch_groups ):
+            self.model_dph.require_backward_grad_sync = ( idx == self.batch_groups - 1 ) # type: ignore
+            
+            # Perform forward pass sub step
+            losses, metrics_dict = self.train_sub_step(
+                tokens=tokens[idx],
+                targets=targets[idx],
+                selected_idx=sel_idx[idx],
+                selected_weights=sel_wht[idx],
+                y_true=labels[idx],
+            )
+            
+            # Update losses            
+            self.metrics[ 'loss_reward' ].update( losses[ 'loss_reward' ] )
+            
+            if self.steer_config.sae_enabled:
+                self.metrics[ 'loss_sae' ].update( losses[ 'loss_sae' ] )
+            
+            if self.steer_config.kl_enabled:
+                self.metrics[ 'loss_kl' ].update( losses[ 'loss_kl' ] )
+            
+            # Update metrics
+            for key, value in metrics_dict.items():
+                self.metrics[ key ].update( value )
+        
+        # Perform optimizer update
+        self.train_optim_step()
+        
+        if self.optimizer_step <= 3:
+            torch.cuda.empty_cache()
+    
+    def train_epoch( self, iterator, epoch ):
+        
+        # Get time of epoch start
+        start_time = time.time()
+
+        # For all batches in epoch perform step and update progress bar
+        for batch in range( self.train_config.batches_per_epoch ):
+            self.train_batch_step( next( iterator ) )
+
+            bar_string = self._bar_format(
+                iter_n=batch + 1,
+                iter_total=self.train_config.batches_per_epoch,
+                elapsed=time.time() - start_time,
+                epoch=epoch
+            )
+
+            if self.ddp_rank == 0:
+                print( '\r' + bar_string, end='', flush=True )
+        if self.ddp_rank == 0:
+            print()
+
+        # Clear the cache for validation loop
+        torch.cuda.empty_cache()
+        gc.collect()
+
+        # Get and reset metrics
+        return self.reset_metrics()
