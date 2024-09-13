@@ -1367,9 +1367,10 @@ class SteerTrainer():
         )
         
         assert isinstance( dph_states, dict )
+        states = dph_states[ 'pooled_states' ]
         
         # Get the individual states selected for this batch
-        selected_states = dph_states[ 'pooled_states' ].gather( -2, selected_idx[ ..., None ] )
+        selected_states = states.gather( -2, selected_idx[ ..., None ].repeat( 1, 1, states.shape[-1] ) )
         
         # Compute the rewards and optionally the SAE outputs
         dph_outputs = self.model_dph.pooler( selected_states, output_latent_states=False, compute_sae_loss=self.steer_config.sae_enabled )
@@ -1407,7 +1408,7 @@ class SteerTrainer():
             outputs = self.forward_pass( tokens, selected_idx )
             
             # Create the y_pred, weight and y_true tensors
-            labelled_rewards = torch.stack( [ outputs.dph_outputs.rewards[key] for key in self.label_keys ], dim=-1 ) # [ Batch, Seq, Reward ]
+            labelled_rewards = torch.cat( [ outputs.dph_outputs.rewards[key] for key in self.label_keys ], dim=-1 ) # [ Batch, Seq, Reward ]
             reward_weights = selected_weights[ ..., None ] # [ Batch, Seq, 1 ]
             true_rewards = y_true[ :, None, : ] # [ Batch, 1, Rewards ]
             
