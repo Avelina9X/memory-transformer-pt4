@@ -1,0 +1,98 @@
+meta:
+  run_name: LoveLace-M-steer
+  validate: true
+  evaluate: false
+  validate_freq: 1
+  tags:
+    - improved_dph
+
+model:
+  trainable_embeddings: false
+  recompute_kv: false
+
+  pooler_config:
+    reward_heads:
+      - helpfulness
+      - correctness
+      - coherence
+      - complexity
+      - verbosity
+    reward_head_bias: true
+
+    layer_pooling: weighted_sum
+    layer_pooling_norm: both
+
+    token_pooling: ema
+    token_pooling_norm: post
+    token_pooling_ema_beta: 0.95
+    token_pooling_ema_beta_learnable: activation
+    token_pooling_gate: true
+    token_pooling_gate_bias: false
+
+    token_pooling_rotation: true
+    token_pooling_rotation_expansion: 1
+
+    pooler_function: identity
+
+    layer_select: [ 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18 ]
+    
+    embedding_dropout: 0.1
+    layer_dropout: 0.2
+
+train:
+  batch_size: 64
+  batch_size_step: 0
+  batches_per_epoch: 80
+  length_sequence: 2048
+  length_cache: 2048
+  lr_max: 1.0e-5
+  lr_warmup_steps: 2000
+  lr_cooldown_tokens: 1000000000
+  lr_cooldown_ratio: 0.1
+
+  opt_beta_1: 0.9
+  opt_beta_2: 0.95
+  opt_weight_decay: 0.1
+  opt_decay_init: true
+  opt_decay_mask:
+    - embedding.weight
+    - norm
+    - bias
+  
+  ortho_beta: 0.01
+  ortho_norm_p: 2
+
+finetune:
+  mask_override: train
+  mode: steer
+  checkpoint: CHANGE_ME
+  trainable_backbone: false
+  frozen_params:
+    - input_proj
+    - input_norm
+    - output_norm
+    - head_proj
+  
+  steer_task: HelpSteer/2
+
+steer:
+  dph_weight: 1.0
+
+  dph_decay_init: false
+  dph_weight_decay: 0.1
+  dph_lr_multiplier: 10.0
+  dph_decay_mask:
+    - norm
+    - bias
+    - ema
+    - layer_weighting
+    - token_rotate
+
+  label_keys:
+    - helpfulness
+    - correctness
+    - coherence
+    - complexity
+    - verbosity
+
+  num_probes: 16
