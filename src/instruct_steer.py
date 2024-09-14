@@ -258,7 +258,7 @@ def instruct_steer(
                 
                 task_name = f'{validation_task.task_name}/{validation_task.task_subset}'
                 
-                for label_name in label_keys:
+                for label_name in validation_task.get_available_labels():
                     full_name = f'{task_name}/{label_name}'
                     curr_dict = val_metrics_all[ label_name ]
                     curr_line = f'{full_name}={curr_dict}'
