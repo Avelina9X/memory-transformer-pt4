@@ -1413,7 +1413,7 @@ class SteerTrainer():
             true_rewards = y_true[ :, None, : ] # [ Batch, 1, Rewards ]
             
             # Compute the per attribute and overall reward losses
-            reward_losses = ( ( labelled_rewards - true_rewards ).square() * reward_weights ).sum( -2 ).mean( 0 )
+            reward_losses = ( ( labelled_rewards.float() - true_rewards ).square() * reward_weights ).sum( -2 ).mean( 0 )
             reward_loss = reward_losses.mean()
             
             # Compute the reward metrics
@@ -1742,6 +1742,23 @@ class SteerTrainerDDP( SteerTrainer ):
         # For all batches in epoch perform step and update progress bar
         for batch in range( self.train_config.batches_per_epoch ):
             self.train_batch_step( next( iterator ) )
+            
+            if np.isnan( sync_and_compute( self.metrics[ 'loss_reward' ] ).item() ):                    
+                if self.ddp_rank == 0: print( 'Metrics:' )
+                for key, value in self.metrics.items():
+                    val = sync_and_compute( value )
+                    if self.ddp_rank == 0: print( f'{key}: {val}' )
+                if self.ddp_rank == 0: print()
+                
+                if self.ddp_rank == 0: print( 'Params:' )
+                with torch.no_grad():
+                    for name, param in self.model_dph.named_parameters():
+                        if param.requires_grad:
+                            nanp = torch.isnan( param ) / param.numel()
+                            infp = torch.isinf( param ) / param.numel()
+                        
+                            if self.ddp_rank == 0: print( f'{name}: nan={nanp}% inf={infp}%' )
+                if self.ddp_rank == 0: exit( 1 )
 
             bar_string = self._bar_format(
                 iter_n=batch + 1,

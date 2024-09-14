@@ -628,7 +628,7 @@ class LSWTPooler( torch.nn.Module ):
         pooler_config = self.pooler_config
         
         # Pre normalise tokens
-        states: torch.Tensor = self.token_norm_pre( input_states )
+        states: torch.Tensor = self.token_norm_pre( input_states ).float()
         
         # Compute gate before rotation
         gate = self.token_gate( states ).float() if self.token_gate else None
