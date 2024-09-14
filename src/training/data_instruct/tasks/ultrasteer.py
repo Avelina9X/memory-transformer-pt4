@@ -79,7 +79,7 @@ class UltraSteerInstructDataset( BaseSteerInstructDataset ):
         return {}
     
     def get_labels( self, doc: dict, labels: list[str] ) -> list[float]:
-        return [ float( doc[ label ] ) for label in doc[ 'conversations' ][-1][ 'label' ] ]
+        return [ float( doc[ 'conversations' ][-1][ 'label' ][ label ] ) for label in labels ]
 
     def get_available_labels( self ) -> list[str]:
         return [
