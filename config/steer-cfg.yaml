@@ -84,7 +84,7 @@ steer:
 
   dph_decay_init: false
   dph_weight_decay: 0.0
-  dph_lr_multiplier: 1.0
+  dph_lr_multiplier: 10.0
   dph_decay_mask:
     - norm
     - bias
