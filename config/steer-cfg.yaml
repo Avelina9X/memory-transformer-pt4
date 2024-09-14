@@ -47,7 +47,7 @@ train:
   length_cache: 2048
   lr_max: 1.0e-5
   lr_warmup_steps: 2000
-  lr_cooldown_tokens: 1000000000
+  lr_cooldown_tokens: 10000000000
   lr_cooldown_ratio: 0.1
 
   opt_beta_1: 0.9
@@ -79,8 +79,8 @@ steer:
   dph_weight: 1.0
 
   dph_decay_init: false
-  dph_weight_decay: 0.1
-  dph_lr_multiplier: 10.0
+  dph_weight_decay: 0.0
+  dph_lr_multiplier: 1.0
   dph_decay_mask:
     - norm
     - bias
