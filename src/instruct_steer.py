@@ -115,6 +115,17 @@ def instruct_steer(
             else:
                 rich.print( f'Frozen param count: {len(frozen_list)}' )
                 print()
+    
+    # Mask out reward heads which are NOT included in label keys
+    masked_heads = set( reward_heads ) - set( label_keys )
+    for key in masked_heads:
+        dph_model.pooler.reward_heads[ key ].requires_grad_( False )
+    
+    if rank == 0 and len( masked_heads ) > 0:
+        rich.print( 'Frozen heads:' )
+        rich.print( masked_heads )
+        print()
+        
 
     # Load reference model and set trainable
     if steer_config.requires_reference_model:
