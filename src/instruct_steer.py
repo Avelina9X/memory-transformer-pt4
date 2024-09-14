@@ -135,7 +135,7 @@ def instruct_steer(
     train_task_name, train_task_subset = config[ 'finetune.steer_task' ].split( '/' )
     train_task = DIRECTORY_STEER[train_task_name][train_task_subset]( HF_CACHE_DIR )
     
-    validation_task = train_task
+    validation_task = DIRECTORY_STEER[ 'HelpSteer' ][ '2' ]( HF_CACHE_DIR )
     
     train_formatter = SteerInstructionFormatter(
         tokenizer,
@@ -145,7 +145,11 @@ def instruct_steer(
     )
     
     validation_formatter = SteerInstructionFormatter( tokenizer, None )
-    validation_batcher = SteerInstructionBatcher( dph_model, validation_formatter, label_keys=label_keys )
+    validation_batcher = SteerInstructionBatcher(
+        dph_model,
+        validation_formatter,
+        label_keys=validation_task.get_available_labels()
+    )
     
     # Get mask type for this training variant
     mask_type = config.get( 'finetune.mask_override', {
@@ -255,13 +259,16 @@ def instruct_steer(
                 task_name = f'{validation_task.task_name}/{validation_task.task_subset}'
                 
                 for label_name in label_keys:
-                    full_name = f'task_name/{label_name}'
+                    full_name = f'{task_name}/{label_name}'
                     curr_dict = val_metrics_all[ label_name ]
                     curr_line = f'{full_name}={curr_dict}'
                     
-                    validation_dict[ full_name ] = curr_dict
                     validation_lines.append( curr_line )
                     rich.print( curr_line )
+                    
+                    validation_dict.update(
+                        **train_utils.compute_validation_metric_dict( curr_dict, full_name )
+                    )
             
         if rank == 0:
             # If we're not in debug mode log the metrics etc to the output dir
