@@ -5,7 +5,7 @@ from ..task_base import BaseSteerInstructDataset, InstructionDatasetTask, Messag
 
 class UltraSteerInstructDataset( BaseSteerInstructDataset ):
     def download( self, cache_dir: str ) -> DatasetDict:
-        dataset = load_dataset( 'HuggingFaceH4/ultrachat_200k', cache_dir=cache_dir )
+        dataset = load_dataset( 'Avelina/UltraSteer-v0-flat', cache_dir=cache_dir )
         assert isinstance( dataset, DatasetDict )
         return dataset
 
@@ -80,6 +80,19 @@ class UltraSteerInstructDataset( BaseSteerInstructDataset ):
     
     def get_labels( self, doc: dict, labels: list[str] ) -> list[float]:
         return [ float( doc[ label ] ) for label in doc[ 'conversations' ][-1][ 'label' ] ]
+
+    def get_available_labels( self ) -> list[str]:
+        return [
+            'quality',
+            'toxicity',
+            'humor',
+            'creativity',
+            'helpfulness',
+            'correctness',
+            'coherence',
+            'complexity',
+            'verbosity',
+        ]
 
 DIRECTORY: Mapping[str, Callable[[str], BaseSteerInstructDataset]] = {
     'v0': UltraSteerInstructDataset
