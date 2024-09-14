@@ -1,7 +1,4 @@
 model:
-  trainable_embeddings: false
-  recompute_kv: false
-
   pooler_config:
     reward_heads:
       - quality
