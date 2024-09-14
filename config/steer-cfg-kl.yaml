@@ -1,0 +1,71 @@
+meta:
+  run_name: LoveLace-M-steer
+  validate: true
+  evaluate: false
+  validate_freq: 1
+  tags:
+    - improved_dph
+
+model:
+  trainable_embeddings: true
+  recompute_kv: false
+
+train:
+  batch_size: 64
+  batch_size_step: 0
+  batches_per_epoch: 320
+  length_sequence: 2048
+  length_cache: 2048
+  lr_max: 1.0e-5
+  lr_warmup_steps: 2000
+  lr_cooldown_tokens: 10000000000
+  lr_cooldown_ratio: 0.1
+
+  opt_beta_1: 0.9
+  opt_beta_2: 0.95
+  opt_weight_decay: 0.1
+  opt_decay_init: true
+  opt_decay_mask:
+    - embedding.weight
+    - norm
+    - bias
+  
+  ortho_beta: 0.01
+  ortho_norm_p: 2
+
+finetune:
+  mask_override: train
+  mode: steer
+  checkpoint: CHANGE_ME
+  trainable_backbone: false
+  
+  steer_task: UltraSteer/v0
+
+steer:
+  dph_weight: 1.0
+
+  kl_enabled: true
+  kl_penalty: 0.2
+  kl_weightL: 1.0
+
+  dph_decay_init: false
+  dph_weight_decay: 0.0
+  dph_lr_multiplier: 10.0
+  dph_decay_mask:
+    - norm
+    - bias
+    - ema
+    - layer_weighting
+    - token_rotate
+
+  num_probes: 16
+  label_keys:
+    - quality
+    - toxicity
+    - humor
+    - creativity
+    - helpfulness
+    - correctness
+    - coherence
+    - complexity
+    - verbosity
