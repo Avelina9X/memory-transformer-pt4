@@ -74,6 +74,15 @@ class HelpSteerInstructDataset( BaseSteerInstructDataset ):
     
     def get_labels( self, doc: dict, labels: list[str] ) -> list[float]:
         return [ float( doc[ label ] ) for label in labels ]
+    
+    def get_available_labels( self ) -> list[str]:
+        return [
+            'helpfulness',
+            'correctness',
+            'coherence',
+            'complexity',
+            'verbosity',
+        ]
 
 DIRECTORY: Mapping[str, Callable[[str], BaseSteerInstructDataset]] = {
     '2': HelpSteerInstructDataset

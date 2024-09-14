@@ -456,3 +456,11 @@ class BaseSteerInstructDataset( BaseInstructDataset ):
         Returns:
             list[float]: steer labels given requested labels
         """
+    
+    @abstractmethod
+    def get_available_labels( self ) -> list[str]:
+        """ Gets a list of labels supplied by the dataset
+
+        Returns:
+            list[str]: List of labels supplied by the dataset
+        """
