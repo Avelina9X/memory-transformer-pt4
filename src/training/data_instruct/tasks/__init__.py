@@ -27,6 +27,7 @@ from . import (
     tulu,
     ultrachat,
     ultrafeedback,
+    ultrasteer,
     winogrande
 )
 
@@ -75,6 +76,7 @@ DIRECTORY_CONVERSATIONAL: dict[str, Mapping[str, Callable[[str], BaseInstructDat
 
 DIRECTORY_STEER: dict[str, Mapping[str, Callable[[str], BaseSteerInstructDataset]]] = {
     'HelpSteer': help_steer.DIRECTORY,
+    'UltraSteer': ultrasteer.DIRECTORY,
 }
 
 DIRECTORY_ALL: dict[str, Mapping[str, Callable[[str], BaseInstructDataset]]] = {
