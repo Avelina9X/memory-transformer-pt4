@@ -42,6 +42,7 @@ model:
     
     embedding_dropout: 0.1
     layer_dropout: 0.2
+    intermediate_dropout: 0.1
 
 train:
   batch_size: 64

@@ -28,6 +28,7 @@ class LSWTPoolerConfig( PretrainedConfig ):
         
         embedding_dropout=0.0,
         layer_dropout=0.0,
+        intermediate_dropout=0.0,
         
         layer_pooling: Literal['layer', 'mean', 'weighted_sum'] = 'layer',
         layer_pooling_norm: Literal['pre', 'post', 'both', None] = None,
@@ -61,6 +62,7 @@ class LSWTPoolerConfig( PretrainedConfig ):
         
         self.embedding_dropout = embedding_dropout
         self.layer_dropout = layer_dropout
+        self.intermediate_dropout = intermediate_dropout
         
         self.pooler_function = pooler_function
         self.pooler_activation = pooler_activation

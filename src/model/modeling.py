@@ -489,7 +489,9 @@ class LSWTPooler( torch.nn.Module ):
         
         self.pooler_pipeline = torch.nn.Sequential()
         self.embedding_dropout = torch.nn.Dropout( p=pooler_config.embedding_dropout )
+        
         self.layer_dropout = torch.nn.Dropout( p=pooler_config.layer_dropout )
+        self.intermediate_dropout = torch.nn.Dropout( p=pooler_config.intermediate_dropout )
         
         self.layer_norm_pre = torch.nn.LayerNorm( d_model ) if pooler_config.layer_pooling_norm in [ 'pre', 'both' ] else torch.nn.Identity()
         self.layer_norm_post = torch.nn.LayerNorm( d_model ) if pooler_config.layer_pooling_norm in [ 'post', 'both' ] else torch.nn.Identity()
@@ -678,6 +680,7 @@ class LSWTPooler( torch.nn.Module ):
                     sustain_gate = sustain_gate.exp() * segment_mask.float()
                     
                     states = complex_selective_scan( segment_mask, states, log_beta, decay_gate, sustain_gate )
+                    states = self.intermediate_dropout( states )
 
             case _:
                 raise ValueError( 'Incorrect token pooler type.' )
