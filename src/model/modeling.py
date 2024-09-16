@@ -472,7 +472,7 @@ class DPHOutput( ModelOutput ):
     """ Auxiliary loss for SAEs """
 
 class LSWTPooler( torch.nn.Module ):
-    def __init__( self, pooler_config: LSWTPoolerConfig, d_model: int, enable_bias: bool ):
+    def __init__( self, pooler_config: LSWTPoolerConfig, d_model: int, d_ffn: int, enable_bias: bool ):
         super().__init__()
         
         self.pooler_config = pooler_config
@@ -485,7 +485,8 @@ class LSWTPooler( torch.nn.Module ):
         
         assert pooler_config.token_pooling_gate_bias is not None
         
-        inter_dim = d_model * ( pooler_config.token_pooling_rotation_expansion or 1 )
+        inter_dim = d_ffn if pooler_config.token_pooling_rotation_expansion == 'ffn' else d_model * ( pooler_config.token_pooling_rotation_expansion or 1 )
+        assert isinstance( inter_dim, int )
         
         self.pooler_pipeline = torch.nn.Sequential()
         self.embedding_dropout = torch.nn.Dropout( p=pooler_config.embedding_dropout )
@@ -789,7 +790,7 @@ class LSWTForDPH( LSWTForCausalLM ):
 
         super().__init__( config, parent_embeddings )
 
-        self.pooler = LSWTPooler( config.pooler_config, config.d_model, config.enable_bias )
+        self.pooler = LSWTPooler( config.pooler_config, config.d_model, config.d_ffn, config.enable_bias )
 
         self.post_init()
     

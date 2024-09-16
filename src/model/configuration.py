@@ -38,7 +38,7 @@ class LSWTPoolerConfig( PretrainedConfig ):
         token_pooling_ema_beta: float | None = None,
         token_pooling_ema_beta_learnable: Literal['global', 'activation', None] = None,
         token_pooling_rotation: bool | None = None,
-        token_pooling_rotation_expansion: int | None = None,
+        token_pooling_rotation_expansion: int | Literal['ffn'] | None = None,
         token_pooling_gate: bool | None = None,
         token_pooling_gate_bias: bool | None = None,
         
