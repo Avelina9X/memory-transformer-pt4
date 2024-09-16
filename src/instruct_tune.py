@@ -9,6 +9,8 @@ import shortuuid
 import rich
 import wandb
 
+import binpacking as bp
+
 import torch
 import torch.multiprocessing as mp
 from torch.multiprocessing import Queue
@@ -34,7 +36,7 @@ from constants import GRADIENTS_AS_BUCKET_VIEW, HF_CACHE_DIR, WANDB_API_KEY, WAN
 import train_utils
 from train_utils import ddp_cleanup, ddp_setup, DDPModelWrapper
 
-def create_validation_zeroshot_tasks() -> list[BaseChoiceInstructDataset]:
+def create_validation_zeroshot_tasks( n_bins: int ) -> list[list[BaseChoiceInstructDataset]]:
     tasks = [
         # Auxiliary datasets
         DIRECTORY_CHOICE[ 'super_glue' ][ 'copa' ]( HF_CACHE_DIR ),
@@ -69,9 +71,20 @@ def create_validation_zeroshot_tasks() -> list[BaseChoiceInstructDataset]:
         DIRECTORY_CHOICE[ 'race' ][ 'high' ]( HF_CACHE_DIR ),
     ]
     
-    tasks.sort( key=lambda x: len( x.get_validation_docs() or [] ) ) # `or []` is a hack for the linter
+    tasks_dict = { i: len( task.get_validation_docs() or [] ) for i, task in enumerate( tasks ) }
     
-    return tasks
+    idx_bins = bp.to_constant_bin_number( tasks_dict, n_bins )
+    
+    sorted_bins = []
+    
+    for curr_bin in idx_bins:
+        assert isinstance( bin, dict )
+        
+        curr_tasks = [ tasks[idx] for idx in curr_bin.keys() ]
+        curr_tasks.sort( key=lambda x: len( x.get_validation_docs() or [] ) ) # `or []` is a hack for the linter
+        sorted_bins.append( curr_tasks )
+    
+    return sorted_bins
 
 def aggregate_gpt4all_score( metrics: dict[ str, float ] ) -> dict[ str, float ]:
     macro_scores = [
@@ -244,7 +257,7 @@ def instruct_tune(
     # Create task mixes
     train_tasks = train_utils.create_train_tasks( config[ 'finetune.sft_mix' ] )
     
-    validation_zeroshot_tasks = create_validation_zeroshot_tasks()
+    validation_zeroshot_tasks = create_validation_zeroshot_tasks( world_size )
     
     if rank == 0:
         validation_prompts = train_utils.create_validation_prompts( tokenizer )
@@ -346,7 +359,7 @@ def instruct_tune(
 
         # If validation flag is set (or it's the last epoch) run validation
         if should_validate or i + 1 == trainer.get_total_epochs():
-            for task in validation_zeroshot_tasks[ rank : : world_size ]:
+            for task in validation_zeroshot_tasks[ rank ]:
                 curr_line, curr_dict = evaluate_zero_shot_task( task, batcher, True )
                 validation_lines.append( curr_line )
                 validation_dict.update( **curr_dict )

@@ -352,7 +352,7 @@ def instruct_align(
     # Create task mixes
     train_tasks = train_utils.create_train_tasks( config[ 'finetune.dph_mix' ] )
     
-    validation_zeroshot_tasks = create_validation_zeroshot_tasks()
+    validation_zeroshot_tasks = create_validation_zeroshot_tasks( world_size )
         
     if rank == 0:
         validation_prompts = train_utils.create_validation_prompts( tokenizer )
@@ -470,7 +470,7 @@ def instruct_align(
 
         # If validation flag is set (or it's the last epoch) run validation
         if should_validate or i + 1 == trainer.get_total_epochs():
-            for task in validation_zeroshot_tasks[ rank : : world_size ]:
+            for task in validation_zeroshot_tasks[ rank ]:
                 curr_line, curr_dict = evaluate_zero_shot_task( task, batcher, zero_nan=True )
                 validation_lines.append( curr_line )
                 validation_dict.update( **curr_dict )
