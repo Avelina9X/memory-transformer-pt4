@@ -278,8 +278,10 @@ def instruct_align(
         dph_model.generation_config = train_utils.create_generation_config( tokenizer )
     
     else:
+        # Get the wrapped model name
         wrapped_model_name = config[ 'finetune.wrapped_model' ]
         
+        # Get the wrapped model and config
         source_config = AutoConfig.from_pretrained( wrapped_model_name )
         source_model = AutoModelForCausalLM.from_pretrained(
             wrapped_model_name,
@@ -288,6 +290,7 @@ def instruct_align(
             output_hidden_states=True,
         ).cuda().eval()
         
+        # Create fake model config from the wrapped config
         model_config = LSWTConfig(
             n_layers=0,
             n_heads=1,
@@ -296,6 +299,7 @@ def instruct_align(
             d_ffn=source_config.intermediate_size,
         )
         
+        # Create train and dph configs and update them
         train_config = LSWTConfigTraining()
         dph_config = LSWTConfigTrainingDPH()
         train_utils.modify_dicts( config, model_config, train_config, dph_config )
@@ -306,6 +310,7 @@ def instruct_align(
         assert len( model_config.pooler_config.reward_heads ) > 0
         reward_head_name = model_config.pooler_config.reward_heads[0]
         
+        # Instantiate wrapped model with the inner model
         dph_model = typing.cast( WrappedLSWTForDPH, WrappedLSWTForDPH( model_config, source_model ).cuda() ) # type: ignore
         dph_model.config.use_bfloat16 = source_config.torch_dtype == torch.bfloat16
         
@@ -352,14 +357,17 @@ def instruct_align(
     # Create task mixes
     train_tasks = train_utils.create_train_tasks( config[ 'finetune.dph_mix' ] )
     
+    # Get the validation tasks
     validation_zeroshot_tasks = create_validation_zeroshot_tasks( world_size )
         
+    # If we're on rank zero we get validation prompts
     if rank == 0:
         validation_prompts = train_utils.create_validation_prompts( tokenizer )
 
     # Instantiate instruct helpers
     train_formatter = InstructionFormatter( tokenizer, 0 )
     
+    # Get helpers for validation
     validation_formatter = InstructionFormatter( tokenizer, None )
     batcher = DPHChoiceInstructionBatcher( dph_model, validation_formatter, reward_head_name, 'mean' )
     
@@ -439,7 +447,7 @@ def instruct_align(
     # Create iterator
     iterator = iter( task_loader.as_data_loader() )
 
-    # Initialise WandB
+    # Initialise WandB on rank zero
     if rank == 0:
         wandb.init(
             project=WANDB_PROJECT_NAME,
@@ -451,6 +459,7 @@ def instruct_align(
             settings=wandb.Settings( _disable_stats=True )
         )
 
+        # If we're not using a wrapped model we link the artifact
         if config.get( 'finetune.wrapped_model', None ) is None:
             input_artifact = train_utils.get_model_artifact( pretrained_run_name )
             wandb.use_artifact( input_artifact )
@@ -476,7 +485,8 @@ def instruct_align(
                 validation_dict.update( **curr_dict )
             torch.cuda.empty_cache()
             
-            if rank == 0:
+            # If rank is zero and prompt validate is enabled do prompt validation
+            if rank == 0 and config.get( 'meta.prompt_validate', False ):
                 validation_prompt_table = train_utils.perform_prompt_validation(
                     validation_prompts,
                     tokenizer,
@@ -485,9 +495,13 @@ def instruct_align(
                 
                 validation_prompt_dict[ 'validation_generations' ] = validation_prompt_table
             
+            # If there's a validation queue, gather all metrics
             if validation_queue:
+                # If rank is 1 or above send metrics to rank 0
                 if rank > 0:
                     validation_queue.put( ( validation_lines, validation_dict ) )
+                
+                # Otherwise gather all metrics to rank zero
                 else:
                     for _ in range( world_size - 1):
                         received = validation_queue.get()
@@ -495,6 +509,7 @@ def instruct_align(
                         validation_lines += received[0]
                         validation_dict.update( **received[1] )
 
+            # If rank is zero update the validation dict with log and dph scores
             if rank == 0:
                 validation_dict.update( {
                     **aggregate_gpt4all_score( validation_dict, 'dph' ),
@@ -505,6 +520,7 @@ def instruct_align(
                     **aggregate_race_score( validation_dict, 'log' ),
                 } )
 
+        # If rank is zero log all stats and metrics
         if rank == 0:
             # If we're not in debug mode log the metrics etc to the output dir
             if wandb_mode != 'disabled':
