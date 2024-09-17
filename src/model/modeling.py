@@ -488,6 +488,8 @@ class LSWTPooler( torch.nn.Module ):
         inter_dim = d_ffn if pooler_config.token_pooling_rotation_expansion == 'ffn' else d_model * ( pooler_config.token_pooling_rotation_expansion or 1 )
         assert isinstance( inter_dim, int )
         
+        post_token_size = d_model if pooler_config.token_pooling_inverse_rotate else inter_dim
+        
         self.pooler_pipeline = torch.nn.Sequential()
         self.embedding_dropout = torch.nn.Dropout( p=pooler_config.embedding_dropout )
         
@@ -498,7 +500,7 @@ class LSWTPooler( torch.nn.Module ):
         self.layer_norm_post = torch.nn.LayerNorm( d_model ) if pooler_config.layer_pooling_norm in [ 'post', 'both' ] else torch.nn.Identity()
 
         self.token_norm_pre = torch.nn.LayerNorm( d_model ) if pooler_config.token_pooling_norm in [ 'pre', 'both' ] else torch.nn.Identity()
-        self.token_norm_post = torch.nn.LayerNorm( d_model ) if pooler_config.token_pooling_norm in [ 'post', 'both' ] else torch.nn.Identity()
+        self.token_norm_post = torch.nn.LayerNorm( post_token_size ) if pooler_config.token_pooling_norm in [ 'post', 'both' ] else torch.nn.Identity()
         
         self.token_rotate = RotateLayer( d_model, inter_dim ) if pooler_config.token_pooling_rotation else None
         
@@ -539,7 +541,7 @@ class LSWTPooler( torch.nn.Module ):
             # If identity we only do dropout
             case 'identity':
                 # Set embedding size to that of d_model as pooler is passthrough
-                embedding_size = d_model
+                embedding_size = post_token_size
                 
                 # Add dropout as final layer
                 self.pooler_pipeline.append( torch.nn.Identity() )
@@ -560,11 +562,11 @@ class LSWTPooler( torch.nn.Module ):
                 activation = ActGLU( pooler_config.pooler_activation ) if pooler_config.pooler_activation_gated else ACT2FN[pooler_config.pooler_activation]
                 
                 # Append linear -> activation -> dropout
-                self.pooler_pipeline.append( torch.nn.Linear( d_model, intermediate_size, bias=enable_bias ) )
+                self.pooler_pipeline.append( torch.nn.Linear( post_token_size, intermediate_size, bias=enable_bias ) )
                 self.pooler_pipeline.append( activation )
             
             case 'sae':
-                self.pooler_pipeline.append( LSWTSparseAutoEncoder( pooler_config, d_model ) )
+                self.pooler_pipeline.append( LSWTSparseAutoEncoder( pooler_config, post_token_size ) )
                 
                  # Set intermediate size to 2x if gated, otherwise 1x
                 intermediate_size = pooler_config.embedding_size
