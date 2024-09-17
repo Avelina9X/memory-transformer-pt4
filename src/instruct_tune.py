@@ -84,6 +84,8 @@ def create_validation_zeroshot_tasks( n_bins: int ) -> list[list[BaseChoiceInstr
         curr_tasks.sort( key=lambda x: len( x.get_validation_docs() or [] ) ) # `or []` is a hack for the linter
         sorted_bins.append( curr_tasks )
     
+    sorted_bins.sort( key=lambda x: sum( len( i.get_validation_docs() or [] ) for i in x ) )
+    
     return sorted_bins
 
 def aggregate_gpt4all_score( metrics: dict[ str, float ] ) -> dict[ str, float ]:
