@@ -1,8 +1,13 @@
+meta:
+  run_name: Qwen-0.5C-dph
+
 train:
   batch_size_step: 4
 
 finetune:
   wrapped_model: Qwen/Qwen1.5-0.5B-Chat
+  frozen_params:
+    - model.layers
 
 model:
   pooler_config:
