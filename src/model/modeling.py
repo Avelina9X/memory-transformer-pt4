@@ -48,7 +48,7 @@ class LSWTPreTrainedModel( PreTrainedModel ):
         elif isinstance( module, torch.nn.LayerNorm ):
             module.bias.data.zero_()
             module.weight.data.fill_( 1.0 )
-            
+
         elif isinstance( module, LSWTSparseAutoEncoder ):
             torch.nn.init.kaiming_uniform_( module.decoder_weight.data )
             torch.nn.init.kaiming_uniform_( module.encoder_weight.data )
@@ -398,7 +398,7 @@ class LSWTForCausalLM( LSWTPreTrainedModel ):
 class SAELoss( ModelOutput ):
     """ Base class for SAE outputs.
     """
-    
+
     reconstruction_loss: torch.Tensor
     l1_penalty: torch.Tensor
     sparsity: torch.Tensor
@@ -406,104 +406,104 @@ class SAELoss( ModelOutput ):
 class LSWTSparseAutoEncoder( torch.nn.Module ):
     def __init__( self, pooler_config: LSWTPoolerConfig, d_model: int ):
         super().__init__()
-        
+
         self.pooler_config = pooler_config
-        
+
         n_dim = d_model
         m_dim = pooler_config.embedding_size
-        
+
         assert m_dim
         assert pooler_config.pooler_activation in [ 'relu', 'prolu_ste', 'prolu_relu' ] # TODO: raise instead of assert
         assert not pooler_config.pooler_activation_gated # TODO: raise instead of assert
-        
+
         self.activation = pooler_config.pooler_activation
-        
+
         self.encoder_weight = torch.nn.Parameter( torch.empty( m_dim, n_dim ) )
         self.encoder_bias = torch.nn.Parameter( torch.empty( m_dim ) )
-        
+
         self.decoder_weight = torch.nn.Parameter( torch.empty( n_dim, m_dim ) )
         self.decoder_bias = torch.nn.Parameter( torch.empty( n_dim ) )
-    
+
     def activate( self, x_prime: torch.Tensor, w: torch.Tensor, b: torch.Tensor ) -> torch.Tensor:
         match self.activation:
             case 'relu':
                 return torch.relu( F.linear( x_prime, w, b ) ) # pylint: disable=E1102
-            
+
             case 'prolu_ste':
                 return prolu_ste( F.linear( x_prime, w, None ), b ) # pylint: disable=E1102
-            
+
             case 'prolu_relu':
                 return prolu_relu( F.linear( x_prime, w, None ), b ) # pylint: disable=E1102
-            
+
             case _:
                 raise ValueError( 'Invalid SAE activation!' )
-    
+
     def forward( self, hidden_states: torch.Tensor, output_auxiliary = False ):
         x_prime = hidden_states - self.decoder_bias
-        
+
         latent = self.activate( x_prime, self.encoder_weight, self.encoder_bias )
-        
+
         if output_auxiliary:
             x_hat = F.linear( latent, self.decoder_weight, self.decoder_bias ) # pylint: disable=E1102
-            
+
             l2_penalty = ( hidden_states.detach() - x_hat ).pow( 2 ).mean()
             l1_penalty = torch.norm( latent, p=1, dim=-1 ).mean()
             l0_penalty = ( latent > 0 ).float().sum( -1 ).mean()
-            
+
             return latent, SAELoss( l2_penalty, l1_penalty, l0_penalty )
         else:
             return latent
-            
-            
+
+
 
 
 @dataclass
 class DPHOutput( ModelOutput ):
     """ Base class for DPH reward outputs.
     """
-    
+
     rewards: Mapping[str, torch.Tensor]
     """ Mapping of head name to the rewards computed on the <|im_end|> token."""
-    
+
     latent_states: torch.Tensor | None = None
     """ Latent states computed on the <|im_end|> token. Returns None when `output_latent_states=False` """
-    
+
     aux_loss: SAELoss | None = None
     """ Auxiliary loss for SAEs """
 
 class LSWTPooler( torch.nn.Module ):
     def __init__( self, pooler_config: LSWTPoolerConfig, d_model: int, d_ffn: int, enable_bias: bool ):
         super().__init__()
-        
+
         self.pooler_config = pooler_config
-        
+
         if pooler_config is None:
             raise ValueError( 'pooler_config must be defined!' )
-        
+
         if pooler_config.reward_heads is None:
             raise ValueError( 'reward_heads must be defined. If no heads are desired please use an empty list.' )
-        
+
         assert pooler_config.token_pooling_gate_bias is not None
-        
+
         inter_dim = d_ffn if pooler_config.token_pooling_rotation_expansion == 'ffn' else d_model * ( pooler_config.token_pooling_rotation_expansion or 1 )
         assert isinstance( inter_dim, int )
-        
-        post_token_size = d_model if pooler_config.token_pooling_inverse_rotate else inter_dim
-        
+
+        post_token_size = d_model if pooler_config.token_pooling_inverse_rotate else inter_dim # TODO: get rid of this shit
+
         self.pooler_pipeline = torch.nn.Sequential()
         self.embedding_dropout = torch.nn.Dropout( p=pooler_config.embedding_dropout )
-        
+
         self.layer_dropout = torch.nn.Dropout( p=pooler_config.layer_dropout )
         self.intermediate_dropout = torch.nn.Dropout( p=pooler_config.intermediate_dropout )
-        
+
         self.layer_norm_pre = torch.nn.LayerNorm( d_model ) if pooler_config.layer_pooling_norm in [ 'pre', 'both' ] else torch.nn.Identity()
         self.layer_norm_post = torch.nn.LayerNorm( d_model ) if pooler_config.layer_pooling_norm in [ 'post', 'both' ] else torch.nn.Identity()
 
         self.token_norm_pre = torch.nn.LayerNorm( d_model ) if pooler_config.token_pooling_norm in [ 'pre', 'both' ] else torch.nn.Identity()
         self.token_norm_post = torch.nn.LayerNorm( post_token_size ) if pooler_config.token_pooling_norm in [ 'post', 'both' ] else torch.nn.Identity()
-        
+
         self.token_rotate = RotateLayer( d_model, inter_dim ) if pooler_config.token_pooling_rotation else None
-        
+
         self.token_gate = torch.nn.Linear( d_model, inter_dim * 2, pooler_config.token_pooling_gate_bias ) if pooler_config.token_pooling_gate else None
         # self.token_gate_act = ACT2FN[pooler_config.token_pooling_gate] if pooler_config.token_pooling_gate else None
 
@@ -513,13 +513,13 @@ class LSWTPooler( torch.nn.Module ):
             self.layer_weighting.data.fill_( 0.0 )
         else:
             self.layer_weighting = None
-        
+
         if pooler_config.token_pooling == 'ema':
             assert pooler_config.token_pooling_ema_beta
-            
+
             beta = pooler_config.token_pooling_ema_beta
             self.ema_beta = torch.nn.Parameter( torch.tensor( beta / ( 1.0 - beta ) ).log(), requires_grad=False )
-            
+
             match pooler_config.token_pooling_ema_beta_learnable:
                 case 'global':
                     self.ema_weight = torch.nn.Parameter( torch.empty( [ 1, 1, 1 ] ), requires_grad=True )
@@ -529,7 +529,7 @@ class LSWTPooler( torch.nn.Module ):
                     self.ema_weight = torch.nn.Parameter( torch.empty( [ 1, 1, 1 ] ), requires_grad=False )
                 case _:
                     raise ValueError( 'Invalid `token_beta_learnable` value' )
-            
+
             self.ema_weight.data.zero_()
         else:
             self.ema_weight = None
@@ -537,40 +537,42 @@ class LSWTPooler( torch.nn.Module ):
 
         # Match the reward pooler type
         match pooler_config.pooler_function:
-            
+
             # If identity we only do dropout
             case 'identity':
                 # Set embedding size to that of d_model as pooler is passthrough
                 embedding_size = post_token_size
-                
+
                 # Add dropout as final layer
                 self.pooler_pipeline.append( torch.nn.Identity() )
-            
+
             # If projection do: linear -> activation -> dropout
             case 'projection':
                 # Assertions to make linter happy. We should have raised an error already.
                 assert pooler_config.embedding_size is not None
                 assert pooler_config.pooler_activation is not None
-                
-                # Set embedding size to that of config
-                embedding_size = pooler_config.embedding_size
-                
+
                 # Set intermediate size to 2x if gated, otherwise 1x
                 intermediate_size = pooler_config.embedding_size * ( 2 if pooler_config.pooler_activation_gated else 1 )
-                
+
                 # Set activation to SwiGLU if gated, otherwise get activation by name
                 activation = ActGLU( pooler_config.pooler_activation ) if pooler_config.pooler_activation_gated else ACT2FN[pooler_config.pooler_activation]
-                
+
                 # Append linear -> activation -> dropout
                 self.pooler_pipeline.append( torch.nn.Linear( post_token_size, intermediate_size, bias=enable_bias ) )
                 self.pooler_pipeline.append( activation )
-            
+
+                # Set embedding size to that of config
+                embedding_size = intermediate_size
+
             case 'sae':
+                assert pooler_config.embedding_size is not None
+
                 self.pooler_pipeline.append( LSWTSparseAutoEncoder( pooler_config, post_token_size ) )
-                
-                 # Set intermediate size to 2x if gated, otherwise 1x
-                intermediate_size = pooler_config.embedding_size
-                
+
+                # Set embedding size to that of config
+                embedding_size = pooler_config.embedding_size
+
             case _:
                 raise ValueError( 'Invalid pooler type.' )
 
@@ -579,31 +581,31 @@ class LSWTPooler( torch.nn.Module ):
             name: torch.nn.Linear( embedding_size, 1, bias=pooler_config.reward_head_bias )
             for name in pooler_config.reward_heads
         } )
-    
+
     def pool_layers( self, hidden_states: tuple[torch.Tensor] ) -> torch.Tensor:
         pooler_config = self.pooler_config
         assert pooler_config
-        
+
         # Select the layer or subset of layers
         if isinstance( pooler_config.layer_select, int ):
             states = hidden_states[pooler_config.layer_select][ None, ... ]
         else:
             states = torch.stack( itemgetter( *pooler_config.layer_select )( hidden_states ) )
-        
+
         # Pre normalise layers
         states: torch.Tensor = self.layer_norm_pre( states )
-        
+
         # Perform layer pooling type
         match pooler_config.layer_pooling:
             case 'layer':
                 states = states.squeeze( 0 )
-            
+
             case 'mean':
                 states = states.mean( 0 )
-            
+
             case 'weighted_sum':
                 assert self.layer_weighting is not None
-                
+
                 drop_mask = torch.ones(
                     states.size( 0 ),
                     states.size( 1 ),
@@ -612,7 +614,7 @@ class LSWTPooler( torch.nn.Module ):
                     dtype=states.dtype,
                     device=states.device
                 )
-                
+
                 states = (
                     states *
                     self.layer_weighting.softmax( 0 ) *
@@ -621,82 +623,82 @@ class LSWTPooler( torch.nn.Module ):
 
             case _:
                 raise ValueError( 'Incorrect layer pooler type.' )
-        
+
         # Post normalise layers
         states: torch.Tensor = self.layer_norm_post( states )
-        
+
         return states
-    
+
     def pool_tokens( self, input_states: torch.Tensor, segment_mask: torch.Tensor, segment_pos: torch.Tensor ):
         pooler_config = self.pooler_config
-        
+
         # Pre normalise tokens
         states: torch.Tensor = self.token_norm_pre( input_states ).float()
-        
+
         # Compute gate before rotation
         gate = self.token_gate( states ).float() if self.token_gate else None
-        
+
         # Create rotation matrix if enabled
         rotation_weight = self.token_rotate( states.dtype ) if self.token_rotate else None
-        
+
         # Perform rotation (if enabled)
         if rotation_weight is not None:
             states = F.linear( states, rotation_weight ) # pylint: disable=E1102
-            
+
         # Cast to float
         states = states.float()
-        
+
         # Perform layer token pooling
         match pooler_config.token_pooling:
             case 'cls':
                 states = states * segment_mask
-            
+
             case 'max':
                 states = torch.where( segment_mask, states, -1e9 ).cummax( -2 )[0]
                 states = states * segment_mask
-            
+
             case 'mean':
                 states = torch.where( segment_mask, states, 0 ).cumsum( -2 )
                 states = states / ( segment_pos + 1e-9 )
                 states = states * segment_mask
-            
+
             case 'sgpt':
                 states = torch.where( segment_mask, states * segment_pos, 0 ).cumsum( -2 )
                 states = states / segment_pos.cumsum( -2 )
                 states = states * segment_mask
-            
+
             case 'ema':
                 assert self.ema_beta is not None
                 assert self.ema_weight is not None
-                
+
                 # Compute the log beta
                 log_beta = F.logsigmoid( self.ema_beta + self.ema_weight ).float() # pylint: disable=E1102
-                
+
                 if gate is None:
                     states = complex_scan( segment_mask, states, log_beta, segment_pos )
-                else:                    
+                else:
                     # Split the gate into the two components: decay and sustain
                     decay_gate, sustain_gate = gate.chunk( 2, dim=-1 )
-                    
+
                     # Activate the gates and multiply by segment mask to nullify
                     decay_gate = F.softplus( -decay_gate ) * segment_mask.float() # pylint: disable=E1102
                     sustain_gate = sustain_gate.exp() * segment_mask.float()
-                    
+
                     states = complex_selective_scan( segment_mask, states, log_beta, decay_gate, sustain_gate )
                     states = self.intermediate_dropout( states )
 
             case _:
                 raise ValueError( 'Incorrect token pooler type.' )
-        
+
         # Perform inverse rotation (if enabled)
         if rotation_weight is not None and pooler_config.token_pooling_inverse_rotate:
             states = F.linear( states, rotation_weight.mT ) # pylint: disable=E1102
-            
+
         # Post normalise tokens
         states: torch.Tensor = self.token_norm_post( states )
-        
+
         return states
-    
+
     def aggregate_states(
         self,
         hidden_states: tuple[torch.Tensor],
@@ -707,32 +709,32 @@ class LSWTPooler( torch.nn.Module ):
         prefix_type: str | None = 'assistant',
     ) -> torch.Tensor | dict[str, torch.Tensor]:
         pooler_config = self.pooler_config
-        
+
         # Perform layer pooling
         states = self.pool_layers( hidden_states )
-        
+
         # Get some useful stuff
         batch_size, seq_lengths = input_ids.shape[:2]
         batch_ids = torch.arange( batch_size, device=states.device )
         seq_ids = torch.arange( seq_lengths, device=input_ids.device )
-        
+
         if prefix_type is None:
             prefix_count = 0
         else:
             prefix_count = pooler_config.prefix_sizes[prefix_type]
-        
+
         start_idx = torch.where( input_ids == start_id, seq_ids, -1 ).max( -1 )[0] + prefix_count
         end_idx = torch.where( input_ids == end_id, seq_ids, -1 ).max( -1 )[0]
         segment_mask = ( start_idx[ :, None ] <= seq_ids[ None, : ] ) * ( seq_ids[ None, : ] <= end_idx[ :, None ] )
         segment_pos = segment_mask.float().cumsum( -1 ) * segment_mask
-        
+
         segment_mask = segment_mask[ ..., None ]
         segment_pos = segment_pos[ ..., None ]
-        
+
         # Perform token pooling
         states = self.pool_tokens( states, segment_mask, segment_pos )
-        
-        
+
+
         if not return_all:
             return states[ batch_ids, end_idx ]
         else:
@@ -742,8 +744,8 @@ class LSWTPooler( torch.nn.Module ):
                 'segment_mask': segment_mask,
                 'segment_pos': segment_pos,
             }
-        
-    
+
+
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -751,14 +753,14 @@ class LSWTPooler( torch.nn.Module ):
         compute_sae_loss=False
     ) -> DPHOutput:
         assert self.pooler_config
-        
+
         if compute_sae_loss:
             assert self.pooler_config.pooler_function == 'sae'
             latent_states, sae_loss = self.pooler_pipeline( hidden_states, output_auxiliary=True )
         else:
             latent_states = self.pooler_pipeline( hidden_states )
             sae_loss = None
-        
+
         dropped_states = self.embedding_dropout( latent_states )
 
         rewards = {
@@ -766,7 +768,7 @@ class LSWTPooler( torch.nn.Module ):
             for name, module
             in self.reward_heads.items()
         }
-        
+
         return DPHOutput(
             rewards=rewards,
             latent_states=latent_states if output_latent_states else None,
@@ -795,7 +797,7 @@ class LSWTForDPH( LSWTForCausalLM ):
         self.pooler = LSWTPooler( config.pooler_config, config.d_model, config.d_ffn, config.enable_bias )
 
         self.post_init()
-    
+
     def compute_final_rewards(
         self,
         hidden_states: tuple[torch.Tensor],
@@ -838,9 +840,9 @@ class LSWTForDPH( LSWTForCausalLM ):
     #     assert torch.all( cls_idx != -1 )
 
     #     pooled_states = last_hidden_states[ batch_ids, cls_idx ]
-        
+
     #     return self.pooler( pooled_states, output_latent_states=output_latent_states, compute_sae_loss=compute_sae_loss )
-        
+
 
     def get_param_groups(
         self,
@@ -877,7 +879,7 @@ class LSWTForDPH( LSWTForCausalLM ):
                     return True
 
         for name, p in self.named_parameters():
-            if p.requires_grad:               
+            if p.requires_grad:
                 if check_dph( p ):
                     if any( i in name for i in dph_decay_mask ):
                         dph_non_decay_params.append( p )
@@ -901,15 +903,15 @@ class LSWTForDPH( LSWTForCausalLM ):
 class WrappedLSWTForDPH( LSWTForDPH ):
     def __init__( self, config: LSWTConfig, wrapped_model ):
         super().__init__( config )
-        
+
         self.model = None
         self.head_proj = None
-    
+
         self.wrapped_model = wrapped_model
-    
+
     def forward( self, *args, **kwargs ):
         kwargs.pop( 'max_key_values', None )
         return self.wrapped_model( *args, **kwargs )
-    
+
     def get_input_embeddings( self ):
         return self.wrapped_model.get_input_embeddings()
