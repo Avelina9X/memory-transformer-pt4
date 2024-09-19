@@ -256,11 +256,15 @@ def instruct_align(
         # Mask out parameters
         if 'finetune.frozen_params' in config:
             frozen_list = train_utils.set_training_mask( dph_model, config[ 'finetune.frozen_params' ] )
-
+            
             if rank == 0:
-                rich.print( 'Frozen params:' )
-                rich.print( frozen_list )
-                print()
+                if __debug__:
+                    rich.print( 'Frozen params:' )
+                    rich.print( frozen_list )
+                    print()
+                else:
+                    rich.print( f'Frozen param count: {len(frozen_list)}' )
+                    print()
 
         # Load reference model and set trainable
         if dph_config.requires_reference_model:
@@ -320,11 +324,15 @@ def instruct_align(
         # Mask out parameters
         if 'finetune.frozen_params' in config:
             frozen_list = train_utils.set_training_mask( dph_model, config[ 'finetune.frozen_params' ] )
-
+            
             if rank == 0:
-                rich.print( 'Frozen params:' )
-                rich.print( frozen_list )
-                print()
+                if __debug__:
+                    rich.print( 'Frozen params:' )
+                    rich.print( frozen_list )
+                    print()
+                else:
+                    rich.print( f'Frozen param count: {len(frozen_list)}' )
+                    print()
 
         tokenizer = AutoTokenizer.from_pretrained( wrapped_model_name, cache_dir=HF_CACHE_DIR )
 
