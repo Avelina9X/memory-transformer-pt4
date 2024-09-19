@@ -12,7 +12,7 @@ model:
       - verbosity
     reward_head_bias: true
 
-    layer_pooling: weighted_sum
+    layer_pooling: weighted_sum_bi
     layer_pooling_norm: both
 
     token_pooling: ema
