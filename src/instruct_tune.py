@@ -70,22 +70,22 @@ def create_validation_zeroshot_tasks( n_bins: int ) -> list[list[BaseChoiceInstr
         DIRECTORY_CHOICE[ 'race' ][ 'middle' ]( HF_CACHE_DIR ),
         DIRECTORY_CHOICE[ 'race' ][ 'high' ]( HF_CACHE_DIR ),
     ]
-    
+
     tasks_dict = { i: len( task.get_validation_docs() or [] ) for i, task in enumerate( tasks ) }
-    
+
     idx_bins = bp.to_constant_bin_number( tasks_dict, n_bins )
-    
+
     sorted_bins = []
-    
+
     for curr_bin in idx_bins:
         assert isinstance( bin, dict )
-        
+
         curr_tasks = [ tasks[idx] for idx in curr_bin.keys() ]
         curr_tasks.sort( key=lambda x: len( x.get_validation_docs() or [] ) ) # `or []` is a hack for the linter
         sorted_bins.append( curr_tasks )
-    
+
     sorted_bins.sort( key=lambda x: sum( len( i.get_validation_docs() or [] ) for i in x ) )
-    
+
     return sorted_bins
 
 def aggregate_gpt4all_score( metrics: dict[ str, float ] ) -> dict[ str, float ]:
@@ -155,11 +155,11 @@ def evaluate_zero_shot_task(
         log line (str): string suitable for file logging.
         metrics (dict[str, float]): dict suitable for WandB logging.
     """
-    
+
     task_ds = task.get_validation_docs()
     assert task_ds is not None
     val_metrics = batcher.evaluate_dataset( task, task_ds, False, False )
-    
+
     if zero_nan:
         for key in val_metrics:
             value = val_metrics[key]
@@ -194,17 +194,17 @@ def instruct_tune(
         wandb_run_name (str | None): WandB run name. Defaults to None.
         validation_queue (Queue | None): Queue used to pass validation results back to rank 0. Defaults to None
     """
-    
+
     # Ensure config is not none
     assert config
-    
+
     # Ensure DDP stuff is/isn't there if DDP is/isn't enabled
     if world_size == 1:
         assert validation_queue is None
         assert rank == 0
     else:
         assert validation_queue
-    
+
     # Make sure rank isn't larger than world size
     assert rank < world_size
 
@@ -222,7 +222,7 @@ def instruct_tune(
         evaluate.utils.logging.disable_progress_bar()
         datasets.utils.logging.disable_progress_bar()
         torch._inductor.select_algorithm.PRINT_AUTOTUNE = False # type: ignore # pylint: disable=W0212
-    
+
     # Setup ddp if world size is greater than 1
     if world_size > 1:
         ddp_setup( rank, world_size, timedelta( hours=1.0 ) )
@@ -252,21 +252,24 @@ def instruct_tune(
     # Load tokenizer and add new segment tokens
     tokenizer = AutoTokenizer.from_pretrained( model_config.parent_embeddings, use_fast=True, cache_dir=HF_CACHE_DIR )
     train_utils.add_special_tokens( tokenizer )
-    
+
     # Set generation config
     model.generation_config = train_utils.create_generation_config( tokenizer )
 
     # Create task mixes
     train_tasks = train_utils.create_train_tasks( config[ 'finetune.sft_mix' ] )
-    
+
     validation_zeroshot_tasks = create_validation_zeroshot_tasks( world_size )
-    
-    if rank == 0:
+
+    # If we're on rank zero we get validation prompts
+    if rank == 0 and config.get( 'meta.prompt_validate', False ):
         validation_prompts = train_utils.create_validation_prompts( tokenizer )
+    else:
+        validation_prompts = None
 
     # Instantiate instruct helpers
     train_formatter = InstructionFormatter( tokenizer, 0 )
-    
+
     validation_formatter = InstructionFormatter( tokenizer, None )
     batcher = ChoiceInstructionBatcher( model, validation_formatter, 'mean' )
 
@@ -350,12 +353,12 @@ def instruct_tune(
         train_metrics = trainer.train_epoch( iterator, i + 1 )
         true_sample_count = trainer.get_sequence_count()
 
-        
+
         # Create empty validation metrics list
         validation_lines = []
         validation_dict = {}
         validation_prompt_dict = {}
-        
+
         validate_freq = config.get( 'meta.validate_freq', 1 )
         should_validate = config[ 'meta.validate' ] and ( i % validate_freq == validate_freq - 1 )
 
@@ -366,23 +369,23 @@ def instruct_tune(
                 validation_lines.append( curr_line )
                 validation_dict.update( **curr_dict )
             torch.cuda.empty_cache()
-            
-            if rank == 0:
+
+            if validation_prompts is not None:
                 validation_prompt_table = train_utils.perform_prompt_validation(
                     validation_prompts,
                     tokenizer,
                     model,
                 )
-                
+
                 validation_prompt_dict[ 'validation_generations' ] = validation_prompt_table
-            
+
             if validation_queue:
                 if rank > 0:
                     validation_queue.put( ( validation_lines, validation_dict ) )
                 else:
                     for _ in range( world_size - 1):
                         received = validation_queue.get()
-                        
+
                         validation_lines += received[0]
                         validation_dict.update( **received[1] )
 
@@ -399,7 +402,7 @@ def instruct_tune(
 
             train_log = train_utils.compute_metric_dict( train_metrics, 'train' )
             stats_log = train_utils.compute_stats_dict( trainer, i, true_sample_count )
-            
+
             wandb.log( {
                 **validation_prompt_dict,
                 **train_log,
@@ -419,7 +422,7 @@ def instruct_tune(
         wandb.run.log_artifact( model_artifact )
 
         wandb.finish()
-    
+
     # Cleanup ddp if world size is greater than 1
     if world_size > 1:
         ddp_cleanup()
@@ -456,7 +459,7 @@ def run():
 
     # Print the config to stdout
     rich.print( config )
-    
+
     device_count = torch.cuda.device_count()
 
     # Launch program with our settings

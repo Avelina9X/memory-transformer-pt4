@@ -196,17 +196,17 @@ def instruct_align(
         wandb_run_name (str | None): WandB run name. Defaults to None.
         validation_queue (Queue | None): Queue used to pass validation results back to rank 0. Defaults to None
     """
-    
+
     # Ensure config is not none
     assert config
-    
+
     # Ensure DDP stuff is/isn't there if DDP is/isn't enabled
     if world_size == 1:
         assert validation_queue is None
         assert rank == 0
     else:
         assert validation_queue
-    
+
     # Make sure rank isn't larger than world size
     assert rank < world_size
 
@@ -224,11 +224,11 @@ def instruct_align(
         evaluate.utils.logging.disable_progress_bar()
         datasets.utils.logging.disable_progress_bar()
         torch._inductor.select_algorithm.PRINT_AUTOTUNE = False # type: ignore # pylint: disable=W0212
-    
+
     # Setup ddp if world size is greater than 1
     if world_size > 1:
         ddp_setup( rank, world_size, timedelta( hours=1.0 ) )
-    
+
     output_dir = f'./checkpoints/{wandb_run_name}'
 
     if config.get( 'finetune.wrapped_model', None ) is None:
@@ -256,7 +256,7 @@ def instruct_align(
         # Mask out parameters
         if 'finetune.frozen_params' in config:
             frozen_list = train_utils.set_training_mask( dph_model, config[ 'finetune.frozen_params' ] )
-            
+
             if rank == 0:
                 rich.print( 'Frozen params:' )
                 rich.print( frozen_list )
@@ -273,14 +273,15 @@ def instruct_align(
         # Load tokenizer and add new segment tokens
         tokenizer = AutoTokenizer.from_pretrained( model_config.parent_embeddings, use_fast=True, cache_dir=HF_CACHE_DIR )
         train_utils.add_special_tokens( tokenizer )
-        
+
         # Set generation config
         dph_model.generation_config = train_utils.create_generation_config( tokenizer )
-    
+
     else:
         # Get the wrapped model name
         wrapped_model_name = config[ 'finetune.wrapped_model' ]
-        
+        pretrained_run_name = None
+
         # Get the wrapped model and config
         source_config = AutoConfig.from_pretrained( wrapped_model_name )
         source_model = AutoModelForCausalLM.from_pretrained(
@@ -289,7 +290,7 @@ def instruct_align(
             torch_dtype=None,
             output_hidden_states=True,
         ).cuda().eval()
-        
+
         # Create fake model config from the wrapped config
         model_config = LSWTConfig(
             n_layers=0,
@@ -298,46 +299,46 @@ def instruct_align(
             d_model=source_config.hidden_size,
             d_ffn=source_config.intermediate_size,
         )
-        
+
         # Create train and dph configs and update them
         train_config = LSWTConfigTraining()
         dph_config = LSWTConfigTrainingDPH()
         train_utils.modify_dicts( config, model_config, train_config, dph_config )
-        
+
         # Get reward head name
         assert model_config.pooler_config
         assert isinstance( model_config.pooler_config.reward_heads, Sequence )
         assert len( model_config.pooler_config.reward_heads ) > 0
         reward_head_name = model_config.pooler_config.reward_heads[0]
-        
+
         # Instantiate wrapped model with the inner model
         dph_model = typing.cast( WrappedLSWTForDPH, WrappedLSWTForDPH( model_config, source_model ).cuda() ) # type: ignore
         dph_model.config.use_bfloat16 = source_config.torch_dtype == torch.bfloat16
-        
-        
+
+
         # Mask out parameters
         if 'finetune.frozen_params' in config:
             frozen_list = train_utils.set_training_mask( dph_model, config[ 'finetune.frozen_params' ] )
-            
+
             if rank == 0:
                 rich.print( 'Frozen params:' )
                 rich.print( frozen_list )
                 print()
-        
+
         tokenizer = AutoTokenizer.from_pretrained( wrapped_model_name, cache_dir=HF_CACHE_DIR )
-        
+
         if not tokenizer.cls_token_id:
             tokenizer.cls_token_id = tokenizer.get_vocab()[ '<|im_end|>' ]
-            
+
         if not tokenizer.sep_token_id:
             tokenizer.sep_token_id = tokenizer.get_vocab()[ '<|im_start|>' ]
 
         if not tokenizer.bos_token_id:
             tokenizer.bos_token_id = tokenizer.eos_token_id
-            
+
         # Set generation config
         dph_model.generation_config = train_utils.create_generation_config( tokenizer )
-        
+
         # Load reference model and set trainable
         if dph_config.requires_reference_model:
             ref_model = AutoModelForCausalLM.from_pretrained(
@@ -349,28 +350,30 @@ def instruct_align(
         else:
             ref_model = dph_model
         ref_model.config.use_bfloat16 = dph_model.config.use_bfloat16
-        
+
         model_config.pooler_config.prefix_sizes[ 'system' ] = len( tokenizer.encode( '<|im_start|>system\n', add_special_tokens=False ) )
         model_config.pooler_config.prefix_sizes[ 'user' ] = len( tokenizer.encode( '<|im_start|>user\n', add_special_tokens=False ) )
         model_config.pooler_config.prefix_sizes[ 'assistant' ] = len( tokenizer.encode( '<|im_start|>user\n', add_special_tokens=False ) )
 
     # Create task mixes
     train_tasks = train_utils.create_train_tasks( config[ 'finetune.dph_mix' ] )
-    
+
     # Get the validation tasks
     validation_zeroshot_tasks = create_validation_zeroshot_tasks( world_size )
-        
+
     # If we're on rank zero we get validation prompts
-    if rank == 0:
+    if rank == 0 and config.get( 'meta.prompt_validate', False ):
         validation_prompts = train_utils.create_validation_prompts( tokenizer )
+    else:
+        validation_prompts = None
 
     # Instantiate instruct helpers
     train_formatter = InstructionFormatter( tokenizer, 0 )
-    
+
     # Get helpers for validation
     validation_formatter = InstructionFormatter( tokenizer, None )
     batcher = DPHChoiceInstructionBatcher( dph_model, validation_formatter, reward_head_name, 'mean' )
-    
+
     # Get mask type for this training variant
     mask_type = config.get( 'finetune.mask_override', {
         'dph': 'train',
@@ -460,7 +463,7 @@ def instruct_align(
         )
 
         # If we're not using a wrapped model we link the artifact
-        if config.get( 'finetune.wrapped_model', None ) is None:
+        if config.get( 'finetune.wrapped_model', None ) is None and pretrained_run_name is not None:
             input_artifact = train_utils.get_model_artifact( pretrained_run_name )
             wandb.use_artifact( input_artifact )
 
@@ -473,7 +476,7 @@ def instruct_align(
         validation_lines = []
         validation_dict = {}
         validation_prompt_dict = {}
-        
+
         validate_freq = config.get( 'meta.validate_freq', 1 )
         should_validate = config[ 'meta.validate' ] and ( i % validate_freq == validate_freq - 1 )
 
@@ -484,28 +487,28 @@ def instruct_align(
                 validation_lines.append( curr_line )
                 validation_dict.update( **curr_dict )
             torch.cuda.empty_cache()
-            
+
             # If rank is zero and prompt validate is enabled do prompt validation
-            if rank == 0 and config.get( 'meta.prompt_validate', False ):
+            if validation_prompts is not None:
                 validation_prompt_table = train_utils.perform_prompt_validation(
                     validation_prompts,
                     tokenizer,
                     dph_model,
                 )
-                
+
                 validation_prompt_dict[ 'validation_generations' ] = validation_prompt_table
-            
+
             # If there's a validation queue, gather all metrics
             if validation_queue:
                 # If rank is 1 or above send metrics to rank 0
                 if rank > 0:
                     validation_queue.put( ( validation_lines, validation_dict ) )
-                
+
                 # Otherwise gather all metrics to rank zero
                 else:
                     for _ in range( world_size - 1):
                         received = validation_queue.get()
-                        
+
                         validation_lines += received[0]
                         validation_dict.update( **received[1] )
 
@@ -528,7 +531,7 @@ def instruct_align(
 
             # Compute the running stats log
             stats_log = train_utils.compute_stats_dict( trainer, i, None ) # type: ignore
-            
+
             pooler_log = train_utils.compute_pooler_stats_dict( dph_model ) # type: ignore
 
             # Log to WandB
@@ -559,7 +562,7 @@ def instruct_align(
 
         # Aaand we're done!
         wandb.finish()
-    
+
     # Cleanup ddp if world size is greater than 1
     if world_size > 1:
         ddp_cleanup()
@@ -596,7 +599,7 @@ def run():
 
     # Print the config to stdout
     rich.print( config )
-    
+
     device_count = torch.cuda.device_count()
 
     # Launch program with our settings

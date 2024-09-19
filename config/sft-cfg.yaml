@@ -2,6 +2,7 @@ meta:
   run_name: LoveLace-M-sft
   validate: true
   validate_freq: 4
+  prompt_validate: true
   tags:
     - improved_dph
 
