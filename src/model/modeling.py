@@ -689,7 +689,7 @@ class LSWTPooler( torch.nn.Module ):
                 raise ValueError( 'Incorrect token pooler type.' )
         
         # Perform inverse rotation (if enabled)
-        if rotation_weight is not None:
+        if rotation_weight is not None and pooler_config.token_pooling_inverse_rotate:
             states = F.linear( states, rotation_weight.mT ) # pylint: disable=E1102
             
         # Post normalise tokens
