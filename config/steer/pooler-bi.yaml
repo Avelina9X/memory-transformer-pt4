@@ -12,12 +12,12 @@ model:
       - verbosity
     reward_head_bias: true
 
-    layer_pooling: weighted_sum
-    layer_pooling_norm: both
+    layer_pooling: weighted_sum_bi
+    layer_pooling_norm: post
 
     token_pooling: ema
     token_pooling_norm: post
-    token_pooling_ema_beta: 0.9
+    token_pooling_ema_beta: 0.95
     token_pooling_ema_beta_learnable: activation
     token_pooling_gate: true
     token_pooling_gate_bias: false
@@ -31,4 +31,4 @@ model:
     
     embedding_dropout: 0.1
     layer_dropout: 0.2
-    intermediate_dropout: 0.1
+    intermediate_dropout: 0.0
