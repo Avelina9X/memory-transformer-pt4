@@ -288,6 +288,7 @@ def instruct_align(
             wrapped_model_name,
             cache_dir=HF_CACHE_DIR,
             torch_dtype=None,
+            _attn_implementation='flash_attention_2',
             output_hidden_states=True,
         ).cuda().eval()
 
@@ -345,6 +346,7 @@ def instruct_align(
                 wrapped_model_name,
                 cache_dir=HF_CACHE_DIR,
                 torch_dtype=source_config.torch_dtype,
+                _attn_implementation='flash_attention_2',
                 output_hidden_states=False,
             ).cuda().to( dtype=torch.bfloat16 if dph_model.config.use_bfloat16 else torch.float16 ).eval().requires_grad_( False )
         else:
