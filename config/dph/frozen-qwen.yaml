@@ -1,0 +1,6 @@
+finetune:
+  frozen_params:
+    - model.layers
+    - model.embed_tokens
+    - model.norm
+    - lm_head
