@@ -53,3 +53,5 @@ dph:
     - ema
     - layer_weighting
     - token_rotate
+
+  opt_split_norm: true
