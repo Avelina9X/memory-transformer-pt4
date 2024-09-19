@@ -514,7 +514,7 @@ class LSWTPooler( torch.nn.Module ):
         elif pooler_config.layer_pooling == 'weighted_sum_bi':
             assert not isinstance( pooler_config.layer_select, int )
             self.layer_weighting = torch.nn.Parameter( torch.empty( len( pooler_config.layer_select ), 1, 1, 1 ), requires_grad=True )
-            self.layer_weighting.data.fill_( 1.0 )
+            self.layer_weighting.data.fill_( 1.0 / len( pooler_config.layer_select ) )
         else:
             self.layer_weighting = None
 
