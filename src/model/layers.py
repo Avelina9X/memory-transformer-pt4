@@ -16,39 +16,39 @@ try:
     @torch._dynamo.disable # type: ignore # pylint: disable=W0212
     def flash_attention( query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, dropout: float ):
         return flash_attn_func( query, key, value, dropout_p=dropout, causal=True )
-    
+
     attention_func = flash_attention
-    
+
 except ModuleNotFoundError:
     def sdpa_attention( query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, dropout: float ):
         assert dropout == 0.0, 'Dropout is not enabled when using fallback SDPA'
-        
+
         # Get full query and key shapes
         q_shape = query.shape
         k_shape = key.shape
-        
+
         # Get length of sequences
         q_len = q_shape[1]
         k_len = k_shape[1]
-        
+
         # Build triagonal causal mask
         mask = torch.ones( q_len, k_len, dtype=query.dtype ).tril( k_len - q_len ).log()
         mask = mask[ None, None, :, : ]
-        
+
         # Get scaling factor
         scale = q_shape[2] ** -0.5
-        
+
         # Compute dot product
         dpa = torch.einsum( 'bqhd,bkhd->bhqk', query, key * scale ) + mask
-        
+
         # Compute softmax
         dps = torch.softmax( dpa, dim=-1 )
-        
+
         # Compute out vector
         out = torch.einsum( 'bkhd,bhqk->bqhd', value, dps )
-        
+
         return out
-    
+
     attention_func = sdpa_attention
 
 
@@ -63,7 +63,7 @@ class ELU1( torch.nn.Module ):
 ACT2FN['softplus'] = torch.nn.Softplus
 ACT2FN['exp'] = Exp
 ACT2FN['elu1'] = ELU1
-    
+
 
 class ProLU(torch.autograd.Function):
     STE: torch.autograd.Function
@@ -78,7 +78,7 @@ class ProLU(torch.autograd.Function):
 
     @staticmethod
     @custom_bwd
-    def backward(ctx, grad_output): # pylint: disable=W0221
+    def backward( ctx, grad_output ): # pylint: disable=W0221 # type: ignore
         raise NotImplementedError(
             "This method should be overridden by a subclass of ProLU to provide a backward implementation."
         )
@@ -150,43 +150,43 @@ class RotateLayer( torch.nn.Module ):
 class RMSHeadNorm( torch.nn.Module ):
     """ RMS Norm layer for query and keys heads.
     """
-    
+
     def __init__( self, d_key: int, n_heads: int, eps: float = 1e-5, learn_scale: bool = True ):
         super().__init__()
-        
+
         self.d_key = d_key
         self.n_heads = n_heads
         self.eps = eps
-        
+
         if learn_scale:
             self.weight = torch.nn.Parameter( torch.empty( size=( n_heads, d_key ) ), requires_grad=True )
             self.weight.data.fill_( 1.0 )
         else:
             self.register_parameter( 'weight', None )
-    
+
     def forward( self, x: torch.Tensor ):
         # Compute RMS per head
         norm = x.square().mean( -1, keepdim=True ).sqrt() + self.eps
-        
+
         # Normalize RMS
         x = x / norm
-        
+
         # Apply scaling if exists
         if self.weight is not None:
             weight = self.weight.to( dtype=x.dtype )
             x = torch.einsum( 'bnld,nd->bnld', x, weight )
-        
+
         return x
 
 class DropPath( torch.nn.Module ):
     """ DropPath layer.
-    
+
     Stochastically drops a residual block during training.
-    
+
     Note: during training output gain is increased when dropout is greater than zero,
     this mimics typical dropout behaviour.
     """
-    
+
     def __init__( self, drop_prob: float, scale=True ):
         super().__init__()
 
@@ -205,10 +205,10 @@ class DropPath( torch.nn.Module ):
 
 class SharedEmbeddings( torch.nn.Module ):
     """ Shared embedding layer.
-    
+
     This implements tied embeddings using one layer instead of sharing params with a linear layer.
     """
-    
+
     def __init__( self, vocab_size: int, d_vocab: int ):
         super().__init__()
 
@@ -240,10 +240,10 @@ class SharedEmbeddings( torch.nn.Module ):
 
 class RotaryEmbedding( torch.nn.Module ):
     """ Rotary Embedding layer.
-    
+
     Creates the RoPE embeddings with support for ABF, and ReRoPE (reversal).
     """
-    
+
     def __init__( self, config: LSWTConfig, ntk_power=2.0 ):
         super().__init__()
         self.config = config
@@ -253,26 +253,26 @@ class RotaryEmbedding( torch.nn.Module ):
         # Get total sequence length including past
         seq_len = embeddings.shape[-2] + ( past_key_values[0][0].shape[-2] if past_key_values is not None else 0 )
         device = embeddings.device
-        
+
         dim = self.config.d_model // self.config.n_heads
         rope_base_freq = self.config.rope_base_freq
-        
+
         if not self.config.rope_dynamic:
             yarn_scale = torch.tensor( 1.0, device=device )
             ntk_scale = self.config.rope_ntk_scale
         else:
             length_scale = max( seq_len / self.config.rope_positions, 1.0 )
             ntk_scale = self.config.rope_ntk_scale * length_scale ** self.ntk_power
-            
+
             a = self.config.rope_yarn_a
             b = self.config.rope_yarn_b
             yarn_scale = torch.tensor( a * torch.math.log( length_scale ) + b, device=device ) # type: ignore
-        
+
         t = torch.arange( seq_len, device=device ).float()
-        
+
         base_freq = rope_base_freq * ntk_scale ** ( dim / ( dim - 2 ) )
         inv_freq = 1.0 / ( base_freq ** ( torch.arange( 0, dim, 2, device=device ).float() / dim ) )
-        
+
         if self.config.rope_reversed:
             t = t.flip( dims=[ 0 ] )
 
@@ -305,7 +305,7 @@ def apply_rope( query, key, rope_pos, yarn_scale ):
 class LSWTAttention( torch.nn.Module ):
     """ Multi Head Attention layer with all the features of the LSWT.
     """
-    
+
     def __init__( self, config: LSWTConfig ):
         super().__init__()
 
@@ -324,7 +324,7 @@ class LSWTAttention( torch.nn.Module ):
 
             self.registers_k.data.normal_( mean=0.0, std=self.key_dim ** -0.5 )
             self.registers_v.data.normal_( mean=0.0, std=self.key_dim ** -0.5 )
-        
+
         if config.qk_norm:
             self.q_norm = RMSHeadNorm( self.key_dim, config.n_heads )
             self.k_norm = RMSHeadNorm( self.key_dim, config.n_heads )
@@ -349,42 +349,42 @@ class LSWTAttention( torch.nn.Module ):
         return x.contiguous().view( B, S, self.config.d_model )
 
     def compute_qkv( self, embeddings, past_key_values ):
-        use_kv_cache = ( not self.training ) or ( not self.config.recompute_kv ) 
+        use_kv_cache = ( not self.training ) or ( not self.config.recompute_kv )
 
         # Project qkv and split into heads
         q = self.split_heads( self.proj_q( embeddings ) ).permute( 0, 2, 1, 3 )
-        
+
         # If we're using a kv cache project first
         if use_kv_cache:
             k = self.split_heads( self.proj_k( embeddings ) ).permute( 0, 2, 1, 3 )
             v = self.split_heads( self.proj_v( embeddings ) ).permute( 0, 2, 1, 3 )
-            
+
             # The concat past keys
             if past_key_values:
                 k = torch.cat( [ past_key_values[0], k ], dim=-2 )
                 v = torch.cat( [ past_key_values[1], v ], dim=-2 )
-            
+
             # Finally save cache
             memory = ( k, v )
-        
+
         # If we're using a state cache, concat first
         else:
             if past_key_values:
                 embeddings = torch.cat( [ past_key_values[0][ :, 0, :, : ], embeddings ], dim=-2 )
-            
+
             # The project
             k = self.split_heads( self.proj_k( embeddings ) ).permute( 0, 2, 1, 3 )
             v = self.split_heads( self.proj_v( embeddings ) ).permute( 0, 2, 1, 3 )
-            
+
             # Finally save states
             memory = ( embeddings[ :, None, :, : ], )
-        
+
         return q, k, v, memory
 
     def forward( self, embeddings, past_key_values, rope_pos, rope_scale ):
-        
+
         q, k, v, memory = self.compute_qkv( embeddings, past_key_values )
-        
+
         # Apply RMS norm
         if self.config.qk_norm:
             q = self.q_norm( q )
@@ -421,9 +421,9 @@ class LSWTAttention( torch.nn.Module ):
 class ActGLU( torch.nn.Module ):
     def __init__( self, activation: str ):
         super().__init__()
-        
+
         self.activation = ACT2FN[activation]
-    
+
     def forward( self, x ):
         x, g = x.chunk( 2, dim=-1 )
         return x * self.activation( g )
@@ -431,7 +431,7 @@ class ActGLU( torch.nn.Module ):
 class LSWTFeedForward( torch.nn.Module ):
     """ Feedforward MLP with SwiGLU support
     """
-    
+
     def __init__( self, config: LSWTConfig ):
         super().__init__()
 
@@ -456,7 +456,7 @@ class LSWTFeedForward( torch.nn.Module ):
 class LSWTBlock( torch.nn.Module ):
     """ Transformer block for the LSWT.
     """
-    
+
     def __init__( self, config: LSWTConfig ):
         super().__init__()
 
