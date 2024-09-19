@@ -13,7 +13,7 @@ model:
     reward_head_bias: true
 
     layer_pooling: weighted_sum_bi
-    layer_pooling_norm: both
+    layer_pooling_norm: post
 
     token_pooling: ema
     token_pooling_norm: post
