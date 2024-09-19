@@ -1,0 +1,3 @@
+train:
+  batch_size: 512
+  batches_per_epoch: 40
