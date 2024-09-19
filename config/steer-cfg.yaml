@@ -11,14 +11,14 @@ model:
   recompute_kv: false
 
 train:
-  batch_size: 64
+  batch_size: 512
   batch_size_step: 0
-  batches_per_epoch: 320
+  batches_per_epoch: 40
   length_sequence: 2048
   length_cache: 2048
   lr_max: 1.0e-5
   lr_warmup_steps: 2000
-  lr_cooldown_tokens: 10000000000
+  lr_cooldown_tokens: 100000000000
   lr_cooldown_ratio: 0.1
 
   opt_beta_1: 0.9

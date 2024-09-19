@@ -3,8 +3,10 @@ meta:
   validate: true
   evaluate: false
   validate_freq: 4
+  prompt_validate: false
   tags:
     - improved_dph
+    - dph_sweep
 
 model:
   trainable_embeddings: true

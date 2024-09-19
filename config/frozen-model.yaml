@@ -1,0 +1,10 @@
+model:
+  trainable_embeddings: false
+
+finetune:
+  trainable_backbone: false
+  frozen_params:
+    - input_proj
+    - input_norm
+    - output_norm
+    - head_proj
