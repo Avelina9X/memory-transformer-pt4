@@ -3,7 +3,6 @@ Module containing all the layers required for the LSWTransformer architecture.
 """
 
 import torch
-import torch.nn.functional as F
 from torch.cuda.amp import custom_bwd, custom_fwd
 
 from transformers.activations import ACT2FN
