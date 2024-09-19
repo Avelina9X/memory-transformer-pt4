@@ -164,10 +164,10 @@ class SteerInstructionFormatter( InstructionFormatter ):
         max_total_tokens: int | None = None,
     ):
         super().__init__( tokenizer, max_cache_size )
-        
+
         self.min_trainable_tokens = min_trainable_tokens or 2
         self.max_total_tokens = max_total_tokens or int( 1e9 )
-        
+
     def _apply_chat_template( self, conversation: MessageList ):
         lines = [ self._apply_chat_template_line( line ) for line in conversation[ : -1 ] ]
         final_line = self._apply_chat_template_line( conversation[ -1 ] )
@@ -181,27 +181,27 @@ class SteerInstructionFormatter( InstructionFormatter ):
             'train_mask': list( itertools.chain( *train_mask ) ),
             'test_mask': list( itertools.chain( *test_mask ) ),
         }
-    
+
     def tokenize_chat(
         self,
-        target_list: MessageList
+        conversation: MessageList
     ) -> dict:
         """ Tokenizes a message list for zero-shot or few-shot.
 
         All assistant message are enabled in the mask.
 
         Args:
-            target_list (MessageList): List of target messages.
+            conversation (MessageList): List of target messages.
 
         Returns:
             dict: dictionary of tokens and masks
         """
 
-        outputs = self._apply_chat_template( target_list )
-        
+        outputs = self._apply_chat_template( conversation )
+
         if sum( 1 for i in outputs[ 'train_mask' ] if i ) < self.min_trainable_tokens:
             raise ValueError( f'Less than {self.min_trainable_tokens} trainable tokens. Skipping sample.' )
-        
+
         if len( outputs[ 'tokens' ] ) + 1 > self.max_total_tokens:
             raise ValueError( f'More than {self.max_total_tokens} total tokens. Skipping sample.' )
 
@@ -209,7 +209,7 @@ class SteerInstructionFormatter( InstructionFormatter ):
         targets = outputs[ 'tokens' ] + [ self.tokenizer.eos_token_id ]
         train_mask = outputs[ 'train_mask' ] + [ False ]
         test_mask = outputs[ 'test_mask' ] + [ False ]
-        
+
         segment_mask = np.array( [ False ] + outputs[ 'train_mask' ] )
         segment_pos = list( segment_mask.cumsum() * segment_mask )
 
