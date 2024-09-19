@@ -69,7 +69,7 @@ def modify_dicts(
                 setattr( model_config, model_key, value )
             else:
                 assert isinstance( value, dict )
-                
+
                 if model_config.pooler_config:
                     for dk, dv in value.items():
                         getattr( model_config.pooler_config, dk )
@@ -84,7 +84,7 @@ def modify_dicts(
         if dph_key is not None and dph_config is not None:
             getattr( dph_config, dph_key )
             setattr( dph_config, dph_key, value )
-        
+
         if steer_key is not None and steer_config is not None:
             getattr( steer_config, steer_key )
             setattr( steer_config, steer_key, value )
@@ -142,7 +142,7 @@ def add_special_tokens( tokenizer: PreTrainedTokenizerBase ):
     tokenizer.add_tokens( [ '<|im_start|>', '<|im_end|>' ], special_tokens=True )
     tokenizer.sep_token = '<|im_start|>'
     tokenizer.cls_token = '<|im_end|>'
-    
+
     tokenizer.chat_template = (
         "{% for message in messages %}"
             "{% if loop.first %}"
@@ -262,40 +262,50 @@ def compute_stats_dict( trainer: Trainer, i: int, true_samples: int | None ) -> 
 @torch.no_grad()
 def compute_pooler_stats_dict( model: LSWTForDPH ):
     stats_dict = {}
-    
+
     pooler_config: LSWTPoolerConfig = model.config.pooler_config
-    
-    
+
+
     # Layer weighted sum graph
     if pooler_config.layer_pooling == 'weighted_sum':
         assert not isinstance( pooler_config.layer_select, int )
         assert model.pooler.layer_weighting is not None
-        
+
         layer_weights = list( model.pooler.layer_weighting.detach().softmax( 0 ).mean( [ 1, 2, 3 ] ).cpu().numpy() )
-        
+
         for i, layer_idx in enumerate( pooler_config.layer_select ):
             stats_dict[ f'pooler/layer_weights/{layer_idx}' ] = layer_weights[i]
-        
-        
+
+    # Layer weighted bidirectional sum graph
+    elif pooler_config.layer_pooling == 'weighted_sum_bi':
+        assert not isinstance( pooler_config.layer_select, int )
+        assert model.pooler.layer_weighting is not None
+
+        weighting = model.pooler.layer_weighting / model.pooler.layer_weighting.sum( 0, keepdim=True )
+        layer_weights = list( weighting.mean( [ 1, 2, 3 ] ).cpu().numpy() )
+        for i, layer_idx in enumerate( pooler_config.layer_select ):
+            stats_dict[ f'pooler/layer_weights/{layer_idx}' ] = layer_weights[i]
+
+
     # EMA histogram
     if pooler_config.token_pooling == 'ema':
         assert model.pooler.ema_beta is not None
         assert model.pooler.ema_weight is not None
-        
+
         sigmoids = torch.sigmoid( model.pooler.ema_beta + model.pooler.ema_weight ).flatten()
         sigmoids = list( sigmoids.detach().cpu().numpy() )
-        
+
         stats_dict[ 'pooler/ema/betas' ] = wandb.Histogram( sigmoids )
-    
-    
-    # Token rotation orthogonality graph 
+
+
+    # Token rotation orthogonality graph
     if pooler_config.token_pooling_rotation:
         assert model.pooler.token_rotate is not None
-        
+
         Q = model.pooler.token_rotate.weight
         stats_dict[ 'pooler/rotate/ortho' ] = torch.dist( Q.T @ Q, torch.eye( Q.size( 1 ) ).to( device=Q.device ) ).item()
-    
-    
+
+
     # Token gate weight and bias
     if model.pooler.token_gate is not None:
         decay_weight, sustain_weight = model.pooler.token_gate.weight.data.chunk( 2, dim=0 )
@@ -303,17 +313,17 @@ def compute_pooler_stats_dict( model: LSWTForDPH ):
         sustain_weight = sustain_weight.flatten().cpu().numpy()
         stats_dict[ 'pooler/token_gate/decay_weight' ] = wandb.Histogram( list( decay_weight ) )
         stats_dict[ 'pooler/token_gate/sustain_weight' ] = wandb.Histogram( list( sustain_weight ) )
-        
+
         if model.pooler.token_gate.bias is not None:
             decay_bias, sustain_bias = model.pooler.token_gate.bias.data.chunk( 2, dim=0 )
             decay_bias = decay_bias.flatten().cpu().numpy()
             sustain_bias = sustain_bias.flatten().cpu().numpy()
             stats_dict[ 'pooler/token_gate/decay_bias' ] = wandb.Histogram( list( decay_bias ) )
             stats_dict[ 'pooler/token_gate/sustain_bias' ] = wandb.Histogram( list( sustain_bias ) )
-    
-    
+
+
     return stats_dict
-        
+
 
 def parse_cmd_args() -> tuple[argparse.Namespace, dict]:
     argparser = argparse.ArgumentParser()
@@ -340,7 +350,7 @@ def parse_cmd_args() -> tuple[argparse.Namespace, dict]:
         type=parse_options,
         help='Key value pairs to overwrite config parameters. Uses format `<key>:<value>,<key>:<value>,...`'
     )
-    
+
     # Additional tag(s) argument
     argparser.add_argument(
         '-t',
@@ -358,7 +368,7 @@ def parse_cmd_args() -> tuple[argparse.Namespace, dict]:
     # If params are passed, update config
     if arguments.params is not None:
         config.update( arguments.params )
-    
+
     return arguments, config
 
 
@@ -378,7 +388,7 @@ def parse_yaml_config( files: list[str] ) -> dict:
             for outer_k, outer_v in d.items()
             for inner_k, inner_v in outer_v.items()
         }
-    
+
     def nested_update(d, u):
         for k, v in u.items():
             if isinstance(v, Mapping):
@@ -502,7 +512,7 @@ def create_train_tasks( sft_mix: dict[str, float] ) -> TaskList:
         ( DIRECTORY_ALL[task[0]][task[1]]( HF_CACHE_DIR ), weight )
         for task, weight in sft_list
     ]
-    
+
 def create_generation_config( tokenizer: PreTrainedTokenizerBase ) -> GenerationConfig:
     """ Creates the default geneartion config with Typical sampling for LSWT.
 
@@ -512,18 +522,18 @@ def create_generation_config( tokenizer: PreTrainedTokenizerBase ) -> Generation
     Returns:
         GenerationConfig: The generation config.
     """
-    
+
     config = GenerationConfig(
         pad_token_id=tokenizer.pad_token_id,
         eos_token_id=[
             tokenizer.cls_token_id,
             tokenizer.eos_token_id,
         ],
-        
+
         do_sample=True,
         typical_p=0.95,
     )
-    
+
     return config
 
 def create_validation_prompts( tokenizer: PreTrainedTokenizerBase ): # TODO: refactor?
@@ -535,7 +545,7 @@ def create_validation_prompts( tokenizer: PreTrainedTokenizerBase ): # TODO: ref
                 tokenize=True,
             )
         }
-        
+
     return concatenate_datasets( [
         load_awesome_prompts( HF_CACHE_DIR ), # type: ignore
         load_savvas_prompts()
@@ -544,15 +554,15 @@ def create_validation_prompts( tokenizer: PreTrainedTokenizerBase ): # TODO: ref
 def perform_prompt_validation( ds, tokenizer: PreTrainedTokenizerBase, model ): # TODO: refactor?
     with torch.inference_mode():
         model.eval()
-        
+
         columns = [ 'Title', 'Prompt', 'Completion' ]
         data = []
-        
+
         for doc in ds:
             title = doc[ 'act' ]
             prompt = doc[ 'prompt' ]
             tokens = doc[ 'tokens' ]
-            
+
             with torch.autocast( device_type='cuda', dtype=torch.bfloat16 if model.config.use_bfloat16 else torch.float16 ): # type: ignore
                 response = tokenizer.decode(
                     model.generate(
@@ -562,9 +572,9 @@ def perform_prompt_validation( ds, tokenizer: PreTrainedTokenizerBase, model ): 
                     )[0, len( tokens ) : ].cpu(),
                     skip_special_tokens=True
                 )
-            
+
             data.append( [ title, prompt, response ] )
-    
+
     torch.cuda.empty_cache()
-    
+
     return wandb.Table( columns=columns, data=data )

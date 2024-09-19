@@ -17,22 +17,22 @@ from transformers import PretrainedConfig
 
 class LSWTPoolerConfig( PretrainedConfig ):
     model_type = "lsw_transformer_pooler"
-    
+
     def __init__(
         self,
-        
+
         reward_heads: Sequence[str] | None = None,
         reward_head_bias: bool = False,
-        
+
         embedding_size: int | None = None,
-        
+
         embedding_dropout=0.0,
         layer_dropout=0.0,
         intermediate_dropout=0.0,
-        
-        layer_pooling: Literal['layer', 'mean', 'weighted_sum'] = 'layer',
+
+        layer_pooling: Literal['layer', 'mean', 'weighted_sum', 'weighted_sum_bi'] = 'layer',
         layer_pooling_norm: Literal['pre', 'post', 'both', None] = None,
-        
+
         token_pooling: Literal['cls', 'max', 'mean', 'sgpt', 'ema'] = 'cls',
         token_pooling_norm: Literal['pre', 'post', 'both', None] = None,
         token_pooling_ema_beta: float | None = None,
@@ -42,38 +42,38 @@ class LSWTPoolerConfig( PretrainedConfig ):
         token_pooling_rotation_expansion: int | Literal['ffn'] | None = None,
         token_pooling_gate: bool | None = None,
         token_pooling_gate_bias: bool | None = None,
-        
+
         pooler_function: Literal['identity', 'projection'] = 'identity',
         pooler_activation: str | None = None,
         pooler_activation_gated=False,
-        
+
         layer_select: int | Sequence[int] = -1,
-        
+
         prefix_sizes: dict[str, int] | None = None,
-        
+
         **kwargs
     ):
-        
+
         super().__init__( **kwargs )
-        
+
         self.reward_heads = reward_heads
         self.reward_head_bias = reward_head_bias
-        
+
         self.embedding_size = embedding_size
-        
+
         self.embedding_dropout = embedding_dropout
         self.layer_dropout = layer_dropout
         self.intermediate_dropout = intermediate_dropout
-        
+
         self.pooler_function = pooler_function
         self.pooler_activation = pooler_activation
         self.pooler_activation_gated = pooler_activation_gated
-        
+
         self.layer_select = layer_select
-        
+
         self.layer_pooling = layer_pooling
         self.layer_pooling_norm = layer_pooling_norm
-        
+
         self.token_pooling = token_pooling
         self.token_pooling_norm = token_pooling_norm
         self.token_pooling_ema_beta = token_pooling_ema_beta
@@ -83,56 +83,56 @@ class LSWTPoolerConfig( PretrainedConfig ):
         self.token_pooling_rotation_expansion = token_pooling_rotation_expansion
         self.token_pooling_gate = token_pooling_gate
         self.token_pooling_gate_bias = token_pooling_gate_bias
-        
+
         if prefix_sizes is None:
             prefix_sizes = {
                 'system': 3,
                 'user': 3,
                 'assistant': 4,
             }
-        
+
         self.prefix_sizes = prefix_sizes
-        
+
         if ( layer_pooling == 'layer' ) ^ ( isinstance( layer_select, int ) ):
             raise ValueError( 'layer_select must be an int when layer_pooling is `layer`' )
-                
+
         if pooler_function == 'identity':
             if self.embedding_size is not None:
                 raise ValueError( 'embedding_size must be unset for pooler_function=`identity`' )
-            
+
             if self.pooler_activation is not None:
                 raise ValueError( 'pooler_activation must be unset for pooler_function=`identity`' )
-        
+
         elif pooler_function in [ 'projection', 'sae' ]:
             if self.embedding_size is None:
                 raise ValueError( f'embedding_size must be set for pooler_function=`{pooler_function}`' )
-            
+
             if self.pooler_activation is None:
                 raise ValueError( f'pooler_activation must be set for pooler_function=`{pooler_function}`' )
-        
+
         else:
             raise ValueError( 'Invalid pooler_function type' )
-        
+
         if ( token_pooling == 'ema' ) ^ ( isinstance( token_pooling_ema_beta, float ) ):
             raise ValueError( 'token_pooling_ema_beta must be a float if and only if token_pooling=`ema`' )
-        
+
         if ( token_pooling == 'ema' ) ^ ( isinstance( token_pooling_rotation_expansion, int ) ):
             raise ValueError( 'token_pooling_rotation_expansion must be a int if and only if token_pooling=`ema`' )
-        
+
         if ( token_pooling != 'ema' ) and token_pooling_ema_beta_learnable:
             raise ValueError( 'token_pooling_ema_beta_learnable can only be set when token_pooling=`ema`' )
-        
+
         if ( token_pooling_ema_beta_learnable != 'activation' ) and isinstance( token_pooling_rotation, bool ):
             raise ValueError( 'token_pooling_rotation can only be true if token_pooling_ema_beta_learnable=`activation`' )
-        
+
         if ( token_pooling == 'ema' ) ^ isinstance( token_pooling_gate, bool ):
             raise ValueError( 'token_pooling_gate cannot be set when token_pooling != `ema`' )
-        
+
         if  not token_pooling_rotation and token_pooling_rotation_expansion is not None:
             raise ValueError( 'token_pooling_rotation_expansion != 1 can only be set when token_pooling_rotation is true')
-        
+
         # TODO: assertions for token_pooling_inverse_rotate
-            
+
 
 class LSWTConfig( PretrainedConfig ):
     """
@@ -200,7 +200,7 @@ class LSWTConfig( PretrainedConfig ):
         recompute_kv=False,
 
         parent_embeddings='facebook/opt-125m',
-        
+
         pooler_config: dict | LSWTPoolerConfig | None = None,
 
         **kwargs,
@@ -274,7 +274,7 @@ class LSWTConfig( PretrainedConfig ):
 
         # Auxilary attention sinking registers
         self.n_registers = n_registers
-        
+
         self.hidden_act = hidden_act
 
         # Gating settings
@@ -312,7 +312,7 @@ class LSWTConfig( PretrainedConfig ):
 
         # Parent embeddings
         self.parent_embeddings = parent_embeddings
-        
+
         if isinstance( pooler_config, dict ):
             self.pooler_config = LSWTPoolerConfig( **pooler_config )
         elif pooler_config is None:
@@ -368,7 +368,7 @@ class LSWTConfigTraining():
 
         loss_objective: Literal['MLE', 'SimCTG'] = 'MLE',
         loss_sim_margin=0.5,
-        
+
         ortho_params: Sequence[str] = ( 'token_rotate.weight', ),
         ortho_beta: float = 1.0,
         ortho_norm_p: float | str = 2,
@@ -431,7 +431,7 @@ class LSWTConfigTraining():
         # Learning objective
         self.loss_objective=loss_objective
         self.loss_sim_margin=loss_sim_margin
-        
+
         # Orthogonalisation
         self.ortho_params = ortho_params
         self.ortho_beta = ortho_beta
@@ -474,12 +474,12 @@ class LSWTConfigTrainingDPH():
         dpo_epsilon=0.1,
         dpo_average_logprobs=False,
         dpo_weight=1.0,
-        
+
         orpo_enabled=False,
         orpo_alpha_orpo=0.25,
         orpo_alpha_mle=1.0,
         orpo_weight=1.0,
-        
+
         kl_enabled=False,
         kl_pn_ratio=0.5,
         kl_penalty=0.2,
@@ -503,12 +503,12 @@ class LSWTConfigTrainingDPH():
             dpo_epsilon (float, optional): Label smoothing parameter for DPO objective. Defaults to 0.1.
             dpo_average_logprobs (bool, optional): When True uses average logprobs instead of sum. Defaults to False.
             dpo_weight (float, optional): Loss strength of DPO. Defaults to 1.0.
-            
+
             orpo_enabled (bool, optional): If ORPO should be enabled. Defaults to True.
             orpo_alpha_orpo (float, optional): ORPO weigh coefficient. Defaults to 0.25.
             orpo_alpha_mle (float, optional): MLE weight coefficient. Defaults to 1.0.
             orpo_weight (float, optional): Loss strength for combined ORPO+MLE. Defaults to 1.0.
-            
+
             kl_enabled (bool, optional): If KLPairsLoss should be enabled. Defaults to false.
             kl_pn_ratio (float, optional): Postive to negative penalty ratio. 1=only positive penalty, 0=only negative penalty, 0.5=balanced penalty. Defaults to 0.5.
             kl_penalty (float, optional): The KL Penalty to apply *after* balancing postive and negative examples. Defaults to 0.2.
@@ -518,7 +518,7 @@ class LSWTConfigTrainingDPH():
             dph_epsilon (float, optional): Label smoothing parameter for DPH objective. Defaults to 0.1.
             dph_penalty (float, optional): L2 penalty coefficient for DPH. Defaults to 0.1.
             dph_weight (float, optional): Loss strength of DPH. Defaults to 1.0.
-            
+
             dph_decay_init (bool, optional): When true swaps weight decay with prior regularization. Defaults to False.
             dph_weight_decay (float, optional): The weight decay (or prior regularization) coefficient. Defaults to 0.1.
         """
@@ -528,12 +528,12 @@ class LSWTConfigTrainingDPH():
         self.dpo_epsilon = dpo_epsilon
         self.dpo_average_logprobs = dpo_average_logprobs
         self.dpo_weight = dpo_weight
-        
+
         self.orpo_enabled = orpo_enabled
         self.orpo_alpha_orpo = orpo_alpha_orpo
         self.orpo_alpha_mle = orpo_alpha_mle
         self.orpo_weight = orpo_weight
-        
+
         self.kl_enabled = kl_enabled
         self.kl_pn_ratio = kl_pn_ratio
         self.kl_penalty = kl_penalty
@@ -552,10 +552,10 @@ class LSWTConfigTrainingDPH():
         # DPO Assertions
         if self.dpo_beta < 0:
             raise ValueError( f'DPO beta must be at least 0.0, but received {self.dpo_beta}' )
-        
+
         if not ( 0.0 <= self.dpo_epsilon <= 0.5 ):
             raise ValueError( f'DPO epsilon must be in range [0.0,0.5], but received {self.dpo_epsilon}' )
-        
+
         if self.dpo_weight < 0:
             raise ValueError( f'DPO weight must be at least 0.0, but received {self.dpo_weight}' )
 
@@ -563,10 +563,10 @@ class LSWTConfigTrainingDPH():
         # ORPO Assertions
         if self.orpo_alpha_mle < 0:
             raise ValueError( f'ORPO MLE alpha must be at least 0.0, but received {self.orpo_alpha_mle}' )
-        
+
         if self.orpo_alpha_orpo < 0:
             raise ValueError( f'ORPO Odds alpha must be at least 0.0, but received {self.orpo_alpha_orpo}' )
-        
+
         if self.orpo_weight < 0:
             raise ValueError( f'ORPO weight must be at least 0.0, but received {self.orpo_weight}' )
 
@@ -574,10 +574,10 @@ class LSWTConfigTrainingDPH():
         # KL Assertions
         if not ( 0.0 <= self.kl_pn_ratio <= 1.0 ):
             raise ValueError( f'KL p-n ration must be in range [0.0,1.0], but received {self.kl_pn_ratio}' )
-        
+
         if self.kl_penalty < 0:
             raise ValueError( f'KL penalty must be at least 0.0, but receive {self.kl_penalty}' )
-        
+
         if self.kl_weight < 0:
             raise ValueError( f'KL weight must be at least 0.0, but received {self.kl_weight}' )
 
@@ -585,10 +585,10 @@ class LSWTConfigTrainingDPH():
         # DPH Assertions
         if not ( 0.0 <= self.dph_epsilon <= 0.5 ):
             raise ValueError( f'DPH epsilon must be in range [0.0,0.5], but received {self.dph_epsilon}' )
-        
+
         if self.dph_penalty < 0:
             raise ValueError( f'DPH L2 penalty must be at least 0.0, but receive {self.dph_penalty}' )
-        
+
         if self.dph_weight < 0:
             raise ValueError( f'DPH weight must be at least 0.0, but received {self.dph_weight}' )
 
@@ -614,7 +614,7 @@ class LSWTConfigTrainingDPH():
 
     def __repr__( self ):
         return f'{self.__class__.__name__} {self.to_json_string()}'
-    
+
     @property
     def requires_reference_model( self ):
         return self.dpo_enabled or self.kl_enabled
@@ -623,36 +623,36 @@ class LSWTConfigTrainingDPH():
 class LSWTConfigTrainingSteer():
     def __init__(
         self,
-        
+
         kl_enabled=False,
         kl_penalty=0.2,
         kl_weight=1.0,
-        
+
         sae_enabled=False,
         sae_weight=1.0,
         sae_l1_coef=0.1,
         sae_l2_coef=1.0,
-        
+
         dph_weight=1.0,
 
         dph_decay_init=False,
         dph_weight_decay=0.1,
         dph_lr_multiplier=1.0,
         dph_decay_mask: Sequence[str] = ( 'norm', 'bias', 'ema', 'layer_weighting', 'token_rotate' ),
-        
+
         label_keys: Sequence[str] = (),
-        
+
         num_probes: int = 16,
     ):
         """ LSW Transformer config class
 
         Args:
         """
-        
+
         self.kl_enabled = kl_enabled
         self.kl_penalty = kl_penalty
         self.kl_weight = kl_weight
-        
+
         self.sae_enabled = sae_enabled
         self.sae_weight = sae_weight
         self.sae_l1_coef = sae_l1_coef
@@ -664,19 +664,19 @@ class LSWTConfigTrainingSteer():
         self.dph_weight_decay = dph_weight_decay
         self.dph_lr_multiplier = dph_lr_multiplier
         self.dph_decay_mask = dph_decay_mask
-        
+
         self.label_keys = label_keys
         self.num_probes = num_probes
 
-        # KL Assertions        
+        # KL Assertions
         if self.kl_penalty < 0:
             raise ValueError( f'KL penalty must be at least 0.0, but receive {self.kl_penalty}' )
-        
+
         if self.kl_weight < 0:
             raise ValueError( f'KL weight must be at least 0.0, but received {self.kl_weight}' )
 
 
-        # DPH Assertions        
+        # DPH Assertions
         if self.dph_weight < 0:
             raise ValueError( f'DPH weight must be at least 0.0, but received {self.dph_weight}' )
 
@@ -702,7 +702,7 @@ class LSWTConfigTrainingSteer():
 
     def __repr__( self ):
         return f'{self.__class__.__name__} {self.to_json_string()}'
-    
+
     @property
     def requires_reference_model( self ):
         return self.kl_enabled

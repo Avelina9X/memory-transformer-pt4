@@ -511,6 +511,10 @@ class LSWTPooler( torch.nn.Module ):
             assert not isinstance( pooler_config.layer_select, int )
             self.layer_weighting = torch.nn.Parameter( torch.empty( len( pooler_config.layer_select ), 1, 1, 1 ), requires_grad=True )
             self.layer_weighting.data.fill_( 0.0 )
+        elif pooler_config.layer_pooling == 'weighted_sum_bi':
+            assert not isinstance( pooler_config.layer_select, int )
+            self.layer_weighting = torch.nn.Parameter( torch.empty( len( pooler_config.layer_select ), 1, 1, 1 ), requires_grad=True )
+            self.layer_weighting.data.fill_( 1.0 )
         else:
             self.layer_weighting = None
 
@@ -618,6 +622,26 @@ class LSWTPooler( torch.nn.Module ):
                 states = (
                     states *
                     self.layer_weighting.softmax( 0 ) *
+                    self.layer_dropout( drop_mask )
+                ).sum( 0 )
+
+            case 'weighted_sum_bi':
+                assert self.layer_weighting is not None
+
+                drop_mask = torch.ones(
+                    states.size( 0 ),
+                    states.size( 1 ),
+                    1,
+                    1,
+                    dtype=states.dtype,
+                    device=states.device
+                )
+
+                weighting = self.layer_weighting / self.layer_weighting.sum( 0, keepdim=True )
+
+                states = (
+                    states *
+                    weighting *
                     self.layer_dropout( drop_mask )
                 ).sum( 0 )
 
