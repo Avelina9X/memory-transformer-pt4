@@ -68,7 +68,7 @@ class Trainer(): # pylint: disable=R0902
 
         self.optimizer = self._load_optimizer()
         self.optimizer_scaler = torch.cuda.amp.GradScaler() # type: ignore
-        
+
         self.orthogonalize = self._load_ortho()
 
         self.batch_groups = train_config.batch_size // train_config.batch_size_step
@@ -83,7 +83,7 @@ class Trainer(): # pylint: disable=R0902
             'loss': metrics.Mean().to( 'cuda' ),
             'acc': metrics.Mean().to( 'cuda' ),
         }
-        
+
         self.sequence_counter = metrics.Sum().to( 'cuda' )
 
         self.optimizer_step = 0
@@ -134,13 +134,13 @@ class Trainer(): # pylint: disable=R0902
             )
 
         raise ValueError( 'Invalid optimizer' )
-    
+
     def _load_ortho( self ):
         params = [
             p for name, p in self.model.named_parameters()
             if any( i in name for i in self.train_config.ortho_params )
         ]
-        
+
         return Ortho( params, self.train_config.ortho_beta, self.train_config.ortho_norm_p )
 
     def _load_loss_function( self ) -> torch.nn.Module:
@@ -212,7 +212,7 @@ class Trainer(): # pylint: disable=R0902
         cooldown_ratio = cooldown_ratio * ( 1.0 - self.train_config.lr_cooldown_ratio ) + self.train_config.lr_cooldown_ratio
 
         return min( warmup_ratio, cooldown_ratio )
-    
+
     def get_sequence_count( self ) -> int:
         return int( self.sequence_counter.compute() )
 
@@ -282,8 +282,9 @@ class Trainer(): # pylint: disable=R0902
         self.optimizer_step += 1
 
         reg_loss = self.orthogonalize.compute_loss()
-        self.optimizer_scaler.scale( reg_loss ).backward()
-        
+        if reg_loss is not None:
+            self.optimizer_scaler.scale( reg_loss ).backward()
+
         for p_group in self.optimizer.param_groups:
             p_group[ 'lr' ] = self.get_schedule() * self.train_config.lr_max
 
@@ -294,13 +295,13 @@ class Trainer(): # pylint: disable=R0902
         self.optimizer_scaler.step( self.optimizer )
         self.optimizer_scaler.update()
         self.optimizer.zero_grad()
-        
+
 
     def train_batch_step( self, batch ):
         self.model.train()
 
         tokens_xs, tokens_ys = batch
-        
+
         self.sequence_counter.update( ( tokens_xs == self.tokenizer.bos_token_id ).sum() )
 
         tokens_xs = torch.split( tokens_xs.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
@@ -422,7 +423,7 @@ class TrainerDDP( Trainer ):
                 dir_pattern=PILE_PATH_PATTERN,
                 pile_shards=list( range( self.ddp_rank, self.dataset_shards, self.ddp_world_size ) )
             ).as_data_loader()
-        
+
         if dataset is None:
             return None
 
@@ -443,7 +444,7 @@ class TrainerDDP( Trainer ):
             dist.barrier()
             metric.reset()
         return stats
-    
+
     def get_sequence_count( self ) -> int:
         return int( sync_and_compute( self.sequence_counter ) )
 
@@ -456,7 +457,7 @@ class TrainerDDP( Trainer ):
         self.model.train()
 
         tokens_xs, tokens_ys = batch
-        
+
         self.sequence_counter.update( ( tokens_xs == self.tokenizer.bos_token_id ).sum() )
 
         tokens_xs = torch.split( tokens_xs.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
@@ -532,7 +533,7 @@ class DPHTrainer():
 
         self.optimizer = self._load_optimizer()
         self.optimizer_scaler = torch.cuda.amp.GradScaler() # type: ignore
-        
+
         self.orthogonalize = self._load_ortho()
 
         self.batch_groups = train_config.batch_size // train_config.batch_size_step
@@ -542,7 +543,7 @@ class DPHTrainer():
             label_smoothing=dph_config.dpo_epsilon,
             average_logprobs=dph_config.dpo_average_logprobs
         )
-        
+
         self.orpo_loss = ORPOLoss(
             alpha_orpo=dph_config.orpo_alpha_orpo,
             alpha_mle=dph_config.orpo_alpha_mle,
@@ -554,7 +555,7 @@ class DPHTrainer():
             contrastive=dph_config.dph_contrastive,
             penalty=dph_config.dph_penalty,
         )
-        
+
         self.kl_loss = KLPairsLoss(
             pn_ratio=dph_config.kl_pn_ratio,
             penalty=dph_config.kl_penalty,
@@ -580,7 +581,7 @@ class DPHTrainer():
                 'dpo/accuracy': metrics.Mean().to( 'cuda' ),
                 'dpo/margin': metrics.Mean().to( 'cuda' ),
             } )
-        
+
         if dph_config.orpo_enabled:
             self.metrics.update( {
                 'loss_orpo': metrics.Mean().to( 'cuda' ),
@@ -591,7 +592,7 @@ class DPHTrainer():
                 'orpo/log_odds': metrics.Mean().to( 'cuda' ),
                 'orpo/accuracy': metrics.Mean().to( 'cuda' ),
             } )
-        
+
         if dph_config.kl_enabled:
             self.metrics.update( {
                 'loss_kl': metrics.Mean().to( 'cuda' ),
@@ -612,19 +613,19 @@ class DPHTrainer():
             self.metrics[ 'loss_dph' ].compute(),
             self.metrics[ 'dph/accuracy' ].compute(),
         )
-        
+
         if self.dph_config.dpo_enabled:
             postfix += ' | dpo={0:.3f}, dpo_acc={1:.3f}'.format(
                 self.metrics[ 'loss_dpo' ].compute(),
                 self.metrics[ 'dpo/accuracy' ].compute(),
             )
-        
+
         if self.dph_config.orpo_enabled:
             postfix += ' | orpo={0:.3f}, orpo_acc={1:.3f}'.format(
                 self.metrics[ 'loss_orpo' ].compute(),
                 self.metrics[ 'orpo/accuracy' ].compute(),
             )
-        
+
         if self.dph_config.kl_enabled:
             postfix += ' | kl={0:.3f}'.format(
                 self.metrics[ 'loss_kl' ].compute(),
@@ -661,13 +662,13 @@ class DPHTrainer():
             )
 
         raise ValueError( 'Invalid optimizer' )
-    
+
     def _load_ortho( self ):
         params = [
             p for name, p in self.model_dph.named_parameters()
             if any( i in name for i in self.train_config.ortho_params )
         ]
-        
+
         return Ortho( params, self.train_config.ortho_beta, self.train_config.ortho_norm_p )
 
 
@@ -746,7 +747,7 @@ class DPHTrainer():
             past_key_values=None,
             use_cache=False,
         )
-        
+
         # Assert that there is a CLS token ID set
         assert self.tokenizer.sep_token_id is not None
         assert self.tokenizer.cls_token_id is not None
@@ -760,11 +761,11 @@ class DPHTrainer():
         dph_pos_logits, dph_neg_logits = dph_logits.chunk( 2, dim=0 )
         # dph_pos_states, dph_neg_states = dph_states.chunk( 2, dim=0 )
 
-        
+
         # Compute the positive and negative rewards (honestly could be batched and then chunked)
         # pos_rewards = self.model_dph.pooler.forward( dph_pos_states, False, False )
         # neg_rewards = self.model_dph.pooler.forward( dph_neg_states, False, False )
-        
+
         both_rewards: DPHOutput = self.model_dph.pooler( dph_states, output_latent_states=False, compute_sae_loss=False )
         pos_rewards, neg_rewards = both_rewards.rewards[ self.reward_head_key ].chunk( 2, dim=0 )
 
@@ -801,7 +802,7 @@ class DPHTrainer():
 
     @torch.compile( **TORCH_COMPILE_OPTIONS )
     def train_sub_step( self, pos_tokens, pos_target, neg_tokens, neg_target ):
-        
+
         # Set autocast context # TODO: support bf16 in addition to fp16
         with torch.autocast( device_type='cuda', dtype=torch.bfloat16 if self.model_dph.config.use_bfloat16 else torch.float16 ):
             # Perform forward pass to get all relevant outputs
@@ -826,7 +827,7 @@ class DPHTrainer():
             else:
                 dpo_loss = torch.zeros_like( dph_loss )
                 dpo_metrics = {}
-            
+
             # If ORPO is enabled compute loss from policy model only
             if self.dph_config.orpo_enabled:
                 orpo_loss, orpo_metrics = self.orpo_loss(
@@ -838,7 +839,7 @@ class DPHTrainer():
             else:
                 orpo_loss = torch.zeros_like( dph_loss )
                 orpo_metrics = {}
-            
+
             # If KL is enabled compute loss from policy+reference models
             if self.dph_config.kl_enabled:
                 kl_loss, kl_metrics = self.kl_loss(
@@ -860,7 +861,7 @@ class DPHTrainer():
                 orpo_loss * self.dph_config.orpo_weight +
                 kl_loss * self.dph_config.kl_weight
             ) / self.batch_groups
-        
+
         # Scaled backwards pass
         self.optimizer_scaler.scale( accu_loss ).backward()
 
@@ -878,18 +879,19 @@ class DPHTrainer():
         }
 
     def train_optim_step( self ):
-        
+
         # Increment optimizer step
         self.optimizer_step += 1
 
         reg_loss = self.orthogonalize.compute_loss()
-        self.optimizer_scaler.scale( reg_loss ).backward()
-        
+        if reg_loss is not None:
+            self.optimizer_scaler.scale( reg_loss ).backward()
+
         # For all parameter groups apply LR schedule
         for p_group in self.optimizer.param_groups:
             p_group[ 'lr' ] = self.get_schedule() * self.train_config.lr_max * p_group.get( 'lr_multiplier', 1.0 )
 
-        
+
         # If gradient norm clipping is enabled perform scaling and clipping
         if self.train_config.opt_max_grad_norm > 0.0:
             self.optimizer_scaler.unscale_( self.optimizer )
@@ -899,14 +901,14 @@ class DPHTrainer():
         self.optimizer_scaler.step( self.optimizer )
         self.optimizer_scaler.update()
         self.optimizer.zero_grad()
-        
+
 
     def train_batch_step( self, batch ):
-        
+
         # Set reference model to eval state if present
         if self.dph_config.requires_reference_model:
             self.model_ref.eval()
-        
+
         # Set policy model to train state
         self.model_dph.train()
 
@@ -934,15 +936,15 @@ class DPHTrainer():
             # Update DPO loss if enabled
             if self.dph_config.dpo_enabled:
                 self.metrics[ 'loss_dpo' ].update( losses[ 'dpo' ] )
-            
+
             # Update ORPO loss if enabled
             if self.dph_config.orpo_enabled:
                 self.metrics[ 'loss_orpo' ].update( losses[ 'orpo' ] )
-            
+
             # Update KL loss if enabled
             if self.dph_config.kl_enabled:
                 self.metrics[ 'loss_kl' ].update( losses[ 'kl' ] )
-            
+
             # Update DPH loss
             self.metrics[ 'loss_dph' ].update( losses[ 'dph' ] )
 
@@ -954,7 +956,7 @@ class DPHTrainer():
         self.train_optim_step()
 
     def train_epoch( self, iterator, epoch ):
-        
+
         # Get time of epoch start
         start_time = time.time()
 
@@ -995,7 +997,7 @@ class DPHTrainerDDP( DPHTrainer ):
     ):
         self.ddp_rank = ddp_rank
         self.ddp_world_size = ddp_world_size
-        
+
         super().__init__(
             train_config,
             dph_config,
@@ -1005,32 +1007,32 @@ class DPHTrainerDDP( DPHTrainer ):
             tokenizer,
             dataset,
         )
-        
+
         # Modify batch_groups for DDP
         self.batch_groups = train_config.batch_size // ( train_config.batch_size_step * self.ddp_world_size )
-    
+
     """ ========================================================================
         Overridden Internal Utility functions
         ======================================================================== """
-    
+
     def _bar_format( self, iter_n, iter_total, elapsed, epoch ) -> str:
         postfix = 'dph={0:.3f}, dph_acc={1:.3f}'.format(
             sync_and_compute( self.metrics[ 'loss_dph' ] ),
             sync_and_compute( self.metrics[ 'dph/accuracy' ] ),
         )
-        
+
         if self.dph_config.dpo_enabled:
             postfix += ' | dpo={0:.3f}, dpo_acc={1:.3f}'.format(
                 sync_and_compute( self.metrics[ 'loss_dpo' ] ),
                 sync_and_compute( self.metrics[ 'dpo/accuracy' ] ),
             )
-        
+
         if self.dph_config.orpo_enabled:
             postfix += ' | orpo={0:.3f}, orpo_acc={1:.3f}'.format(
                 sync_and_compute( self.metrics[ 'loss_orpo' ] ),
                 sync_and_compute( self.metrics[ 'orpo/accuracy' ] ),
             )
-        
+
         if self.dph_config.kl_enabled:
             postfix += ' | kl={0:.3f}'.format(
                 sync_and_compute( self.metrics[ 'loss_kl' ] ),
@@ -1046,7 +1048,7 @@ class DPHTrainerDDP( DPHTrainer ):
             postfix=postfix,
             prefix=f'Epoch {epoch}',
         )
-    
+
     def _load_optimizer( self ) -> torch.optim.Optimizer:
         params = self.model_dph.get_param_groups(
             self.train_config.opt_decay_mask,
@@ -1069,7 +1071,7 @@ class DPHTrainerDDP( DPHTrainer ):
             )
 
         raise ValueError( 'Invalid optimizer' )
-    
+
     """ ========================================================================
         Overridden Utility functions
         ======================================================================== """
@@ -1084,17 +1086,17 @@ class DPHTrainerDDP( DPHTrainer ):
             dist.barrier()
             metric.reset()
         return stats
-    
+
     """ ========================================================================
         Overridden Training Functions
         ======================================================================== """
 
     def train_batch_step( self, batch ):
-        
+
         # Set reference model to eval state if present
         if self.dph_config.requires_reference_model:
             self.model_ref.eval()
-        
+
         # Set policy model to train state
         self.model_dph.train()
 
@@ -1112,7 +1114,7 @@ class DPHTrainerDDP( DPHTrainer ):
         # Iterate through all groups
         for idx in range( self.batch_groups ):
             self.model_dph.require_backward_grad_sync = ( idx == self.batch_groups - 1 ) # type: ignore
-            
+
             # Perform forward pass sub step on group
             losses, metrics_dict = self.train_sub_step(
                 pos_tokens=pos_tokens[idx],
@@ -1124,15 +1126,15 @@ class DPHTrainerDDP( DPHTrainer ):
             # Update DPO loss if enabled
             if self.dph_config.dpo_enabled:
                 self.metrics[ 'loss_dpo' ].update( losses[ 'dpo' ] )
-            
+
             # Update ORPO loss if enabled
             if self.dph_config.orpo_enabled:
                 self.metrics[ 'loss_orpo' ].update( losses[ 'orpo' ] )
-            
+
             # Update KL loss if enabled
             if self.dph_config.kl_enabled:
                 self.metrics[ 'loss_kl' ].update( losses[ 'kl' ] )
-            
+
             # Update DPH loss
             self.metrics[ 'loss_dph' ].update( losses[ 'dph' ] )
 
@@ -1142,12 +1144,12 @@ class DPHTrainerDDP( DPHTrainer ):
 
         # Perform optimizer update
         self.train_optim_step()
-        
+
         if self.optimizer_step <= 3:
             torch.cuda.empty_cache()
-    
+
     def train_epoch( self, iterator, epoch ):
-        
+
         # Get time of epoch start
         start_time = time.time()
 
@@ -1188,60 +1190,60 @@ class SteerTrainer():
 
         self.model_ref = model_ref
         self.model_dph = model_dph
-        
+
         self.task_loader = task_loader
         self.formatter = task_loader.formatter
         self.tokenizer = self.formatter.tokenizer
-        
+
         self.label_keys = self.task_loader.labels
-        
+
         self.optimizer = self._load_optimizer()
         self.optimizer_scaler = torch.cuda.amp.GradScaler() # type: ignore
         self.optimizer_step = 0
-        
+
         self.orthogonalize = self._load_ortho()
 
         self.batch_groups = train_config.batch_size // train_config.batch_size_step
-        
+
         self.metrics = {
             'loss_reward': metrics.Mean().to( 'cuda' )
         }
-        
+
         for key in self.label_keys:
             self.metrics[ f'reward/{key}' ] = metrics.Mean().to( 'cuda' )
-        
+
         if self.steer_config.sae_enabled:
             self.metrics[ 'loss_sae' ] = metrics.Mean().to( 'cuda' )
             self.metrics[ 'sae/l0' ] = metrics.Mean().to( 'cuda' )
             self.metrics[ 'sae/l1' ] = metrics.Mean().to( 'cuda' )
             self.metrics[ 'sae/l2' ] = metrics.Mean().to( 'cuda' )
-        
+
         if self.steer_config.kl_enabled:
             self.metrics[ 'loss_kl' ] = metrics.Mean().to( 'cuda' )
             self.metrics[ 'kl/div' ] = metrics.Mean().to( 'cuda' )
-        
-        
+
+
     """ ========================================================================
         Internal Utility functions
         ======================================================================== """
-    
+
     def _bar_format( self, iter_n, iter_total, elapsed, epoch ) -> str:
         postfix = 'reward={0:.3f}'.format(
             self.metrics[ 'loss_reward' ].compute()
         )
-        
+
         if self.steer_config.sae_enabled:
             postfix += ' | saeL0={0:.1f}, saeL1={1:.3f}, saeL2={2:.3f}'.format(
                 self.metrics[ 'sae/l0' ].compute(),
                 self.metrics[ 'sae/l1' ].compute(),
                 self.metrics[ 'sae/l2' ].compute(),
             )
-        
+
         if self.steer_config.kl_enabled:
             postfix += ' | kl={0:.3f}'.format(
                 self.metrics[ 'loss_kl' ].compute(),
             )
-            
+
         return tqdm.tqdm.format_meter(
             n=iter_n,
             total=iter_total,
@@ -1252,7 +1254,7 @@ class SteerTrainer():
             postfix=postfix,
             prefix=f'Epoch {epoch}',
         )
-    
+
     def _load_optimizer( self ) -> torch.optim.Optimizer:
         params = self.model_dph.get_param_groups(
             self.train_config.opt_decay_mask,
@@ -1273,15 +1275,15 @@ class SteerTrainer():
             )
 
         raise ValueError( 'Invalid optimizer' )
-    
+
     def _load_ortho( self ):
         params = [
             p for name, p in self.model_dph.named_parameters()
             if any( i in name for i in self.train_config.ortho_params )
         ]
-        
+
         return Ortho( params, self.train_config.ortho_beta, self.train_config.ortho_norm_p )
-    
+
     """ ========================================================================
         Utility functions
         ======================================================================== """
@@ -1333,29 +1335,29 @@ class SteerTrainer():
     """ ========================================================================
         Forward Pass
         ======================================================================== """
-    
+
     @dataclass
     class ForwardPassOutputs:
         policy_logits: torch.Tensor
         reference_logits: torch.Tensor | None
         dph_outputs: DPHOutput
-    
+
     def forward_pass( self, tokens: torch.Tensor, selected_idx: torch.Tensor ) -> ForwardPassOutputs:
 
         # Mark start of forward pass (may not be needed as we aren't using graphs)
         torch._inductor.cudagraph_mark_step_begin() # type: ignore # pylint: disable=W0212
-        
+
         # Compute outputs for positive and negative sequences
         dph_model_outputs = self.model_dph(
             input_ids=tokens,
             past_key_values=None,
             use_cache=False,
         )
-        
+
         # Assert that there is a CLS token ID set
         assert self.tokenizer.sep_token_id is not None
         assert self.tokenizer.cls_token_id is not None
-        
+
         # Get the logits and states
         dph_logits = dph_model_outputs.logits
         dph_states = self.model_dph.pooler.aggregate_states(
@@ -1365,16 +1367,16 @@ class SteerTrainer():
             self.tokenizer.cls_token_id,
             return_all=True
         )
-        
+
         assert isinstance( dph_states, dict )
         states = dph_states[ 'pooled_states' ]
-        
+
         # Get the individual states selected for this batch
         selected_states = states.gather( -2, selected_idx[ ..., None ].repeat( 1, 1, states.shape[-1] ) )
-        
+
         # Compute the rewards and optionally the SAE outputs
         dph_outputs = self.model_dph.pooler( selected_states, output_latent_states=False, compute_sae_loss=self.steer_config.sae_enabled )
-        
+
         with torch.no_grad():
             # Compute reference logits if we need a reference model (e.g. for DPO or KL)
             if self.steer_config.requires_reference_model:
@@ -1388,52 +1390,52 @@ class SteerTrainer():
                 ref_logits = ref_outputs.logits
             else:
                 ref_logits = None
-        
+
         return self.ForwardPassOutputs(
             policy_logits=dph_logits,
             reference_logits=ref_logits,
             dph_outputs=dph_outputs
         )
-    
+
     """ ========================================================================
         Training Functions
         ======================================================================== """
 
     @torch.compile( **TORCH_COMPILE_OPTIONS )
     def train_sub_step( self, tokens: torch.Tensor, targets: torch.Tensor, selected_idx: torch.Tensor, selected_weights: torch.Tensor, y_true: torch.Tensor ):
-        
+
         # Set autocast context
         with torch.autocast( device_type='cuda', dtype=torch.bfloat16 if self.model_dph.config.use_bfloat16 else torch.float16 ):
             # Perform forward pass to get all relevant outputs
             outputs = self.forward_pass( tokens, selected_idx )
-            
+
             # Create the y_pred, weight and y_true tensors
             labelled_rewards = torch.cat( [ outputs.dph_outputs.rewards[key] for key in self.label_keys ], dim=-1 ) # [ Batch, Seq, Reward ]
             reward_weights = selected_weights[ ..., None ] # [ Batch, Seq, 1 ]
             true_rewards = y_true[ :, None, : ] # [ Batch, 1, Rewards ]
-            
+
             # Compute the per attribute and overall reward losses
             reward_losses = ( ( labelled_rewards.float() - true_rewards ).square() * reward_weights ).sum( -2 ).mean( 0 )
             reward_loss = reward_losses.mean()
-            
+
             # Compute the reward metrics
             reward_metrics = {
                 f'reward/{key}': reward_losses[i].detach() for i, key in enumerate( self.label_keys )
             }
-            
+
             # If SAE is enabled compute those losses and metrics
             if self.steer_config.sae_enabled:
                 assert outputs.dph_outputs.aux_loss
-                
+
                 l1_loss = outputs.dph_outputs.aux_loss.l1_penalty
                 l2_loss = outputs.dph_outputs.aux_loss.reconstruction_loss
                 l0_loss = outputs.dph_outputs.aux_loss.sparsity
-                
+
                 sae_loss = (
                     l1_loss * self.steer_config.sae_l1_coef +
                     l2_loss * self.steer_config.sae_l2_coef
                 )
-                
+
                 sae_metrics = {
                     'sae/l0': l0_loss.detach(),
                     'sae/l1': l1_loss.detach(),
@@ -1442,21 +1444,21 @@ class SteerTrainer():
             else:
                 sae_loss = torch.zeros_like( reward_loss )
                 sae_metrics = {}
-            
-            
+
+
             # If KL is enabled compute KL
             if self.steer_config.kl_enabled:
                 assert outputs.reference_logits is not None
-                
+
                 pol_logp = F.log_softmax( outputs.policy_logits, -1, dtype=torch.float32 )
                 ref_logp = F.log_softmax( outputs.reference_logits, -1, dtype=torch.float32 )
-                
+
                 mask = targets != -100
-                
+
                 kl_div = F.kl_div( pol_logp, ref_logp, reduction='none', log_target=True ).sum( -1 )
                 kl_div = ( kl_div * mask ).sum( -1 )
                 kl_div = kl_div.mean()
-                
+
                 kl_loss = kl_div * self.steer_config.kl_penalty
                 kl_metrics = {
                     'kl/div': kl_div.detach()
@@ -1464,17 +1466,17 @@ class SteerTrainer():
             else:
                 kl_loss = torch.zeros_like( reward_loss )
                 kl_metrics = {}
-        
+
             # Compute weighted sum of losses and divide by accumulation count
             accu_loss = (
                 self.steer_config.dph_weight * reward_loss +
                 self.steer_config.sae_weight * sae_loss +
                 self.steer_config.kl_weight * kl_loss
             ) / self.batch_groups
-        
+
         # Scaled backwards pass
         self.optimizer_scaler.scale( accu_loss ).backward()
-        
+
         return {
             'loss_reward': reward_loss.detach(),
             'loss_sae': sae_loss.detach(),
@@ -1484,23 +1486,23 @@ class SteerTrainer():
             **sae_metrics,
             **kl_metrics
         }
-    
+
     def train_optim_step( self ):
-        
+
         # Increment optimizer step
         self.optimizer_step += 1
 
         # Compute ortho regularisation loss
         reg_loss = self.orthogonalize.compute_loss()
-        
+
         # If there are any ortho weights, do the backward pass
         if reg_loss is not None:
             self.optimizer_scaler.scale( reg_loss ).backward()
-        
+
         # For all parameter groups apply LR schedule
         for p_group in self.optimizer.param_groups:
             p_group[ 'lr' ] = self.get_schedule() * self.train_config.lr_max * p_group.get( 'lr_multiplier', 1.0 )
-        
+
         # If gradient norm clipping is enabled perform scaling and clipping
         if self.train_config.opt_max_grad_norm > 0.0:
             self.optimizer_scaler.unscale_( self.optimizer )
@@ -1510,26 +1512,26 @@ class SteerTrainer():
         self.optimizer_scaler.step( self.optimizer )
         self.optimizer_scaler.update()
         self.optimizer.zero_grad()
-    
+
     def train_batch_step( self, batch ):
-        
+
         # Set reference model to eval state if present
         if self.steer_config.requires_reference_model:
             self.model_ref.eval()
-        
+
         # Set policy model to train state
         self.model_dph.train()
-        
+
         # Unpack batch TODO: there has to be a better way to do this, right?
         tokens, targets, sel_idx, sel_wht, labels = batch
-        
+
         # Split into microbatches
         tokens = torch.split( tokens.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
         targets = torch.split( targets.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
         sel_idx = torch.split( sel_idx.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
         sel_wht = torch.split( sel_wht.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
         labels = torch.split( labels.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
-        
+
         # Iterate through all microbatches
         for idx in range( self.batch_groups ):
             # Perform forward pass sub step
@@ -1540,25 +1542,25 @@ class SteerTrainer():
                 selected_weights=sel_wht[idx],
                 y_true=labels[idx],
             )
-            
-            # Update losses            
+
+            # Update losses
             self.metrics[ 'loss_reward' ].update( losses[ 'loss_reward' ] )
-            
+
             if self.steer_config.sae_enabled:
                 self.metrics[ 'loss_sae' ].update( losses[ 'loss_sae' ] )
-            
+
             if self.steer_config.kl_enabled:
                 self.metrics[ 'loss_kl' ].update( losses[ 'loss_kl' ] )
-            
+
             # Update metrics
             for key, value in metrics_dict.items():
                 self.metrics[ key ].update( value )
-        
+
         # Perform optimizer update
         self.train_optim_step()
-    
+
     def train_epoch( self, iterator, epoch ):
-        
+
         # Get time of epoch start
         start_time = time.time()
 
@@ -1597,7 +1599,7 @@ class SteerTrainerDDP( SteerTrainer ):
     ):
         self.ddp_rank = ddp_rank
         self.ddp_world_size = ddp_world_size
-        
+
         super().__init__(
             train_config,
             steer_config,
@@ -1605,31 +1607,31 @@ class SteerTrainerDDP( SteerTrainer ):
             model_dph,
             task_loader,
         )
-        
+
         # Modify batch_groups for DDP
-        self.batch_groups = train_config.batch_size // ( train_config.batch_size_step * self.ddp_world_size )        
-        
+        self.batch_groups = train_config.batch_size // ( train_config.batch_size_step * self.ddp_world_size )
+
     """ ========================================================================
         Overridden Utility functions
         ======================================================================== """
-    
+
     def _bar_format( self, iter_n, iter_total, elapsed, epoch ) -> str:
         postfix = 'reward={0:.3f}'.format(
             sync_and_compute( self.metrics[ 'loss_reward' ] )
         )
-        
+
         if self.steer_config.sae_enabled:
             postfix += ' | saeL0={0:.1f}, saeL1={1:.3f}, saeL2={2:.3f}'.format(
                 sync_and_compute( self.metrics[ 'sae/l0' ] ),
                 sync_and_compute( self.metrics[ 'sae/l1' ] ),
                 sync_and_compute( self.metrics[ 'sae/l2' ] ),
             )
-        
+
         if self.steer_config.kl_enabled:
             postfix += ' | kl={0:.3f}'.format(
                 sync_and_compute( self.metrics[ 'loss_kl' ] ),
             )
-            
+
         return tqdm.tqdm.format_meter(
             n=iter_n,
             total=iter_total,
@@ -1640,7 +1642,7 @@ class SteerTrainerDDP( SteerTrainer ):
             postfix=postfix,
             prefix=f'Epoch {epoch}',
         )
-    
+
     def _load_optimizer( self ) -> torch.optim.Optimizer:
         params = self.model_dph.get_param_groups(
             self.train_config.opt_decay_mask,
@@ -1663,7 +1665,7 @@ class SteerTrainerDDP( SteerTrainer ):
             )
 
         raise ValueError( 'Invalid optimizer' )
-    
+
     """ ========================================================================
         Utility functions
         ======================================================================== """
@@ -1678,34 +1680,34 @@ class SteerTrainerDDP( SteerTrainer ):
             dist.barrier()
             metric.reset()
         return stats
-    
+
     """ ========================================================================
         Training Functions
         ======================================================================== """
-    
+
     def train_batch_step( self, batch ):
-        
+
         # Set reference model to eval state if present
         if self.steer_config.requires_reference_model:
             self.model_ref.eval()
-        
+
         # Set policy model to train state
         self.model_dph.train()
-        
+
         # Unpack batch TODO: there has to be a better way to do this, right?
         tokens, targets, sel_idx, sel_wht, labels = batch
-        
+
         # Split into microbatches
         tokens = torch.split( tokens.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
         targets = torch.split( targets.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
         sel_idx = torch.split( sel_idx.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
         sel_wht = torch.split( sel_wht.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
         labels = torch.split( labels.to( device='cuda', non_blocking=True ), self.train_config.batch_size_step )
-        
+
         # Iterate through all microbatches
         for idx in range( self.batch_groups ):
             self.model_dph.require_backward_grad_sync = ( idx == self.batch_groups - 1 ) # type: ignore
-            
+
             # Perform forward pass sub step
             losses, metrics_dict = self.train_sub_step(
                 tokens=tokens[idx],
@@ -1714,49 +1716,49 @@ class SteerTrainerDDP( SteerTrainer ):
                 selected_weights=sel_wht[idx],
                 y_true=labels[idx],
             )
-            
-            # Update losses            
+
+            # Update losses
             self.metrics[ 'loss_reward' ].update( losses[ 'loss_reward' ] )
-            
+
             if self.steer_config.sae_enabled:
                 self.metrics[ 'loss_sae' ].update( losses[ 'loss_sae' ] )
-            
+
             if self.steer_config.kl_enabled:
                 self.metrics[ 'loss_kl' ].update( losses[ 'loss_kl' ] )
-            
+
             # Update metrics
             for key, value in metrics_dict.items():
                 self.metrics[ key ].update( value )
-        
+
         # Perform optimizer update
         self.train_optim_step()
-        
+
         if self.optimizer_step <= 3:
             torch.cuda.empty_cache()
-    
+
     def train_epoch( self, iterator, epoch ):
-        
+
         # Get time of epoch start
         start_time = time.time()
 
         # For all batches in epoch perform step and update progress bar
         for batch in range( self.train_config.batches_per_epoch ):
             self.train_batch_step( next( iterator ) )
-            
-            if np.isnan( sync_and_compute( self.metrics[ 'loss_reward' ] ).item() ):                    
+
+            if np.isnan( sync_and_compute( self.metrics[ 'loss_reward' ] ).item() ):
                 if self.ddp_rank == 0: print( 'Metrics:' )
                 for key, value in self.metrics.items():
                     val = sync_and_compute( value )
                     if self.ddp_rank == 0: print( f'{key}: {val}' )
                 if self.ddp_rank == 0: print()
-                
+
                 if self.ddp_rank == 0: print( 'Params:' )
                 with torch.no_grad():
                     for name, param in self.model_dph.named_parameters():
                         if param.requires_grad:
                             nanp = torch.isnan( param ) / param.numel()
                             infp = torch.isinf( param ) / param.numel()
-                        
+
                             if self.ddp_rank == 0: print( f'{name}: nan={nanp}% inf={infp}%' )
                 if self.ddp_rank == 0: exit( 1 )
 
