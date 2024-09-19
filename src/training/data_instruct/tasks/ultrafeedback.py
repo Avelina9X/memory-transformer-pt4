@@ -8,13 +8,15 @@ class UltrafeedbackInstructDataset( BaseInstructDataset ):
     def __init__( self, cache_dir: str, version: str ):
         self.version = version
         super().__init__( cache_dir )
-        
-    def download( self, cache_dir: str ) -> DatasetDict:        
+
+    def download( self, cache_dir: str ) -> DatasetDict:
         if self.version == 'binarized':
             dataset = load_dataset( 'argilla/ultrafeedback-binarized-preferences-cleaned', cache_dir=cache_dir )
         elif self.version == 'multi-binarized':
             dataset = load_dataset( 'argilla/ultrafeedback-multi-binarized-preferences-cleaned', cache_dir=cache_dir )
-        
+        else:
+            raise ValueError( f'Invalid dataset version `{self.version}`' )
+
         assert isinstance( dataset, DatasetDict )
         return dataset.filter( lambda x: json.dumps( x[ 'rejected' ], sort_keys=True ) != json.dumps( x[ 'chosen' ], sort_keys=True ) )
 
