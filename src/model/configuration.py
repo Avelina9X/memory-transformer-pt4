@@ -494,6 +494,8 @@ class LSWTConfigTrainingDPH():
         dph_weight_decay=0.1,
         dph_lr_multiplier=1.0,
         dph_decay_mask: Sequence[str] = ( 'norm', 'bias', 'ema', 'layer_weighting', 'token_rotate' ),
+        
+        opt_split_norm=False,
     ):
         """ LSW Transformer config class
 
@@ -548,6 +550,8 @@ class LSWTConfigTrainingDPH():
         self.dph_weight_decay = dph_weight_decay
         self.dph_lr_multiplier = dph_lr_multiplier
         self.dph_decay_mask = dph_decay_mask
+        
+        self.opt_split_norm = opt_split_norm
 
         # DPO Assertions
         if self.dpo_beta < 0:
@@ -643,6 +647,8 @@ class LSWTConfigTrainingSteer():
         label_keys: Sequence[str] = (),
 
         num_probes: int = 16,
+        
+        opt_split_norm=False,
     ):
         """ LSW Transformer config class
 
@@ -667,6 +673,8 @@ class LSWTConfigTrainingSteer():
 
         self.label_keys = label_keys
         self.num_probes = num_probes
+        
+        self.opt_split_norm = opt_split_norm
 
         # KL Assertions
         if self.kl_penalty < 0:

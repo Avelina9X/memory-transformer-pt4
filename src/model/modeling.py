@@ -922,6 +922,14 @@ class LSWTForDPH( LSWTForCausalLM ):
             { 'params': dph_decay_params, 'decay_init': dph_decay_init, 'weight_decay': dph_weight_decay, 'lr_multiplier': dph_lr_multiplier },
             { 'params': dph_non_decay_params, 'decay_init': dph_decay_init, 'weight_decay': 0.0, 'lr_multiplier': dph_lr_multiplier },
         ]
+    
+    def parameters_split( self, pooler: bool ):
+        def check_dph( p ):
+            for pp in self.pooler.parameters():
+                if p is pp:
+                    return True
+        
+        return [ p for p in self.parameters() if p.requires_grad and ( check_dph( p ) == pooler ) ]
 
 
 class WrappedLSWTForDPH( LSWTForDPH ):

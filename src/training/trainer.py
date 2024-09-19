@@ -895,7 +895,12 @@ class DPHTrainer():
         # If gradient norm clipping is enabled perform scaling and clipping
         if self.train_config.opt_max_grad_norm > 0.0:
             self.optimizer_scaler.unscale_( self.optimizer )
-            torch.nn.utils.clip_grad_norm_( self.model_dph.parameters(), self.train_config.opt_max_grad_norm ) # type: ignore
+            
+            if self.dph_config.opt_split_norm:
+                torch.nn.utils.clip_grad_norm_( self.model_dph.parameters_split( False ), self.train_config.opt_max_grad_norm ) # type: ignore
+                torch.nn.utils.clip_grad_norm_( self.model_dph.parameters_split( True ), self.train_config.opt_max_grad_norm ) # type: ignore
+            else:
+                torch.nn.utils.clip_grad_norm_( self.model_dph.parameters(), self.train_config.opt_max_grad_norm ) # type: ignore
 
         # Perform optimizer update
         self.optimizer_scaler.step( self.optimizer )
@@ -1506,7 +1511,12 @@ class SteerTrainer():
         # If gradient norm clipping is enabled perform scaling and clipping
         if self.train_config.opt_max_grad_norm > 0.0:
             self.optimizer_scaler.unscale_( self.optimizer )
-            torch.nn.utils.clip_grad_norm_( self.model_dph.parameters(), self.train_config.opt_max_grad_norm ) # type: ignore
+            
+            if self.steer_config.opt_split_norm:
+                torch.nn.utils.clip_grad_norm_( self.model_dph.parameters_split( False ), self.train_config.opt_max_grad_norm ) # type: ignore
+                torch.nn.utils.clip_grad_norm_( self.model_dph.parameters_split( True ), self.train_config.opt_max_grad_norm ) # type: ignore
+            else:
+                torch.nn.utils.clip_grad_norm_( self.model_dph.parameters(), self.train_config.opt_max_grad_norm ) # type: ignore
 
         # Perform optimizer update
         self.optimizer_scaler.step( self.optimizer )
