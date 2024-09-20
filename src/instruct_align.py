@@ -42,6 +42,7 @@ def evaluate_zero_shot_task(
     task: BaseChoiceInstructDataset,
     batcher: DPHChoiceInstructionBatcher,
     zero_nan=False,
+    max_batch_size=8,
 ) -> tuple[str, dict[str, float]]:
     """ Evaluates a task and returns the logp and dph metrics.
 
@@ -59,8 +60,12 @@ def evaluate_zero_shot_task(
     task_ds = task.get_validation_docs()
     assert task_ds is not None
 
+    # Get batch size estimate
+    estimate_size = len( task.create_unlabelled_message_list( task_ds[0] ) )
+    batch_count = max( 1, math.floor( max_batch_size / estimate_size ) )
+
     # Perform evaluation and aggregate into the logprob and dph metrics
-    val_metrics_both = batcher.evaluate_dataset( task, task_ds, False, False )
+    val_metrics_both = batcher.evaluate_dataset_batched( task, task_ds, False, False, batch_count )
     val_metrics_log = val_metrics_both[ 'log' ]
     val_metrics_dph = val_metrics_both[ 'dph' ]
 
@@ -231,6 +236,8 @@ def instruct_align(
 
     output_dir = f'./checkpoints/{wandb_run_name}'
 
+    validation_batch_size = config[ 'meta.validation_batch' ]
+
     if config.get( 'finetune.wrapped_model', None ) is None:
         # Get pretrained run name and checkpoint directory
         pretrained_run_name = config[ 'finetune.checkpoint' ]
@@ -256,7 +263,7 @@ def instruct_align(
         # Mask out parameters
         if 'finetune.frozen_params' in config:
             frozen_list = train_utils.set_training_mask( dph_model, config[ 'finetune.frozen_params' ] )
-            
+
             if rank == 0:
                 if __debug__:
                     rich.print( 'Frozen params:' )
@@ -324,7 +331,7 @@ def instruct_align(
         # Mask out parameters
         if 'finetune.frozen_params' in config:
             frozen_list = train_utils.set_training_mask( dph_model, config[ 'finetune.frozen_params' ] )
-            
+
             if rank == 0:
                 if __debug__:
                     rich.print( 'Frozen params:' )
@@ -493,7 +500,7 @@ def instruct_align(
         # If validation flag is set (or it's the last epoch) run validation
         if should_validate or i + 1 == trainer.get_total_epochs():
             for task in validation_zeroshot_tasks[ rank ]:
-                curr_line, curr_dict = evaluate_zero_shot_task( task, batcher, zero_nan=True )
+                curr_line, curr_dict = evaluate_zero_shot_task( task, batcher, zero_nan=True, max_batch_size=validation_batch_size )
                 validation_lines.append( curr_line )
                 validation_dict.update( **curr_dict )
             torch.cuda.empty_cache()

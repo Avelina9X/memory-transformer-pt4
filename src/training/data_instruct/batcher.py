@@ -1,4 +1,5 @@
 import math
+import itertools
 from dataclasses import dataclass
 from typing import Sequence, cast
 from collections.abc import Iterable
@@ -11,6 +12,13 @@ from transformers import PreTrainedModel
 
 from .formatter import InstructionFormatter, SteerInstructionFormatter
 from .task_base import BaseChoiceInstructDataset, BaseSteerInstructDataset
+
+
+def iter_n( iterable: Iterable, n: int ):
+    sentinel = object()
+    for chunk in itertools.zip_longest( *[ iter( iterable ) ] * n, fillvalue=sentinel ):
+        yield [ elem for elem in chunk if elem is not sentinel ]
+
 
 class BaseInstructionBatcher:
     def __init__(
@@ -125,6 +133,80 @@ class ChoiceInstructionBatcher( BaseInstructionBatcher ):
             test_mask=cast( torch.BoolTensor, torch.stack( test_mask_list ) ),
             correct_index=correct
         )
+
+    def prepare_batches(
+        self,
+        task: BaseChoiceInstructDataset,
+        target_docs: list[dict],
+        device: str | torch.device,
+        fewshot: bool,
+        fewshot_allsys: bool,
+    ) -> list[PreparedChoiceBatch]:
+        """ Creates a prepared choice batch from a task and document
+
+        Args:
+            task (BaseChoiceInstructDataset): The task used to parse documents
+            target_doc (dict): The target document to parse
+            device (str | torch.device): Where to place token and mask tensors
+            fewshot (bool): If fewshot testing should be enabled.
+            fewshot_allsys (bool): If all message groups should contain a system message
+        Returns:
+            PreparedChoiceBatch: Batch of tokens, targets and masks, all moved to device.
+        """
+        tokenized_completions_list = []
+        correct_list = []
+        batch_list = []
+
+        for target_doc in target_docs:
+            completions = task.create_unlabelled_message_list( target_doc )
+            correct = task.create_unlabelled_message_target( target_doc )
+
+            if correct is None:
+                raise ValueError( 'Message targets must be defined!' )
+
+            if fewshot is False:
+                tokenized_completions = [ self.formatter.tokenize_chat( msgs ) for msgs in completions ]
+            else:
+                fewshot_list = task.create_fewshot_message_list( target_doc )
+                tokenized_completions = [ self.formatter.tokenize_chat_fewshot( msgs, fewshot_list, fewshot_allsys ) for msgs in completions ]
+
+            tokenized_completions_list.append( tokenized_completions )
+            correct_list.append( correct )
+
+        max_length = max( len( line[ 'tokens' ] ) for tokenized_completions in tokenized_completions_list for line in tokenized_completions )
+        max_length = math.ceil( max_length / self.pad_rounding ) * self.pad_rounding
+
+        pad_token_id = self.formatter.tokenizer.pad_token_id
+
+        for tokenized_completions, correct in zip( tokenized_completions_list, correct_list ):
+            tokens_list = []
+            targets_list = []
+            train_mask_list = []
+            test_mask_list = []
+
+            for line in tokenized_completions:
+                curr_len = len( line[ 'tokens' ] )
+                pad_len = max_length - curr_len
+
+                tokens = line[ 'tokens' ] + [ pad_token_id ] * pad_len
+                targets = line[ 'targets' ] + [ pad_token_id ] * pad_len
+                train_mask = line[ 'train_mask' ] + [ False ] * pad_len
+                test_mask = line[ 'test_mask' ] + [ False ] * pad_len
+
+                tokens_list.append( torch.LongTensor( tokens ).to( device=device, non_blocking=True ) )
+                targets_list.append( torch.LongTensor( targets ).to( device=device, non_blocking=True ) )
+                train_mask_list.append( torch.BoolTensor( train_mask ).to( device=device, non_blocking=True ) )
+                test_mask_list.append( torch.BoolTensor( test_mask ).to( device=device, non_blocking=True ) )
+
+            batch_list.append( PreparedChoiceBatch(
+                tokens=cast( torch.LongTensor, torch.stack( tokens_list ) ),
+                targets=cast( torch.LongTensor, torch.stack( targets_list ) ),
+                train_mask=cast( torch.BoolTensor, torch.stack( train_mask_list ) ),
+                test_mask=cast( torch.BoolTensor, torch.stack( test_mask_list ) ),
+                correct_index=correct
+            ) )
+
+        return batch_list
 
     def compute_batch(
         self,
@@ -243,6 +325,47 @@ class DPHChoiceInstructionBatcher( ChoiceInstructionBatcher ):
             'dph_predictions': dph_results[ 'predictions' ],
         }
 
+    def evaluate_document_batched(
+        self,
+        task: BaseChoiceInstructDataset,
+        docs: list[dict],
+        fewshot: bool = False,
+        fewshot_allsys: bool = True,
+    ) -> list[dict]:
+        with torch.inference_mode():
+            self.model.eval()
+            device = self.model.get_input_embeddings().weight.device
+            prepared_batches = self.prepare_batches( task, docs, device, fewshot, fewshot_allsys )
+
+            tokens = torch.cat( [ i.tokens for i in prepared_batches ], dim=0 )
+            tokens_shapes = ( [ i.tokens.shape[0] for i in prepared_batches ] )
+            out_dicts = []
+
+            with torch.autocast( device_type='cuda', dtype=torch.bfloat16 if self.model.config.use_bfloat16 else torch.float16 ):
+                outputs = self.model( tokens )
+
+                start_id = self.formatter.tokenizer.sep_token_id
+                end_id = self.formatter.tokenizer.cls_token_id
+
+                logits: torch.Tensor = outputs.logits
+                states = outputs.hidden_states
+                rewards: torch.Tensor = self.model.compute_final_rewards( states, tokens, start_id, end_id )[ self.reward_head_key ]
+
+                logits_arr = logits.split( tokens_shapes, dim=0 )
+                rewards_arr = rewards.split( tokens_shapes, dim=0 )
+
+            for idx in range( len( docs ) ):
+                log_results = self.compute_batch( prepared_batches[idx], logits_arr[idx] )
+                dph_results = self.compute_batch_dph( rewards_arr[idx] )
+
+                out_dicts.append( {
+                    'references': log_results[ 'references' ],
+                    'log_predictions': log_results[ 'predictions' ],
+                    'dph_predictions': dph_results[ 'predictions' ],
+                } )
+
+        return out_dicts
+
     def evaluate_dataset(
         self,
         task: BaseChoiceInstructDataset,
@@ -268,6 +391,36 @@ class DPHChoiceInstructionBatcher( ChoiceInstructionBatcher ):
             'dph': task.compute_metric( references=correct_list, predictions=dph_answer_list ),
         }
 
+    def evaluate_dataset_batched(
+        self,
+        task: BaseChoiceInstructDataset,
+        dataset: Iterable,
+        fewshot: bool = False,
+        fewshot_allsys: bool = True,
+        batch_size: int | None = None,
+    ):
+        if batch_size is None:
+            return self.evaluate_dataset( task, dataset, fewshot, fewshot_allsys )
+
+        correct_list = []
+        log_answer_list = []
+        dph_answer_list = []
+
+        for line in iter_n( dataset, batch_size ):
+            results = self.evaluate_document_batched( task, line, fewshot, fewshot_allsys )
+            for result in results:
+                correct_list.append( result[ 'references' ] )
+                log_answer_list.append( result[ 'log_predictions' ] )
+                dph_answer_list.append( result[ 'dph_predictions' ] )
+
+        log_answer_list = [ i.item() for i in log_answer_list ]
+        dph_answer_list = [ i.item() for i in dph_answer_list ]
+
+        return {
+            'log': task.compute_metric( references=correct_list, predictions=log_answer_list ),
+            'dph': task.compute_metric( references=correct_list, predictions=dph_answer_list ),
+        }
+
 class SteerInstructionBatcher( BaseInstructionBatcher ):
     def __init__(
         self,
@@ -278,9 +431,9 @@ class SteerInstructionBatcher( BaseInstructionBatcher ):
         label_keys: Sequence[str] = (),
     ):
         super().__init__( model, formatter, aggregation, pad_rounding )
-        
+
         self.label_keys = list( label_keys )
-    
+
     def prepare_batch(
         self,
         task: BaseSteerInstructDataset,
@@ -290,26 +443,26 @@ class SteerInstructionBatcher( BaseInstructionBatcher ):
         messages_list = task.create_target_message_list( target_doc )
         assert len( messages_list ) == 1
         messages = messages_list[0]
-        
+
         correct = task.get_labels( target_doc, self.label_keys )
-        
+
         tokenized_messages = self.formatter.tokenize_chat( messages )
-        
+
         tokens = tokenized_messages[ 'tokens' ]
-        
+
         pad_token_id = self.formatter.tokenizer.pad_token_id
-        
+
         pad_len = math.ceil( len( tokens ) / self.pad_rounding ) * self.pad_rounding - len( tokens )
-        
+
         tokens = tokens + [ pad_token_id ] * pad_len
-        
+
         return torch.LongTensor( [ tokens ] ).to( device=device, non_blocking=True ), correct
-    
+
     def compute_batch( self, rewards: dict[str, torch.Tensor] ):
         return [
             rewards[key].squeeze().detach() for key in self.label_keys
         ]
-    
+
     def evaluate_document(
         self,
         task: BaseSteerInstructDataset,
@@ -322,19 +475,19 @@ class SteerInstructionBatcher( BaseInstructionBatcher ):
 
             with torch.autocast( device_type='cuda', dtype=torch.bfloat16 if self.model.config.use_bfloat16 else torch.float16 ):
                 outputs = self.model( tokens )
-                
+
                 start_id = self.formatter.tokenizer.sep_token_id
                 end_id = self.formatter.tokenizer.cls_token_id
 
                 states = outputs.hidden_states
                 rewards = self.model.compute_final_rewards( states, tokens, start_id, end_id )
             reward_list = self.compute_batch( rewards )
-        
+
         return {
             'y_true': labels,
             'y_pred': reward_list
         }
-    
+
     def evaluate_dataset(
         self,
         task: BaseSteerInstructDataset,
@@ -342,32 +495,31 @@ class SteerInstructionBatcher( BaseInstructionBatcher ):
     ):
         true_list = []
         pred_list = []
-        
+
         for line in dataset:
             results = self.evaluate_document( task, line )
             true_list.append( results[ 'y_true' ] )
             pred_list.append( results[ 'y_pred' ] )
-        
+
         pred_list = [ [ i.item() for i in preds ] for preds in pred_list ]
-        
+
         true_array = np.array( true_list )
         pred_array = np.array( pred_list )
-        
+
         metrics = {}
-        
+
         for i, key in enumerate( self.label_keys ):
             curr_true = true_array[ :, i ]
             curr_pred = pred_array[ :, i ]
-            
+
             pearsonr = stats.pearsonr( curr_true, curr_pred )
             spearmanr = stats.spearmanr( curr_true, curr_pred )
-            
+
             metrics[key] = {
                 'pearsonr': pearsonr.statistic, # type: ignore
                 'spearmanr': spearmanr.statistic, # type: ignore
                 # 'pearsonr_pvalue': pearsonr.pvalue, # type: ignore
                 # 'spearmanr_pvalue': spearmanr.pvalue, # type: ignore
             }
-        
+
         return metrics
-            
