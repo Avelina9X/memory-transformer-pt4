@@ -70,8 +70,14 @@ def create_validation_zeroshot_tasks( n_bins: int ) -> list[list[BaseChoiceInstr
         DIRECTORY_CHOICE[ 'race' ][ 'middle' ]( HF_CACHE_DIR ),
         DIRECTORY_CHOICE[ 'race' ][ 'high' ]( HF_CACHE_DIR ),
     ]
+    
+    def estimate_weight( task: BaseChoiceInstructDataset ):
+        docs = task.get_validation_docs() or []
+        length = len( docs )
+        width = len( task.create_unlabelled_message_list( docs[0] ) )
+        return length * width
 
-    tasks_dict = { i: len( task.get_validation_docs() or [] ) for i, task in enumerate( tasks ) }
+    tasks_dict = { i: estimate_weight( task ) for i, task in enumerate( tasks ) }
 
     idx_bins = bp.to_constant_bin_number( tasks_dict, n_bins )
 
