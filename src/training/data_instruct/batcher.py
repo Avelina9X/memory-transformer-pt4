@@ -1,9 +1,8 @@
 import math
 import itertools
 from dataclasses import dataclass
-from typing import Sequence, cast
-from collections.abc import Iterable
-
+from typing import cast
+from collections.abc import Sequence, Iterable
 from scipy import stats
 import numpy as np
 
@@ -142,16 +141,16 @@ class ChoiceInstructionBatcher( BaseInstructionBatcher ):
         fewshot: bool,
         fewshot_allsys: bool,
     ) -> list[PreparedChoiceBatch]:
-        """ Creates a prepared choice batch from a task and document
+        """ Creates a list of prepared choice batches from a task and list of documents
 
         Args:
             task (BaseChoiceInstructDataset): The task used to parse documents
-            target_doc (dict): The target document to parse
+            target_docs (list[dict]): List of target documents to batch together.
             device (str | torch.device): Where to place token and mask tensors
             fewshot (bool): If fewshot testing should be enabled.
             fewshot_allsys (bool): If all message groups should contain a system message
         Returns:
-            PreparedChoiceBatch: Batch of tokens, targets and masks, all moved to device.
+            list[PreparedChoiceBatch]: List of batches of tokens, targets and masks, all moved to device.
         """
         tokenized_completions_list = []
         correct_list = []
