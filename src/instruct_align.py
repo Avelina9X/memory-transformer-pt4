@@ -50,6 +50,7 @@ def evaluate_zero_shot_task(
         task (BaseChoiceInstructDataset): Task to evaluate. Must have a validation split.
         batcher (DPHChoiceInstructionBatcher): Batcher used to evaluate tasks.
         zero_nan (bool): When true returns zero for NaN metrics. Defaults to False.
+        max_batch_size (int): The approximate maximum batch size when grouping multiple validation examples. Defaults to 8.
 
     Returns:
         log line (str): string suitable for file logging.
