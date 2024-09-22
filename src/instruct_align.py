@@ -6,6 +6,7 @@ import os
 import typing
 import math
 
+from requests import HTTPError
 import shortuuid
 import rich
 import wandb
@@ -379,16 +380,25 @@ def instruct_align(
         model_config.pooler_config.prefix_sizes[ 'assistant' ] = len( tokenizer.encode( '<|im_start|>user\n', add_special_tokens=False ) )
 
     # Create task mixes
-    train_tasks = train_utils.create_train_tasks( config[ 'finetune.dph_mix' ] )
+    while True:
+        try:
+            train_tasks = train_utils.create_train_tasks( config[ 'finetune.dph_mix' ] )
+                       
+            # Get the validation tasks
+            validation_zeroshot_tasks = create_validation_zeroshot_tasks( world_size )
 
-    # Get the validation tasks
-    validation_zeroshot_tasks = create_validation_zeroshot_tasks( world_size )
-
-    # If we're on rank zero we get validation prompts
-    if rank == 0 and config.get( 'meta.prompt_validate', False ):
-        validation_prompts = train_utils.create_validation_prompts( tokenizer )
-    else:
-        validation_prompts = None
+            # If we're on rank zero we get validation prompts
+            if rank == 0 and config.get( 'meta.prompt_validate', False ):
+                validation_prompts = train_utils.create_validation_prompts( tokenizer )
+            else:
+                validation_prompts = None
+            
+            break
+        except KeyboardInterrupt as e:
+            raise e
+        except Exception as e:
+            print( 'An exception occurred: {}'.format( e ) )
+            continue
 
     # Instantiate instruct helpers
     train_formatter = InstructionFormatter( tokenizer, 0 )
