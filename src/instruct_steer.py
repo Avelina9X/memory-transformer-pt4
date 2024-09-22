@@ -142,6 +142,11 @@ def instruct_steer(
     # Set generation config
     dph_model.generation_config = train_utils.create_generation_config( tokenizer )
     
+    # Set prefix sizes
+    model_config.pooler_config.prefix_sizes[ 'system' ] = len( tokenizer.encode( '<|im_start|>system\n', add_special_tokens=False ) )
+    model_config.pooler_config.prefix_sizes[ 'user' ] = len( tokenizer.encode( '<|im_start|>user\n', add_special_tokens=False ) )
+    model_config.pooler_config.prefix_sizes[ 'assistant' ] = len( tokenizer.encode( '<|im_start|>user\n', add_special_tokens=False ) )
+    
     # Create training task
     train_task_name, train_task_subset = config[ 'finetune.steer_task' ].split( '/' )
     train_task = DIRECTORY_STEER[train_task_name][train_task_subset]( HF_CACHE_DIR )

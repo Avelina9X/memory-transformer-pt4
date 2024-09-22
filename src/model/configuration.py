@@ -85,11 +85,7 @@ class LSWTPoolerConfig( PretrainedConfig ):
         self.token_pooling_gate_bias = token_pooling_gate_bias
 
         if prefix_sizes is None:
-            prefix_sizes = {
-                'system': 3,
-                'user': 3,
-                'assistant': 4,
-            }
+            prefix_sizes = {}
 
         self.prefix_sizes = prefix_sizes
 
