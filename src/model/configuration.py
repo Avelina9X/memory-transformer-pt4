@@ -50,6 +50,7 @@ class LSWTPoolerConfig( PretrainedConfig ):
         layer_select: int | Sequence[int] = -1,
 
         prefix_sizes: dict[str, int] | None = None,
+        prefix_pool=False,
 
         **kwargs
     ):
@@ -88,6 +89,7 @@ class LSWTPoolerConfig( PretrainedConfig ):
             prefix_sizes = {}
 
         self.prefix_sizes = prefix_sizes
+        self.prefix_pool = prefix_pool
 
         if ( layer_pooling == 'layer' ) ^ ( isinstance( layer_select, int ) ):
             raise ValueError( 'layer_select must be an int when layer_pooling is `layer`' )

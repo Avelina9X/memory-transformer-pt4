@@ -742,7 +742,7 @@ class LSWTPooler( torch.nn.Module ):
         batch_ids = torch.arange( batch_size, device=states.device )
         seq_ids = torch.arange( seq_lengths, device=input_ids.device )
 
-        if prefix_type is None:
+        if prefix_type is None or pooler_config.prefix_pool:
             prefix_count = 0
         else:
             prefix_count = pooler_config.prefix_sizes[prefix_type]
