@@ -293,7 +293,7 @@ def instruct_align(
         # Set prefix sizes
         dph_model.config.pooler_config.prefix_sizes[ 'system' ] = len( tokenizer.encode( '<|im_start|>system\n', add_special_tokens=False ) )
         dph_model.config.pooler_config.prefix_sizes[ 'user' ] = len( tokenizer.encode( '<|im_start|>user\n', add_special_tokens=False ) )
-        dph_model.config.pooler_config.prefix_sizes[ 'assistant' ] = len( tokenizer.encode( '<|im_start|>user\n', add_special_tokens=False ) )
+        dph_model.config.pooler_config.prefix_sizes[ 'assistant' ] = len( tokenizer.encode( '<|im_start|>assistant\n', add_special_tokens=False ) )
 
     else:
         # Get the wrapped model name
@@ -375,9 +375,9 @@ def instruct_align(
             ref_model = dph_model
         ref_model.config.use_bfloat16 = dph_model.config.use_bfloat16
 
-        model_config.pooler_config.prefix_sizes[ 'system' ] = len( tokenizer.encode( '<|im_start|>system\n', add_special_tokens=False ) )
-        model_config.pooler_config.prefix_sizes[ 'user' ] = len( tokenizer.encode( '<|im_start|>user\n', add_special_tokens=False ) )
-        model_config.pooler_config.prefix_sizes[ 'assistant' ] = len( tokenizer.encode( '<|im_start|>user\n', add_special_tokens=False ) )
+        dph_model.config.pooler_config.prefix_sizes[ 'system' ] = len( tokenizer.encode( '<|im_start|>system\n', add_special_tokens=False ) )
+        dph_model.config.pooler_config.prefix_sizes[ 'user' ] = len( tokenizer.encode( '<|im_start|>user\n', add_special_tokens=False ) )
+        dph_model.config.pooler_config.prefix_sizes[ 'assistant' ] = len( tokenizer.encode( '<|im_start|>assistant\n', add_special_tokens=False ) )
 
     # Create task mixes
     while True:
@@ -468,9 +468,9 @@ def instruct_align(
 
     # Update the base config
     config.update( {
-        **model_config.to_wandb_dict(),
-        **train_config.to_wandb_dict(),
-        **dph_config.to_wandb_dict(),
+        **trainer.model_dph.config.to_wandb_dict(),
+        **trainer.train_config.to_wandb_dict(),
+        **trainer.dph_config.to_wandb_dict(),
         'params.total': params_total,
         'params.trainable': params_trainable,
         'params.non_trainable': params_non_trainable,
