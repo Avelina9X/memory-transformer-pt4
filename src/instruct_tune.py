@@ -75,7 +75,7 @@ def create_validation_zeroshot_tasks( n_bins: int ) -> list[list[BaseChoiceInstr
         docs = task.get_validation_docs() or []
         length = len( docs )
         width = len( task.create_unlabelled_message_list( docs[0] ) )
-        return length * width
+        return length #* width
 
     tasks_dict = { i: estimate_weight( task ) for i, task in enumerate( tasks ) }
 
