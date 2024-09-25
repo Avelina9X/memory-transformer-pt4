@@ -151,7 +151,7 @@ def add_special_tokens( tokenizer: PreTrainedTokenizerBase ):
             "{% if loop.first and messages[0]['role'] != 'system' %}"
                 "{{ '<|im_start|>system\nYou are a conversational AI assistant. Write a response that appropriately completes the request.<|im_end|>\n' }}"
             "{% endif %}"
-            "{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}"
+            "{{'<|im_start|>' + message['role'] + '\n' + message['content']|trim() + '<|im_end|>' + '\n'}}"
         "{% endfor %}"
         "{% if add_generation_prompt %}"
             "{{ '<|im_start|>assistant\n' }}"
