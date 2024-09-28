@@ -28,6 +28,7 @@ class LSWTPoolerConfig( PretrainedConfig ):
         layer_pooling: Literal['layer', 'weighted_sum'] = 'layer',
         layer_pooling_norm: Literal['pre', 'post', 'both', None] = None,
         layer_pooling_select: int | Sequence[int] = -1,
+        layer_pooling_dropout: float = 0.0,
         
         token_pooling: Literal['cls', 'attn'] = 'cls',
         token_pooling_norm: Literal['pre', 'post', 'both', None] = None,
@@ -45,6 +46,7 @@ class LSWTPoolerConfig( PretrainedConfig ):
         self.layer_pooling = layer_pooling
         self.layer_pooling_norm = layer_pooling_norm
         self.layer_pooling_select = layer_pooling_select
+        self.layer_pooling_dropout = layer_pooling_dropout
         
         self.token_pooling = token_pooling
         self.token_pooling_norm = token_pooling_norm
