@@ -766,7 +766,7 @@ class DPHTrainer():
         # pos_rewards = self.model_dph.pooler.forward( dph_pos_states, False, False )
         # neg_rewards = self.model_dph.pooler.forward( dph_neg_states, False, False )
 
-        both_rewards: DPHOutput = self.model_dph.pooler( dph_states, output_latent_states=False, compute_sae_loss=False )
+        both_rewards: DPHOutput = self.model_dph.pooler( dph_states, output_embeddings=False, return_final=True )
         pos_rewards, neg_rewards = both_rewards.rewards[ self.reward_head_key ].chunk( 2, dim=0 )
 
         with torch.no_grad():

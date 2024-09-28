@@ -115,37 +115,6 @@ def prolu_relu( m: torch.Tensor, b: torch.Tensor ) -> torch.Tensor:
     return out
 
 
-def complex_log( float_input: torch.Tensor, eps=1e-6 ) -> torch.Tensor:
-    real = float_input.abs().clamp( min=eps ).log()
-    imag = ( float_input < 0 ).to( float_input.dtype ) * torch.pi
-    return torch.complex( real, imag )
-
-# @torch._dynamo.disable # type: ignore # pylint: disable=W0212
-def complex_scan( segment_mask, token_selected_states, log_beta, segment_pos ):
-    numer = torch.where( segment_mask, complex_log( token_selected_states ) - log_beta * segment_pos, -1e9 ).logcumsumexp( -2 )
-    denom = torch.where( segment_mask, - log_beta * segment_pos, -1e9 ).logcumsumexp( -2 )
-    return ( numer - denom ).exp().real * segment_mask
-
-# @torch._dynamo.disable # type: ignore # pylint: disable=W0212
-def complex_selective_scan( segment_mask, token_selected_states, log_beta, decay_weights, sustain_weights ):
-    sw_cumsum = decay_weights.cumsum( -2 )
-    sw_log = sustain_weights.clamp( min=1e-6 ).log()
-    bias_correction = - log_beta * sw_cumsum + sw_log
-    numer = torch.where( segment_mask, complex_log( token_selected_states ) + bias_correction, -1e9 ).logcumsumexp( -2 )
-    denom = torch.where( segment_mask, bias_correction, -1e9 ).logcumsumexp( -2 )
-    return ( numer - denom ).exp().real * segment_mask
-
-
-class RotateLayer( torch.nn.Module ):
-    def __init__( self, in_features, out_features ):
-        super().__init__()
-        self.weight = torch.nn.Parameter( torch.empty( out_features, in_features ), requires_grad=True )
-        torch.nn.init.orthogonal_( self.weight )
-
-    def forward( self, dtype ):
-        return self.weight.to( dtype )
-
-
 class RMSHeadNorm( torch.nn.Module ):
     """ RMS Norm layer for query and keys heads.
     """

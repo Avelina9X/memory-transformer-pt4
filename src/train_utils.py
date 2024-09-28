@@ -276,52 +276,6 @@ def compute_pooler_stats_dict( model: LSWTForDPH ):
         for i, layer_idx in enumerate( pooler_config.layer_select ):
             stats_dict[ f'pooler/layer_weights/{layer_idx}' ] = layer_weights[i]
 
-    # Layer weighted bidirectional sum graph
-    elif pooler_config.layer_pooling == 'weighted_sum_bi':
-        assert not isinstance( pooler_config.layer_select, int )
-        assert model.pooler.layer_weighting is not None
-
-        weighting = model.pooler.layer_weighting / model.pooler.layer_weighting.sum( 0, keepdim=True )
-        layer_weights = list( weighting.mean( [ 1, 2, 3 ] ).cpu().numpy() )
-        for i, layer_idx in enumerate( pooler_config.layer_select ):
-            stats_dict[ f'pooler/layer_weights/{layer_idx}' ] = layer_weights[i]
-
-
-    # EMA histogram
-    if pooler_config.token_pooling == 'ema':
-        assert model.pooler.ema_beta is not None
-        assert model.pooler.ema_weight is not None
-
-        sigmoids = torch.sigmoid( model.pooler.ema_beta + model.pooler.ema_weight ).flatten()
-        sigmoids = list( sigmoids.detach().cpu().numpy() )
-
-        stats_dict[ 'pooler/ema/betas' ] = wandb.Histogram( sigmoids )
-
-
-    # Token rotation orthogonality graph
-    if pooler_config.token_pooling_rotation:
-        assert model.pooler.token_rotate is not None
-
-        Q = model.pooler.token_rotate.weight
-        stats_dict[ 'pooler/rotate/ortho' ] = torch.dist( Q.T @ Q, torch.eye( Q.size( 1 ) ).to( device=Q.device ) ).item()
-
-
-    # Token gate weight and bias
-    if model.pooler.token_gate is not None:
-        decay_weight, sustain_weight = model.pooler.token_gate.weight.data.chunk( 2, dim=0 )
-        decay_weight = decay_weight.flatten().cpu().numpy()
-        sustain_weight = sustain_weight.flatten().cpu().numpy()
-        stats_dict[ 'pooler/token_gate/decay_weight' ] = wandb.Histogram( list( decay_weight ) )
-        stats_dict[ 'pooler/token_gate/sustain_weight' ] = wandb.Histogram( list( sustain_weight ) )
-
-        if model.pooler.token_gate.bias is not None:
-            decay_bias, sustain_bias = model.pooler.token_gate.bias.data.chunk( 2, dim=0 )
-            decay_bias = decay_bias.flatten().cpu().numpy()
-            sustain_bias = sustain_bias.flatten().cpu().numpy()
-            stats_dict[ 'pooler/token_gate/decay_bias' ] = wandb.Histogram( list( decay_bias ) )
-            stats_dict[ 'pooler/token_gate/sustain_bias' ] = wandb.Histogram( list( sustain_bias ) )
-
-
     return stats_dict
 
 

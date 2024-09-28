@@ -23,34 +23,15 @@ class LSWTPoolerConfig( PretrainedConfig ):
 
         reward_heads: Sequence[str] | None = None,
         reward_head_bias: bool = False,
-
-        embedding_size: int | None = None,
-
         embedding_dropout=0.0,
-        layer_dropout=0.0,
-        intermediate_dropout=0.0,
-
-        layer_pooling: Literal['layer', 'mean', 'weighted_sum', 'weighted_sum_bi'] = 'layer',
+    
+        layer_pooling: Literal['layer', 'weighted_sum'] = 'layer',
         layer_pooling_norm: Literal['pre', 'post', 'both', None] = None,
-
-        token_pooling: Literal['cls', 'max', 'mean', 'sgpt', 'ema'] = 'cls',
+        layer_pooling_select: int | Sequence[int] = -1,
+        
+        token_pooling: Literal['cls', 'attn'] = 'cls',
         token_pooling_norm: Literal['pre', 'post', 'both', None] = None,
-        token_pooling_ema_beta: float | None = None,
-        token_pooling_ema_beta_learnable: Literal['global', 'activation', None] = None,
-        token_pooling_rotation: bool | None = None,
-        token_pooling_inverse_rotate: bool = True,
-        token_pooling_rotation_expansion: int | Literal['ffn'] | None = None,
-        token_pooling_gate: bool | None = None,
-        token_pooling_gate_bias: bool | None = None,
-
-        pooler_function: Literal['identity', 'projection'] = 'identity',
-        pooler_activation: str | None = None,
-        pooler_activation_gated=False,
-
-        layer_select: int | Sequence[int] = -1,
-
-        prefix_sizes: dict[str, int] | None = None,
-        prefix_pool=False,
+        token_pooling_config: dict | None = None,
 
         **kwargs
     ):
@@ -59,77 +40,15 @@ class LSWTPoolerConfig( PretrainedConfig ):
 
         self.reward_heads = reward_heads
         self.reward_head_bias = reward_head_bias
-
-        self.embedding_size = embedding_size
-
         self.embedding_dropout = embedding_dropout
-        self.layer_dropout = layer_dropout
-        self.intermediate_dropout = intermediate_dropout
-
-        self.pooler_function = pooler_function
-        self.pooler_activation = pooler_activation
-        self.pooler_activation_gated = pooler_activation_gated
-
-        self.layer_select = layer_select
-
+        
         self.layer_pooling = layer_pooling
         self.layer_pooling_norm = layer_pooling_norm
-
+        self.layer_pooling_select = layer_pooling_select
+        
         self.token_pooling = token_pooling
         self.token_pooling_norm = token_pooling_norm
-        self.token_pooling_ema_beta = token_pooling_ema_beta
-        self.token_pooling_ema_beta_learnable = token_pooling_ema_beta_learnable
-        self.token_pooling_rotation = token_pooling_rotation
-        self.token_pooling_inverse_rotate = token_pooling_inverse_rotate
-        self.token_pooling_rotation_expansion = token_pooling_rotation_expansion
-        self.token_pooling_gate = token_pooling_gate
-        self.token_pooling_gate_bias = token_pooling_gate_bias
-
-        if prefix_sizes is None:
-            prefix_sizes = {}
-
-        self.prefix_sizes = prefix_sizes
-        self.prefix_pool = prefix_pool
-
-        if ( layer_pooling == 'layer' ) ^ ( isinstance( layer_select, int ) ):
-            raise ValueError( 'layer_select must be an int when layer_pooling is `layer`' )
-
-        if pooler_function == 'identity':
-            if self.embedding_size is not None:
-                raise ValueError( 'embedding_size must be unset for pooler_function=`identity`' )
-
-            if self.pooler_activation is not None:
-                raise ValueError( 'pooler_activation must be unset for pooler_function=`identity`' )
-
-        elif pooler_function in [ 'projection', 'sae' ]:
-            if self.embedding_size is None:
-                raise ValueError( f'embedding_size must be set for pooler_function=`{pooler_function}`' )
-
-            if self.pooler_activation is None:
-                raise ValueError( f'pooler_activation must be set for pooler_function=`{pooler_function}`' )
-
-        else:
-            raise ValueError( 'Invalid pooler_function type' )
-
-        if ( token_pooling == 'ema' ) ^ ( isinstance( token_pooling_ema_beta, float ) ):
-            raise ValueError( 'token_pooling_ema_beta must be a float if and only if token_pooling=`ema`' )
-
-        if ( token_pooling == 'ema' ) ^ ( isinstance( token_pooling_rotation_expansion, int ) ):
-            raise ValueError( 'token_pooling_rotation_expansion must be a int if and only if token_pooling=`ema`' )
-
-        if ( token_pooling != 'ema' ) and token_pooling_ema_beta_learnable:
-            raise ValueError( 'token_pooling_ema_beta_learnable can only be set when token_pooling=`ema`' )
-
-        if ( token_pooling_ema_beta_learnable != 'activation' ) and isinstance( token_pooling_rotation, bool ):
-            raise ValueError( 'token_pooling_rotation can only be true if token_pooling_ema_beta_learnable=`activation`' )
-
-        if ( token_pooling == 'ema' ) ^ isinstance( token_pooling_gate, bool ):
-            raise ValueError( 'token_pooling_gate cannot be set when token_pooling != `ema`' )
-
-        if  not token_pooling_rotation and token_pooling_rotation_expansion is not None:
-            raise ValueError( 'token_pooling_rotation_expansion != 1 can only be set when token_pooling_rotation is true')
-
-        # TODO: assertions for token_pooling_inverse_rotate
+        self.token_pooling_confg = token_pooling_config or {}
 
 
 class LSWTConfig( PretrainedConfig ):
@@ -367,7 +286,7 @@ class LSWTConfigTraining():
         loss_objective: Literal['MLE', 'SimCTG'] = 'MLE',
         loss_sim_margin=0.5,
 
-        ortho_params: Sequence[str] = ( 'token_rotate.weight', ),
+        ortho_params: Sequence[str] = tuple(),
         ortho_beta: float = 1.0,
         ortho_norm_p: float | str = 2,
     ):
