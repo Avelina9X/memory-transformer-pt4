@@ -3,7 +3,7 @@ from operator import itemgetter
 import torch
 import torch.nn.functional as F
 
-from .configuration import LSWTPoolerConfig
+from .configuration import LSWTConfig, LSWTPoolerConfig
 
 
 class LSWTLayerPoolerSingle( torch.nn.Module ):
@@ -40,6 +40,7 @@ class LSWTLayerPoolerWeighted( torch.nn.Module ):
         
         return ( self.layer_weighting.softmax( 0 ) * drop_mask * states ).sum( 0 )
 
+
 class LSWTTokenPoolerCLS( torch.nn.Module ):
     def __init__( self, pooler_config: LSWTPoolerConfig ):
         super().__init__()
@@ -48,12 +49,17 @@ class LSWTTokenPoolerCLS( torch.nn.Module ):
         
         self.cls_token_id = int( pooler_config.token_pooling_config[ 'cls_token_id' ] )
     
-    def forward( self, layer_states, input_ids, return_final ):
+    def forward( self, layer_states: torch.Tensor, input_ids: torch.Tensor, return_final: bool ) -> torch.Tensor:
         assert return_final, 'Can only return final using CLS pooler'
-        ...
+        
+        batch_ids = torch.arange( input_ids.shape[0], device=layer_states.device )
+        seq_ids = torch.arange( input_ids.shape[1], device=layer_states.device )
+        end_idx = torch.where( input_ids == self.cls_token_id, seq_ids, -1 ).max( -1 )[0]
+        
+        return layer_states[ batch_ids, end_idx ]
 
 class LSWTTokenPoolerAttention( torch.nn.Module ):
-    def __init__( self, pooler_config: LSWTPoolerConfig ):
+    def __init__( self, pooler_config: LSWTPoolerConfig, base_config: LSWTConfig ):
         super().__init__()
         
         assert pooler_config.token_pooling == 'attn'
@@ -61,6 +67,13 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
         self.cls_token_id = int( pooler_config.token_pooling_config[ 'cls_token_id' ] )
         self.sep_token_id = int( pooler_config.token_pooling_config[ 'sep_token_id' ] )
         self.new_token_id = int( pooler_config.token_pooling_config[ 'new_token_id' ] )
+        
+        self.layers = list( pooler_config.token_pooling_config[ 'attn_layers' ] )
+        
+        self.d_model = base_config.d_model
+        self.n_heads = base_config.n_heads
+        self.d_key = self.d_model // self.n_heads
+        
     
-    def forward( self, layer_states, input_ids, return_final ):
+    def forward( self, layer_states: torch.Tensor, input_ids: torch.Tensor, return_final: bool ) -> torch.Tensor:
         ...

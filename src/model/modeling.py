@@ -16,7 +16,7 @@ from transformers.activations import ACT2FN
 import torch
 import torch.nn.functional as F
 
-from .layers_pooling import LSWTLayerPoolerSingle, LSWTLayerPoolerWeighted
+from .layers_pooling import LSWTLayerPoolerSingle, LSWTLayerPoolerWeighted, LSWTTokenPoolerAttention, LSWTTokenPoolerCLS
 
 from .configuration import LSWTConfig, LSWTPoolerConfig
 from .layers import SharedEmbeddings, RotaryEmbedding, LSWTBlock, ActGLU, prolu_ste, prolu_relu
@@ -409,31 +409,38 @@ class DPHOutput( ModelOutput ):
     """ Latent states computed on the <|im_end|> token. Returns None when `output_embeddings=False` """
 
 class LSWTPooler( torch.nn.Module ):
-    def __init__( self, pooler_config: LSWTPoolerConfig, d_model: int, d_ffn: int, enable_bias: bool ):
+    def __init__( self, pooler_config: LSWTPoolerConfig, base_config: LSWTConfig ):
         super().__init__()
 
         self.pooler_config = pooler_config
+        self.base_config = base_config
 
         if pooler_config.reward_heads is None:
             raise ValueError( 'reward_heads must be defined. If no heads are desired please use an empty list.' )
         
-        self.layer_norm_post = torch.nn.LayerNorm( d_model ) if pooler_config.layer_pooling_norm in [ 'post' ] else torch.nn.Identity()
-        self.token_norm_post = torch.nn.LayerNorm( d_model ) if pooler_config.layer_pooling_norm in [ 'post' ] else torch.nn.Identity()
+        self.layer_norm_post = torch.nn.LayerNorm( base_config.d_model ) if pooler_config.layer_pooling_norm in [ 'post' ] else torch.nn.Identity()
+        self.token_norm_post = torch.nn.LayerNorm( base_config.d_model ) if pooler_config.layer_pooling_norm in [ 'post' ] else torch.nn.Identity()
         self.embedding_dropout = torch.nn.Dropout( pooler_config.embedding_dropout )
 
         match pooler_config.layer_pooling:
             case 'layer':
                 self.layer_pooler = LSWTLayerPoolerSingle( pooler_config )
-            
             case 'weighted_sum':
                 self.layer_pooler = LSWTLayerPoolerWeighted( pooler_config )
-            
             case _:
-                raise ValueError( f'`{pooler_config.layer_pooling}` is not a valid value for pooler_config.layer_pooling')
+                raise ValueError( f'`{pooler_config.layer_pooling}` is not a valid value for pooler_config.layer_pooling' )
+        
+        match pooler_config.token_pooling:
+            case 'cls':
+                self.layer_pooler = LSWTTokenPoolerCLS( pooler_config )
+            case 'attn':
+                self.layer_pooler = LSWTTokenPoolerAttention( pooler_config, base_config )
+            case _:
+                raise ValueError( f'`{pooler_config.token_pooling}` is not a valid value for pooler_config.token_pooling' )
 
         # Create dict of reward head projections
         self.reward_heads = torch.nn.ModuleDict( {
-            name: torch.nn.Linear( d_model, 1, bias=pooler_config.reward_head_bias )
+            name: torch.nn.Linear( base_config.d_model, 1, bias=pooler_config.reward_head_bias )
             for name in pooler_config.reward_heads
         } )
 
@@ -489,7 +496,7 @@ class LSWTForDPH( LSWTForCausalLM ):
 
         super().__init__( config, parent_embeddings )
 
-        self.pooler = LSWTPooler( config.pooler_config, config.d_model, config.d_ffn, config.enable_bias )
+        self.pooler = LSWTPooler( config.pooler_config, config )
 
         self.post_init()
 
