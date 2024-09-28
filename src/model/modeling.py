@@ -417,11 +417,9 @@ class LSWTPooler( torch.nn.Module ):
         if pooler_config.reward_heads is None:
             raise ValueError( 'reward_heads must be defined. If no heads are desired please use an empty list.' )
         
-        self.layer_norm_pre = torch.nn.LayerNorm( d_model ) if pooler_config.layer_pooling_norm in [ 'pre', 'both' ] else torch.nn.Identity()
-        self.layer_norm_post = torch.nn.LayerNorm( d_model ) if pooler_config.layer_pooling_norm in [ 'post', 'both' ] else torch.nn.Identity()
-        
-        self.token_norm_pre = torch.nn.LayerNorm( d_model ) if pooler_config.layer_pooling_norm in [ 'pre', 'both' ] else torch.nn.Identity()
-        self.token_norm_post = torch.nn.LayerNorm( d_model ) if pooler_config.layer_pooling_norm in [ 'post', 'both' ] else torch.nn.Identity()
+        self.layer_norm_post = torch.nn.LayerNorm( d_model ) if pooler_config.layer_pooling_norm in [ 'post' ] else torch.nn.Identity()
+        self.token_norm_post = torch.nn.LayerNorm( d_model ) if pooler_config.layer_pooling_norm in [ 'post' ] else torch.nn.Identity()
+        self.embedding_dropout = torch.nn.Dropout( pooler_config.embedding_dropout )
 
         match pooler_config.layer_pooling:
             case 'layer':
@@ -449,11 +447,18 @@ class LSWTPooler( torch.nn.Module ):
     ) -> DPHOutput:
         assert self.pooler_config
         
+        # Perform layer pooling and normalise
         layer_states: torch.Tensor = self.layer_pooler( hidden_states )
+        layer_states: torch.Tensor = self.layer_norm_post( layer_states )
+        
+        # Perform token pooling and normalise
         embeddings: torch.Tensor = self.token_pooler( layer_states, input_ids, return_final )
+        embeddings: torch.Tensor = self.token_norm_post( embeddings )
 
-        dropped_states = self.embedding_dropout( embeddings )
+        # Perform dropout for the heads
+        dropped_states: torch.Tensor = self.embedding_dropout( embeddings )
 
+        # Compute rewards
         rewards = {
             name: module( dropped_states )
             for name, module

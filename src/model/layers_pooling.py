@@ -30,8 +30,7 @@ class LSWTLayerPoolerWeighted( torch.nn.Module ):
                 
         self.dropout = torch.nn.Dropout( p=pooler_config.layer_pooling_dropout, inplace=True )
 
-        self.layer_weighting = torch.nn.Parameter( torch.zeros( self.num_layers, 1, 1, 1 ), requires_grad=True )
-        self.layer_weighting.data.fill_( 0.0 )
+        self.layer_weighting = torch.nn.Parameter( torch.zeros( len( self.layer_idx ), 1, 1, 1 ), requires_grad=True )
     
     def forward( self, hidden_states: tuple[torch.Tensor] ) -> torch.Tensor:       
         states = torch.stack( itemgetter( *self.layer_idx )( hidden_states ) )
@@ -42,14 +41,26 @@ class LSWTLayerPoolerWeighted( torch.nn.Module ):
         return ( self.layer_weighting.softmax( 0 ) * drop_mask * states ).sum( 0 )
 
 class LSWTTokenPoolerCLS( torch.nn.Module ):
-    ...
+    def __init__( self, pooler_config: LSWTPoolerConfig ):
+        super().__init__()
+        
+        assert pooler_config.token_pooling == 'cls'
+        
+        self.cls_token_id = int( pooler_config.token_pooling_config[ 'cls_token_id' ] )
     
     def forward( self, layer_states, input_ids, return_final ):
         assert return_final, 'Can only return final using CLS pooler'
         ...
 
 class LSWTTokenPoolerAttention( torch.nn.Module ):
-    ...
+    def __init__( self, pooler_config: LSWTPoolerConfig ):
+        super().__init__()
+        
+        assert pooler_config.token_pooling == 'attn'
+        
+        self.cls_token_id = int( pooler_config.token_pooling_config[ 'cls_token_id' ] )
+        self.sep_token_id = int( pooler_config.token_pooling_config[ 'sep_token_id' ] )
+        self.new_token_id = int( pooler_config.token_pooling_config[ 'new_token_id' ] )
     
     def forward( self, layer_states, input_ids, return_final ):
         ...

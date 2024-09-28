@@ -26,12 +26,12 @@ class LSWTPoolerConfig( PretrainedConfig ):
         embedding_dropout=0.0,
     
         layer_pooling: Literal['layer', 'weighted_sum'] = 'layer',
-        layer_pooling_norm: Literal['pre', 'post', 'both', None] = None,
+        layer_pooling_norm: Literal['post', None] = None,
         layer_pooling_select: int | Sequence[int] = -1,
         layer_pooling_dropout: float = 0.0,
         
         token_pooling: Literal['cls', 'attn'] = 'cls',
-        token_pooling_norm: Literal['pre', 'post', 'both', None] = None,
+        token_pooling_norm: Literal['post', None] = None,
         token_pooling_config: dict | None = None,
 
         **kwargs
@@ -50,7 +50,7 @@ class LSWTPoolerConfig( PretrainedConfig ):
         
         self.token_pooling = token_pooling
         self.token_pooling_norm = token_pooling_norm
-        self.token_pooling_confg = token_pooling_config or {}
+        self.token_pooling_config = token_pooling_config or {}
 
 
 class LSWTConfig( PretrainedConfig ):
