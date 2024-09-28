@@ -16,6 +16,8 @@ from transformers.activations import ACT2FN
 import torch
 import torch.nn.functional as F
 
+from .layers_pooling import LSWTLayerPoolerSingle, LSWTLayerPoolerWeighted
+
 from .configuration import LSWTConfig, LSWTPoolerConfig
 from .layers import SharedEmbeddings, RotaryEmbedding, LSWTBlock, ActGLU, prolu_ste, prolu_relu
 
@@ -412,13 +414,24 @@ class LSWTPooler( torch.nn.Module ):
 
         self.pooler_config = pooler_config
 
-        if pooler_config is None:
-            raise ValueError( 'pooler_config must be defined!' )
-
         if pooler_config.reward_heads is None:
             raise ValueError( 'reward_heads must be defined. If no heads are desired please use an empty list.' )
-
         
+        self.layer_norm_pre = torch.nn.LayerNorm( d_model ) if pooler_config.layer_pooling_norm in [ 'pre', 'both' ] else torch.nn.Identity()
+        self.layer_norm_post = torch.nn.LayerNorm( d_model ) if pooler_config.layer_pooling_norm in [ 'post', 'both' ] else torch.nn.Identity()
+        
+        self.token_norm_pre = torch.nn.LayerNorm( d_model ) if pooler_config.layer_pooling_norm in [ 'pre', 'both' ] else torch.nn.Identity()
+        self.token_norm_post = torch.nn.LayerNorm( d_model ) if pooler_config.layer_pooling_norm in [ 'post', 'both' ] else torch.nn.Identity()
+
+        match pooler_config.layer_pooling:
+            case 'layer':
+                self.layer_pooler = LSWTLayerPoolerSingle( pooler_config )
+            
+            case 'weighted_sum':
+                self.layer_pooler = LSWTLayerPoolerWeighted( pooler_config )
+            
+            case _:
+                raise ValueError( f'`{pooler_config.layer_pooling}` is not a valid value for pooler_config.layer_pooling')
 
         # Create dict of reward head projections
         self.reward_heads = torch.nn.ModuleDict( {
@@ -436,8 +449,8 @@ class LSWTPooler( torch.nn.Module ):
     ) -> DPHOutput:
         assert self.pooler_config
         
-        layer_states = self.layer_pooler( hidden_states )
-        embeddings = self.token_pooler( layer_states, input_ids, return_final )
+        layer_states: torch.Tensor = self.layer_pooler( hidden_states )
+        embeddings: torch.Tensor = self.token_pooler( layer_states, input_ids, return_final )
 
         dropped_states = self.embedding_dropout( embeddings )
 
