@@ -432,9 +432,9 @@ class LSWTPooler( torch.nn.Module ):
         
         match pooler_config.token_pooling:
             case 'cls':
-                self.layer_pooler = LSWTTokenPoolerCLS( pooler_config )
+                self.token_pooler = LSWTTokenPoolerCLS( pooler_config )
             case 'attn':
-                self.layer_pooler = LSWTTokenPoolerAttention( pooler_config, base_config )
+                self.token_pooler = LSWTTokenPoolerAttention( pooler_config, base_config )
             case _:
                 raise ValueError( f'`{pooler_config.token_pooling}` is not a valid value for pooler_config.token_pooling' )
 
