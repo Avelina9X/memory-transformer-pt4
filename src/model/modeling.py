@@ -451,6 +451,8 @@ class LSWTPooler( torch.nn.Module ):
         input_ids: torch.Tensor,
         output_embeddings=False,
         return_final=True,
+        state_ids: torch.Tensor | None = None,
+        segment_ids: torch.Tensor | None = None,
     ) -> DPHOutput:
         assert self.pooler_config
         
@@ -459,7 +461,7 @@ class LSWTPooler( torch.nn.Module ):
         layer_states: torch.Tensor = self.layer_norm_post( layer_states )
         
         # Perform token pooling and normalise
-        embeddings: torch.Tensor = self.token_pooler( layer_states, input_ids, return_final )
+        embeddings: torch.Tensor = self.token_pooler( layer_states, input_ids, return_final, state_ids, segment_ids )
         embeddings: torch.Tensor = self.token_norm_post( embeddings )
 
         # Perform dropout for the heads
@@ -504,8 +506,10 @@ class LSWTForDPH( LSWTForCausalLM ):
         self,
         hidden_states: tuple[torch.Tensor],
         input_ids: torch.Tensor,
+        state_ids: torch.Tensor | None = None,
+        segment_ids: torch.Tensor | None = None,
     ) -> Mapping[str, torch.Tensor]:
-        return self.pooler( hidden_states, input_ids, output_embeddings=False, return_final=True ).rewards
+        return self.pooler( hidden_states, input_ids, output_embeddings=False, return_final=True, state_ids=state_ids, segment_ids=segment_ids ).rewards
 
     def get_param_groups(
         self,
