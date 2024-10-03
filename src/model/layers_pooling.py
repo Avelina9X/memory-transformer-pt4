@@ -21,7 +21,7 @@ class _AttentionBase( torch.nn.Module, ):
         self.key_scale = self.d_key ** -0.5
         
         head_scale = torch.exp2( -( ( torch.arange( n_heads ) + 1.0 ) * alibi_slope / n_heads ) )
-        self.head_scale = torch.nn.Parameter( torch.empty( d_model ), requires_grad=False )
+        self.head_scale = torch.nn.Parameter( head_scale, requires_grad=False )
     
     def mask_type( self ) -> Literal['self', 'cross']:
         raise NotImplementedError()
@@ -45,15 +45,15 @@ class _AttentionSelf( _AttentionBase ):
     def forward( self, states: torch.Tensor, bias_mask: torch.Tensor ) -> torch.Tensor:
         bias_mask = bias_mask[ :, None, :, : ] * self.head_scale[ None, :, None, None ]
         
-        q = self.q_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] ).transpose( 1, 2 )
-        k = self.k_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] ).transpose( 1, 2 )
-        v = self.v_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] ).transpose( 1, 2 )
+        q = self.q_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
+        k = self.k_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
+        v = self.v_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
         
-        a = torch.einsum( 'bhqd,bhkd->bhqk', q, k ) * self.key_scale + bias_mask
+        a = torch.einsum( 'bqhd,bkhd->bhqk', q, k ) * self.key_scale + bias_mask
         a = a.softmax( -1 )
         
-        o = torch.einsum( 'bhqk,bhkd->bhqd', a, v )
-        o = o.transpose( 2, 1 ).flatten( start_dim=2 )
+        o = torch.einsum( 'bhqk,bkhd->bqhd', a, v )
+        o = o.flatten( start_dim=2 )
         
         return self.o_proj( o )
 
@@ -75,15 +75,15 @@ class _AttentionPool( _AttentionBase ):
     def forward( self, states: torch.Tensor, bias_mask: torch.Tensor ) -> torch.Tensor:
         bias_mask = bias_mask[ :, None, :, : ] * self.head_scale[ None, :, None, None ]
         
-        q = self.q_bias.unflatten( -1, [ self.n_heads, self.d_key ] )[ None, :, None, : ]
-        k = self.k_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] ).transpose( 1, 2 )
-        v = self.v_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] ).transpose( 1, 2 )
+        q = self.q_bias.unflatten( -1, [ self.n_heads, self.d_key ] )[ None, :, : ]
+        k = self.k_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
+        v = self.v_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
         
-        a = torch.einsum( 'bhqd,bhkd->bhqk', q, k ) * self.key_scale + bias_mask
+        a = torch.einsum( 'qhd,bkhd->bhqk', q, k ) * self.key_scale + bias_mask
         a = a.softmax( -1 )
         
-        o = torch.einsum( 'bhqk,bhkd->bhqd', a, v )
-        o = o.transpose( 2, 1 ).flatten( start_dim=2 )
+        o = torch.einsum( 'bhqk,bkhd->bqhd', a, v )
+        o = o.flatten( start_dim=2 )
         
         return self.o_proj( o )
 
@@ -103,15 +103,15 @@ class _AttentionCross( _AttentionBase ):
     def forward( self, states: torch.Tensor, bias_mask: torch.Tensor ) -> torch.Tensor:
         bias_mask = bias_mask[ :, None, :, : ] * self.head_scale[ None, :, None, None ]
         
-        q = self.q_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] ).transpose( 1, 2 )
-        k = self.k_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] ).transpose( 1, 2 )
-        v = self.v_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] ).transpose( 1, 2 )
+        q = self.q_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
+        k = self.k_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
+        v = self.v_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
         
-        a = torch.einsum( 'bhqd,bhkd->bhqk', q, k ) * self.key_scale + bias_mask
+        a = torch.einsum( 'bqhd,bkhd->bhqk', q, k ) * self.key_scale + bias_mask
         a = a.softmax( -1 )
         
-        o = torch.einsum( 'bhqk,bhkd->bhqd', a, v )
-        o = o.transpose( 2, 1 ).flatten( start_dim=2 )
+        o = torch.einsum( 'bhqk,bkhd->bqhd', a, v )
+        o = o.flatten( start_dim=2 )
         
         return self.o_proj( o )
 
@@ -210,7 +210,7 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
             self.norm_layers.append( torch.nn.LayerNorm( self.d_model ) )
             self.attn_layers.append( _attention_factory( attn_type, self.d_model, self.n_heads, self.d_key, self.alibi_slope ) )
     
-    
+    @torch._dynamo.disable # type: ignore # pylint: disable=W0212
     def compute_segments( self, tokens: torch.Tensor ):
         # Tensors of current state and id for each sequnce in the batch
         current_state = torch.zeros( [ tokens.shape[0] ], dtype=torch.int, device=tokens.device )
