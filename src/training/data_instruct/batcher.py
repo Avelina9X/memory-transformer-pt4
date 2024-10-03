@@ -313,7 +313,7 @@ class DPHChoiceInstructionBatcher( ChoiceInstructionBatcher ):
 
                 logits = outputs.logits
                 states = outputs.hidden_states
-                rewards = self.model.compute_final_rewards( states, prepared_batch.tokens, start_id, end_id )[ self.reward_head_key ]
+                rewards = self.model.compute_final_rewards( states, prepared_batch.tokens )[ self.reward_head_key ]
 
             log_results = self.compute_batch( prepared_batch, logits )
             dph_results = self.compute_batch_dph( rewards )
@@ -348,7 +348,7 @@ class DPHChoiceInstructionBatcher( ChoiceInstructionBatcher ):
 
                 logits: torch.Tensor = outputs.logits
                 states = outputs.hidden_states
-                rewards: torch.Tensor = self.model.compute_final_rewards( states, tokens, start_id, end_id )[ self.reward_head_key ]
+                rewards: torch.Tensor = self.model.compute_final_rewards( states, tokens )[ self.reward_head_key ]
 
                 logits_arr = logits.split( tokens_shapes, dim=0 )
                 rewards_arr = rewards.split( tokens_shapes, dim=0 )
@@ -479,7 +479,7 @@ class SteerInstructionBatcher( BaseInstructionBatcher ):
                 end_id = self.formatter.tokenizer.cls_token_id
 
                 states = outputs.hidden_states
-                rewards = self.model.compute_final_rewards( states, tokens, start_id, end_id )
+                rewards = self.model.compute_final_rewards( states, tokens )
             reward_list = self.compute_batch( rewards )
 
         return {

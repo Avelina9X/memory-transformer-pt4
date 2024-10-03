@@ -759,7 +759,7 @@ class DPHTrainer():
 
         # Get the logits and states
         dph_logits = dph_outputs.logits
-        dph_states = self.model_dph.pooler.aggregate_states( dph_outputs.hidden_states, tokens_combined, self.tokenizer.sep_token_id, self.tokenizer.cls_token_id, return_all=False )
+        dph_states = dph_outputs.hidden_states
 
         # Chunk the logits and states into positive and negative respectively
         assert isinstance( dph_states, torch.Tensor )
