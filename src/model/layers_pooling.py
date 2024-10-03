@@ -257,7 +257,7 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
             states[ :, i ] = current_state
             seg_ids[ :, i ] = current_seg_id
         
-        segment_mask = torch.isin( states, torch.tensor( [ 1, 2, 3, 4 ] if self.include_prefix else [ 3, 4 ] ) )
+        segment_mask = torch.isin( states, torch.tensor( [ 1, 2, 3, 4 ] if self.include_prefix else [ 3, 4 ], device=states.device ) )
         class_mask = im_end_arr
         
         return states, seg_ids, segment_mask, class_mask
