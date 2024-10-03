@@ -762,7 +762,6 @@ class DPHTrainer():
         dph_states = dph_outputs.hidden_states
 
         # Chunk the logits and states into positive and negative respectively
-        assert isinstance( dph_states, torch.Tensor )
         dph_pos_logits, dph_neg_logits = dph_logits.chunk( 2, dim=0 )
         # dph_pos_states, dph_neg_states = dph_states.chunk( 2, dim=0 )
 
