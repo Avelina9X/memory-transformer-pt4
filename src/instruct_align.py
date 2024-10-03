@@ -394,7 +394,7 @@ def instruct_align(
         except KeyboardInterrupt as e:
             raise e
         except Exception as e:
-            print( 'An exception occurred: {}'.format( e ) )
+            print( f'An exception occurred: {e}' )
             continue
 
     # Instantiate instruct helpers

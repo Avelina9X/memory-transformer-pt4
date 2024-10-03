@@ -84,7 +84,7 @@ def create_validation_zeroshot_tasks( n_bins: int ) -> list[list[BaseChoiceInstr
     sorted_bins = []
 
     for curr_bin in idx_bins:
-        assert isinstance( bin, dict )
+        assert isinstance( curr_bin, dict )
 
         curr_tasks = [ tasks[idx] for idx in curr_bin.keys() ]
         curr_tasks.sort( key=lambda x: len( x.get_validation_docs() or [] ) ) # `or []` is a hack for the linter
