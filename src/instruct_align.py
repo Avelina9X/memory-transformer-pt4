@@ -562,11 +562,11 @@ def instruct_align(
             # Compute the running stats log
             stats_log = train_utils.compute_stats_dict( trainer, i, None ) # type: ignore
 
-            pooler_log = train_utils.compute_pooler_stats_dict( dph_model ) # type: ignore
+            # pooler_log = train_utils.compute_pooler_stats_dict( dph_model ) # type: ignore
 
             # Log to WandB
             wandb.log( {
-                **pooler_log,
+                # **pooler_log,
                 **validation_prompt_dict,
                 **{ f'train/{name}': metric for name, metric in train_metrics.items() },
                 **stats_log,
