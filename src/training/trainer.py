@@ -138,8 +138,11 @@ class Trainer(): # pylint: disable=R0902
     def _load_ortho( self ):
         params = [
             p for name, p in self.model.named_parameters()
-            if any( i in name for i in self.train_config.ortho_params )
+            if any( i in name for i in self.train_config.ortho_params ) and p.requires_grad
         ]
+        
+        if len( params ) == 0:
+            return None
 
         return Ortho( params, self.train_config.ortho_beta, self.train_config.ortho_norm_p )
 
@@ -281,7 +284,7 @@ class Trainer(): # pylint: disable=R0902
     def train_optim_step( self ):
         self.optimizer_step += 1
 
-        reg_loss = self.orthogonalize.compute_loss()
+        reg_loss = self.orthogonalize.compute_loss() if self.orthogonalize else None
         if reg_loss is not None:
             self.optimizer_scaler.scale( reg_loss ).backward()
 
@@ -665,8 +668,11 @@ class DPHTrainer():
     def _load_ortho( self ):
         params = [
             p for name, p in self.model_dph.named_parameters()
-            if any( i in name for i in self.train_config.ortho_params )
+            if any( i in name for i in self.train_config.ortho_params ) and p.requires_grad
         ]
+        
+        if len( params ) == 0:
+            return None
 
         return Ortho( params, self.train_config.ortho_beta, self.train_config.ortho_norm_p )
 
@@ -882,7 +888,7 @@ class DPHTrainer():
         # Increment optimizer step
         self.optimizer_step += 1
 
-        reg_loss = self.orthogonalize.compute_loss()
+        reg_loss = self.orthogonalize.compute_loss() if self.orthogonalize else None
         if reg_loss is not None:
             self.optimizer_scaler.scale( reg_loss ).backward()
 
@@ -1283,9 +1289,12 @@ class SteerTrainer():
     def _load_ortho( self ):
         params = [
             p for name, p in self.model_dph.named_parameters()
-            if any( i in name for i in self.train_config.ortho_params )
+            if any( i in name for i in self.train_config.ortho_params ) and p.requires_grad
         ]
-
+        
+        if len( params ) == 0:
+            return None
+        
         return Ortho( params, self.train_config.ortho_beta, self.train_config.ortho_norm_p )
 
     """ ========================================================================
@@ -1497,7 +1506,7 @@ class SteerTrainer():
         self.optimizer_step += 1
 
         # Compute ortho regularisation loss
-        reg_loss = self.orthogonalize.compute_loss()
+        reg_loss = self.orthogonalize.compute_loss() if self.orthogonalize else None
 
         # If there are any ortho weights, do the backward pass
         if reg_loss is not None:
