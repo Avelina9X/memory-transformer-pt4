@@ -290,12 +290,8 @@ def instruct_align(
         # Set generation config
         dph_model.generation_config = train_utils.create_generation_config( tokenizer )
         
-        # Set prefix sizes
-        dph_model.config.pooler_config.prefix_sizes[ 'system' ] = len( tokenizer.encode( '<|im_start|>system\n', add_special_tokens=False ) )
-        dph_model.config.pooler_config.prefix_sizes[ 'user' ] = len( tokenizer.encode( '<|im_start|>user\n', add_special_tokens=False ) )
-        dph_model.config.pooler_config.prefix_sizes[ 'assistant' ] = len( tokenizer.encode( '<|im_start|>assistant\n', add_special_tokens=False ) )
-
     else:
+        """
         # Get the wrapped model name
         wrapped_model_name = config[ 'finetune.wrapped_model' ]
         pretrained_run_name = None
@@ -313,7 +309,7 @@ def instruct_align(
         # Create fake model config from the wrapped config
         model_config = LSWTConfig(
             n_layers=0,
-            n_heads=1,
+            n_heads=source_config.num_attention_heads,
 
             d_model=source_config.hidden_size,
             d_ffn=source_config.intermediate_size,
@@ -378,6 +374,7 @@ def instruct_align(
         dph_model.config.pooler_config.prefix_sizes[ 'system' ] = len( tokenizer.encode( '<|im_start|>system\n', add_special_tokens=False ) )
         dph_model.config.pooler_config.prefix_sizes[ 'user' ] = len( tokenizer.encode( '<|im_start|>user\n', add_special_tokens=False ) )
         dph_model.config.pooler_config.prefix_sizes[ 'assistant' ] = len( tokenizer.encode( '<|im_start|>assistant\n', add_special_tokens=False ) )
+        """
 
     # Create task mixes
     while True:
