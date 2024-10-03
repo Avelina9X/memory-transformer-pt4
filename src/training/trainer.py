@@ -770,8 +770,8 @@ class DPHTrainer():
         # pos_rewards = self.model_dph.pooler.forward( dph_pos_states, False, False )
         # neg_rewards = self.model_dph.pooler.forward( dph_neg_states, False, False )
 
-        both_rewards: DPHOutput = self.model_dph.pooler( dph_states, output_embeddings=False, return_final=True )
-        pos_rewards, neg_rewards = both_rewards.rewards[ self.reward_head_key ].chunk( 2, dim=0 )
+        both_rewards = self.model_dph.compute_final_rewards( dph_states, tokens_combined )
+        pos_rewards, neg_rewards = both_rewards[ self.reward_head_key ].chunk( 2, dim=0 )
 
         with torch.no_grad():
             # Compute reference logits if we need a reference model (e.g. for DPO or KL)
