@@ -175,21 +175,14 @@ class LSWTTokenPoolerCLS( torch.nn.Module ):
         
         self.cls_token_id = int( pooler_config.token_pooling_config[ 'cls_token_id' ] )
     
-    def forward(
-        self,
-        states: torch.Tensor,
-        input_ids: torch.Tensor,
-        return_final: bool,
-        state_ids: torch.Tensor | None = None,
-        segment_ids: torch.Tensor | None = None,
-    ) -> torch.Tensor:
+    def forward( self, layer_states: torch.Tensor, input_ids: torch.Tensor, return_final: bool ) -> torch.Tensor:
         assert return_final, 'Can only return final using CLS pooler'
         
-        batch_ids = torch.arange( input_ids.shape[0], device=states.device )
-        seq_ids = torch.arange( input_ids.shape[1], device=states.device )
+        batch_ids = torch.arange( input_ids.shape[0], device=layer_states.device )
+        seq_ids = torch.arange( input_ids.shape[1], device=layer_states.device )
         end_idx = torch.where( input_ids == self.cls_token_id, seq_ids, -1 ).max( -1 )[0]
         
-        return states[ batch_ids, end_idx ]
+        return layer_states[ batch_ids, end_idx ]
 
 class LSWTTokenPoolerAttention( torch.nn.Module ):
     def __init__( self, pooler_config: LSWTPoolerConfig, base_config: LSWTConfig ):
@@ -264,7 +257,10 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
             states[ :, i ] = current_state
             seg_ids[ :, i ] = current_seg_id
         
-        return states, seg_ids
+        segment_mask = torch.isin( states, torch.tensor( [ 1, 2, 3, 4 ] if self.include_prefix else [ 3, 4 ], device=states.device ) )
+        class_mask = im_end_arr
+        
+        return states, seg_ids, segment_mask, class_mask
     
     def compute_bias_mask_self( self, segment_ids: torch.Tensor, segment_mask: torch.Tensor ) -> torch.Tensor:
         seq_len = segment_ids.shape[-1]
@@ -290,19 +286,8 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
         
         return bias.where( mask, float( '-inf' ) )
     
-    def forward(
-        self,
-        states: torch.Tensor,
-        input_ids: torch.Tensor,
-        return_final: bool,
-        state_ids: torch.Tensor | None = None,
-        segment_ids: torch.Tensor | None = None,
-    ) -> torch.Tensor:
-        if state_ids is None or segment_ids is None:
-            state_ids, segment_ids = self.compute_segments( input_ids )
-        
-        segment_mask = torch.isin( state_ids, state_ids.new_tensor( [ 1, 2, 3, 4 ] if self.include_prefix else [ 3, 4 ] ) )
-        class_mask = input_ids == self.cls_token_id
+    def forward( self, states: torch.Tensor, input_ids: torch.Tensor, return_final: bool ) -> torch.Tensor:
+        state_ids, segment_ids, segment_mask, class_mask = self.compute_segments( input_ids )
         
         bias_mask_map = {
             'self': self.compute_bias_mask_self( segment_ids, segment_mask ),
