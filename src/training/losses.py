@@ -355,7 +355,8 @@ class ORPOLoss( nn.Module ):
         # self.mle_fct = CrossEntropyLoss( ignore_index=-100, reduction='none' )
     
     def get_logprobs( self, logits: torch.Tensor, targets: torch.LongTensor ) -> torch.Tensor:
-        logprobs = logits.log_softmax( -1, torch.float32 ).gather( -1, targets.unsqueeze( -1 ) ).squeeze( -1 )
+        safe_targets = targets.where( targets != -100, 0 )
+        logprobs = logits.log_softmax( -1, torch.float32 ).gather( -1, safe_targets.unsqueeze( -1 ) ).squeeze( -1 )
         mask = targets != -100
         masked_logprobs = logprobs * mask
         
