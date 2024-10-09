@@ -296,17 +296,11 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
             assert isinstance( attn_layer, _AttentionBase )
             assert isinstance( norm_layer, torch.nn.LayerNorm )
             
-            # Pre-norm the states
-            normed_state = norm_layer( states )
-            
-            # Get the mask type
-            mask_type = attn_layer.mask_type()
-            
-            # Select the correct bias mask
-            bias_mask = bias_mask_map[ mask_type ]
-            
-            # Get the residual stream
-            residual_states = attn_layer( normed_state, bias_mask )
+            # Get the residual
+            residual_states = attn_layer(
+                norm_layer( states ),
+                bias_mask_map[ attn_layer.mask_type() ]
+            )
             
             # Add residual to skip connection
             states = states + residual_states
