@@ -116,22 +116,6 @@ class _AttentionCross( _AttentionBase ):
         return self.o_proj( o )
 
 
-def _attention_factory(
-    attn_type: Literal['self', 'pool', 'cross'],
-    d_model: int,
-    n_heads: int,
-    d_key: int,
-    alibi_slope: float,
-) -> _AttentionBase:
-    match attn_type:
-        case 'self':
-            return _AttentionSelf( d_model=d_model, n_heads=n_heads, d_key=d_key, alibi_slope=alibi_slope )
-        case 'pool':
-            return _AttentionPool( d_model=d_model, n_heads=n_heads, d_key=d_key, alibi_slope=alibi_slope )
-        case 'cross':
-            return _AttentionCross( d_model=d_model, n_heads=n_heads, d_key=d_key, alibi_slope=alibi_slope )
-
-
 class LSWTLayerPoolerSingle( torch.nn.Module ):
     def __init__( self, pooler_config: LSWTPoolerConfig ):
         super().__init__()
@@ -193,6 +177,7 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
         self.sep_token_id = int( pooler_config.token_pooling_config[ 'sep_token_id' ] )
         self.cls_token_id = int( pooler_config.token_pooling_config[ 'cls_token_id' ] )
         self.new_token_id = int( pooler_config.token_pooling_config[ 'new_token_id' ] )
+        self.pad_token_id = int( pooler_config.token_pooling_config[ 'pad_token_id' ] )
         
         self.layer_names = list( pooler_config.token_pooling_config[ 'attn_layers' ] )
         self.include_prefix = bool( pooler_config.token_pooling_config[ 'include_prefix' ] )
@@ -208,7 +193,15 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
         
         for attn_type in self.layer_names:
             self.norm_layers.append( torch.nn.LayerNorm( self.d_model ) )
-            self.attn_layers.append( _attention_factory( attn_type, self.d_model, self.n_heads, self.d_key, self.alibi_slope ) )
+            self.attn_layers.append( self._attention_factory( attn_type ) )
+    
+    def _attention_factory( self, attn_type: Literal['self', 'pool', 'cross'] ) -> _AttentionBase:
+        match attn_type:
+            case 'self': cls = _AttentionSelf
+            case 'pool': cls = _AttentionPool
+            case 'cross': cls = _AttentionCross
+        return cls( d_model=self.d_model, n_heads=self.n_heads, d_key=self.d_key, alibi_slope=self.alibi_slope )
+        
     
     @torch._dynamo.disable # type: ignore # pylint: disable=W0212
     def compute_segments( self, tokens: torch.Tensor ):
@@ -287,7 +280,12 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
         return bias.where( mask, float( '-inf' ) )
     
     def forward( self, states: torch.Tensor, input_ids: torch.Tensor, return_final: bool ) -> torch.Tensor:
-        state_ids, segment_ids, segment_mask, class_mask = self.compute_segments( input_ids )
+        if self.include_prefix:
+            class_mask = input_ids == self.cls_token_id
+            segment_mask = input_ids != self.pad_token_id
+            segment_ids = ( input_ids == self.sep_token_id ).int().cumsum( -1 )
+        else:
+            state_ids, segment_ids, segment_mask, class_mask = self.compute_segments( input_ids )
         
         bias_mask_map = {
             'self': self.compute_bias_mask_self( segment_ids, segment_mask ),
