@@ -904,7 +904,7 @@ class DPHTrainer():
                 torch.nn.utils.clip_grad_norm_( self.model_dph.parameters_split( False ), self.train_config.opt_max_grad_norm ) # type: ignore
                 torch.nn.utils.clip_grad_norm_( self.model_dph.parameters_split( True ), self.train_config.opt_max_grad_norm ) # type: ignore
             else:
-                torch.nn.utils.clip_grad_norm_( self.model_dph.parameters(), self.train_config.opt_max_grad_norm ) # type: ignore
+                torch.nn.utils.clip_grad_norm_( ( p for p in self.model_dph.parameters() if p.requires_grad ), self.train_config.opt_max_grad_norm ) # type: ignore
 
         # Perform optimizer update
         self.optimizer_scaler.step( self.optimizer )
