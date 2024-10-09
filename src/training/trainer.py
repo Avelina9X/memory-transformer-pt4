@@ -32,6 +32,13 @@ from .losses import DPOLoss, DPHLoss, KLPairsLoss, MLELoss, ORPOLoss, SimCTGLoss
 PILE_PATH_PATTERN = os.environ[ 'PILE_PATH_PATTERN' ]
 PILE_SHARDS = int( os.environ[ 'PILE_SHARDS' ] )
 
+@torch.no_grad
+def nan_percent( x: torch.Tensor ):
+    nanp = torch.isnan( x ).sum() / x.numel()
+    infp = torch.isinf( x ).sum() / x.numel()
+
+    return f'mean={x.mean().item()} std={x.std().item()} nan={nanp.item()} inf={infp.item()}'
+
 
 class Trainer(): # pylint: disable=R0902
     """ Base class for continuous cached online pre-training.
@@ -1025,10 +1032,16 @@ class DPHTrainerDDP( DPHTrainer ):
         ======================================================================== """
 
     def _bar_format( self, iter_n, iter_total, elapsed, epoch ) -> str:
+        loss_dph = sync_and_compute( self.metrics[ 'loss_dph' ] )
         postfix = 'dph={0:.3f}, dph_acc={1:.3f}'.format(
-            sync_and_compute( self.metrics[ 'loss_dph' ] ),
+            loss_dph,
             sync_and_compute( self.metrics[ 'dph/accuracy' ] ),
         )
+        
+        if torch.isnan( loss_dph ).item() and self.ddp_rank == 0:
+            for name, p in self.model_dph.named_parameters():
+                if p.requires_grad:
+                    print( f'{name}: {nan_percent(p.data)}' )
 
         if self.dph_config.dpo_enabled:
             postfix += ' | dpo={0:.3f}, dpo_acc={1:.3f}'.format(
