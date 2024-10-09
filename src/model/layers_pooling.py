@@ -49,7 +49,7 @@ class _AttentionSelf( _AttentionBase ):
         k = self.k_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
         v = self.v_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
         
-        a = torch.einsum( 'bqhd,bkhd->bhqk', q, k * self.key_scale ) + bias_mask
+        a = torch.einsum( 'bqhd,bkhd->bhqk', q, k ) * self.key_scale + bias_mask
         a = a.softmax( -1 )
         
         o = torch.einsum( 'bhqk,bkhd->bqhd', a, v )
@@ -79,10 +79,10 @@ class _AttentionPool( _AttentionBase ):
         k = self.k_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
         v = self.v_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
         
-        a = torch.einsum( 'qhd,bkhd->bhqk', q, k * self.key_scale ) + bias_mask
+        a = torch.einsum( 'qhd,bkhd->bhqk', q.float(), k.float() ) * self.key_scale + bias_mask
         a = a.softmax( -1 )
         
-        o = torch.einsum( 'bhqk,bkhd->bqhd', a, v )
+        o = torch.einsum( 'bhqk,bkhd->bqhd', a, v.float() ).to( states.dtype )
         o = o.flatten( start_dim=2 )
         
         return self.o_proj( o )
@@ -107,7 +107,7 @@ class _AttentionCross( _AttentionBase ):
         k = self.k_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
         v = self.v_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
         
-        a = torch.einsum( 'bqhd,bkhd->bhqk', q, k * self.key_scale ) + bias_mask
+        a = torch.einsum( 'bqhd,bkhd->bhqk', q, k ) * self.key_scale + bias_mask
         a = a.softmax( -1 )
         
         o = torch.einsum( 'bhqk,bkhd->bqhd', a, v )
