@@ -62,12 +62,12 @@ class _AttentionPool( _AttentionBase ):
     def __init__( self, d_model: int, n_heads: int, d_key: int, alibi_slope: float ):
         super().__init__( d_model, n_heads, d_key, alibi_slope )
         
-        self.q_bias = torch.nn.Parameter( torch.empty( d_model ), requires_grad=True )
+        self.q_regs = torch.nn.Parameter( torch.empty( d_model ), requires_grad=True )
         self.k_proj = torch.nn.Linear( d_model, d_model, bias=True )
         self.v_proj = torch.nn.Linear( d_model, d_model, bias=True )
         self.o_proj = torch.nn.Linear( d_model, d_model, bias=True )
         
-        torch.nn.init.normal_( self.q_bias.data, 0.0, d_model ** -0.5 )
+        torch.nn.init.normal_( self.q_regs.data, 0.0, d_model ** -0.5 )
     
     def mask_type( self ) -> Literal['self', 'cross']:
         return 'self'
@@ -75,7 +75,7 @@ class _AttentionPool( _AttentionBase ):
     def forward( self, states: torch.Tensor, bias_mask: torch.Tensor ) -> torch.Tensor:
         bias_mask = bias_mask[ :, None, :, : ] * self.head_scale[ None, :, None, None ]
         
-        q = self.q_bias.unflatten( -1, [ self.n_heads, self.d_key ] )[ None, :, : ]
+        q = self.q_regs.unflatten( -1, [ self.n_heads, self.d_key ] )[ None, :, : ]
         k = self.k_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
         v = self.v_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
         
