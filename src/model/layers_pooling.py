@@ -67,7 +67,7 @@ class _AttentionPool( _AttentionBase ):
         self.v_proj = torch.nn.Linear( d_model, d_model, bias=True )
         self.o_proj = torch.nn.Linear( d_model, d_model, bias=True )
         
-        torch.nn.init.normal_( self.q_bias.data, 0.0, d_model ** -0.5 )
+        torch.nn.init.normal_( self.q_bias.data, 0.0, 0.02 )
     
     def mask_type( self ) -> Literal['self', 'cross']:
         return 'self'
