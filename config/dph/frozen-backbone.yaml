@@ -1,0 +1,7 @@
+model:
+  trainable_embeddings: true
+
+finetune:
+  trainable_backbone: true
+  frozen_params:
+    - model.blocks
