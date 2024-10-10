@@ -3,7 +3,7 @@ model:
     reward_heads:
       - reward_head
     reward_head_bias: true
-    embedding_dropout: 0.0
+    embedding_dropout: 0.1
 
     layer_pooling: weighted_sum
     layer_pooling_norm: post
@@ -16,6 +16,7 @@ model:
       sep_token_id: 50265
       cls_token_id: 50266
       new_token_id: 50118
+      pad_token_id: 1
 
       attn_layers:
         - pool
