@@ -62,7 +62,7 @@ class _AttentionPool( _AttentionBase ):
     def __init__( self, d_model: int, n_heads: int, d_key: int, alibi_slope: float ):
         super().__init__( d_model, n_heads, d_key, alibi_slope )
         
-        self.a_proj = torch.nn.Linear( d_model, n_heads, bias=True )
+        self.a_proj = torch.nn.Linear( d_model, n_heads, bias=False )
         
         self.v_proj = torch.nn.Linear( d_model, d_model, bias=True )
         self.o_proj = torch.nn.Linear( d_model, d_model, bias=True )
