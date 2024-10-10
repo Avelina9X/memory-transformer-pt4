@@ -62,12 +62,10 @@ class _AttentionPool( _AttentionBase ):
     def __init__( self, d_model: int, n_heads: int, d_key: int, alibi_slope: float ):
         super().__init__( d_model, n_heads, d_key, alibi_slope )
         
-        self.q_bias = torch.nn.Parameter( torch.empty( d_model ), requires_grad=True )
-        self.k_proj = torch.nn.Linear( d_model, d_model, bias=True )
+        self.a_proj = torch.nn.Linear( d_model, n_heads, bias=True )
+        
         self.v_proj = torch.nn.Linear( d_model, d_model, bias=True )
         self.o_proj = torch.nn.Linear( d_model, d_model, bias=True )
-        
-        torch.nn.init.normal_( self.q_bias.data, 0.0, 0.02 )
     
     def mask_type( self ) -> Literal['self', 'cross']:
         return 'self'
@@ -75,14 +73,13 @@ class _AttentionPool( _AttentionBase ):
     def forward( self, states: torch.Tensor, bias_mask: torch.Tensor ) -> torch.Tensor:
         bias_mask = bias_mask[ :, None, :, : ] * self.head_scale[ None, :, None, None ]
         
-        q = self.q_bias.unflatten( -1, [ self.n_heads, self.d_key ] )[ None, :, : ]
-        k = self.k_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
+
         v = self.v_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
         
-        a = torch.einsum( 'qhd,bkhd->bhqk', q.float(), k.float() ) * self.key_scale + bias_mask
+        a = self.a_proj( states ).permute( 0, 2, 1 )[ :, :, None, : ] + bias_mask
         a = a.softmax( -1 )
         
-        o = torch.einsum( 'bhqk,bkhd->bqhd', a, v.float() ).to( states.dtype )
+        o = torch.einsum( 'bhqk,bkhd->bqhd', a, v ).to( states.dtype )
         o = o.flatten( start_dim=2 )
         
         return self.o_proj( o )
