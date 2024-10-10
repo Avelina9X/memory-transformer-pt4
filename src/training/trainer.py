@@ -2,6 +2,7 @@
 Module containing the training loop components for training LSWTransformer models.
 """
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 import time
 import gc
@@ -14,6 +15,8 @@ from transformers import PreTrainedTokenizerBase
 import torch
 import torch.nn.functional as F
 import torch.distributed as dist
+from torch.utils._foreach_utils import _group_tensors_by_device_and_dtype, _has_foreach_support, _device_has_foreach_support
+from torch.amp.grad_scaler import GradScaler
 from torch.distributed.optim import ZeroRedundancyOptimizer # type: ignore
 from torch.optim import AdamW
 from torcheval import metrics
@@ -31,6 +34,33 @@ from .losses import DPOLoss, DPHLoss, KLPairsLoss, MLELoss, ORPOLoss, SimCTGLoss
 
 PILE_PATH_PATTERN = os.environ[ 'PILE_PATH_PATTERN' ]
 PILE_SHARDS = int( os.environ[ 'PILE_SHARDS' ] )
+
+@torch.no_grad
+def should_skip( x: Iterable[ torch.Tensor ] ):
+    grads = [ p.grad for p in x if p.grad is not None ]
+    foreach = None
+    
+    norm_type = float( 2 )
+    if len(grads) == 0:
+        return torch.tensor(0.)
+    first_device = grads[0].device
+    grouped_grads = _group_tensors_by_device_and_dtype([grads]) # type: ignore[assignment]
+
+    norms = []
+    for ((device, _), ([device_grads], _)) in grouped_grads.items():
+        if (
+            (foreach is None and _has_foreach_support(device_grads, device)) # type: ignore
+            or (foreach and _device_has_foreach_support(device))
+        ):
+            norms.extend(torch._foreach_norm(device_grads, norm_type)) # type: ignore
+        elif foreach:
+            raise RuntimeError(f'foreach=True was passed, but can\'t use the foreach API on {device.type} tensors')
+        else:
+            norms.extend([torch.linalg.vector_norm(g, norm_type) for g in device_grads]) # type: ignore
+
+    total_norm = torch.linalg.vector_norm(torch.stack([norm.to(first_device) for norm in norms]), norm_type) # type: ignore
+        
+    return torch.logical_or(total_norm.isnan(), total_norm.isinf())
 
 @torch.no_grad
 def nan_percent( x: torch.Tensor ):
@@ -74,7 +104,7 @@ class Trainer(): # pylint: disable=R0902
         self.tokenizer = tokenizer
 
         self.optimizer = self._load_optimizer()
-        self.optimizer_scaler = torch.cuda.amp.GradScaler() # type: ignore
+        self.optimizer_scaler = GradScaler() # type: ignore
 
         self.orthogonalize = self._load_ortho()
 
@@ -541,7 +571,7 @@ class DPHTrainer():
         self.tokenizer = tokenizer
 
         self.optimizer = self._load_optimizer()
-        self.optimizer_scaler = torch.cuda.amp.GradScaler() # type: ignore
+        self.optimizer_scaler = GradScaler() # type: ignore
 
         self.orthogonalize = self._load_ortho()
 
@@ -904,14 +934,17 @@ class DPHTrainer():
 
 
         # If gradient norm clipping is enabled perform scaling and clipping
-        if self.train_config.opt_max_grad_norm > 0.0:
-            self.optimizer_scaler.unscale_( self.optimizer )
-            
-            if self.dph_config.opt_split_norm:
-                torch.nn.utils.clip_grad_norm_( self.model_dph.parameters_split( False ), self.train_config.opt_max_grad_norm ) # type: ignore
-                torch.nn.utils.clip_grad_norm_( self.model_dph.parameters_split( True ), self.train_config.opt_max_grad_norm ) # type: ignore
-            else:
-                torch.nn.utils.clip_grad_norm_( ( p for p in self.model_dph.parameters() if p.requires_grad ), self.train_config.opt_max_grad_norm ) # type: ignore
+        if not should_skip( self.model_dph.parameters() ):
+            if self.train_config.opt_max_grad_norm > 0.0:
+                self.optimizer_scaler.unscale_( self.optimizer )
+                
+                if self.dph_config.opt_split_norm:
+                    torch.nn.utils.clip_grad_norm_( self.model_dph.parameters_split( False ), self.train_config.opt_max_grad_norm, error_if_nonfinite=True ) # type: ignore
+                    torch.nn.utils.clip_grad_norm_( self.model_dph.parameters_split( True ), self.train_config.opt_max_grad_norm, error_if_nonfinite=True ) # type: ignore
+                else:
+                    torch.nn.utils.clip_grad_norm_( self.model_dph.parameters(), self.train_config.opt_max_grad_norm, error_if_nonfinite=True ) # type: ignore
+        else:
+            print( 'Skipped step' )
 
         # Perform optimizer update
         self.optimizer_scaler.step( self.optimizer )
@@ -1220,7 +1253,7 @@ class SteerTrainer():
         self.label_keys = self.task_loader.labels
 
         self.optimizer = self._load_optimizer()
-        self.optimizer_scaler = torch.cuda.amp.GradScaler() # type: ignore
+        self.optimizer_scaler = GradScaler() # type: ignore
         self.optimizer_step = 0
 
         self.orthogonalize = self._load_ortho()
