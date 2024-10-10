@@ -19,6 +19,7 @@ from datasets import concatenate_datasets
 
 from model.configuration import LSWTConfigTraining, LSWTConfig, LSWTConfigTrainingDPH, LSWTConfigTrainingSteer, LSWTPoolerConfig
 from model.modeling import LSWTForCausalLM, LSWTForDPH
+from model.layers_pooling import LSWTLayerPoolerWeighted
 from training.trainer import Trainer
 from training.data import load_awesome_prompts, load_savvas_prompts
 from training.data_instruct.tasks import DIRECTORY_ALL
@@ -268,12 +269,12 @@ def compute_pooler_stats_dict( model: LSWTForDPH ):
 
     # Layer weighted sum graph
     if pooler_config.layer_pooling == 'weighted_sum':
-        assert not isinstance( pooler_config.layer_select, int )
-        assert model.pooler.layer_weighting is not None
+        assert not isinstance( pooler_config.layer_pooling_select, int )
+        assert isinstance( model.pooler.layer_pooler, LSWTLayerPoolerWeighted )
 
-        layer_weights = list( model.pooler.layer_weighting.detach().softmax( 0 ).mean( [ 1, 2, 3 ] ).cpu().numpy() )
+        layer_weights = list( model.pooler.layer_pooler.layer_weighting.detach().softmax( 0 ).mean( [ 1, 2, 3 ] ).cpu().numpy() )
 
-        for i, layer_idx in enumerate( pooler_config.layer_select ):
+        for i, layer_idx in enumerate( pooler_config.layer_pooling_select ):
             stats_dict[ f'pooler/layer_weights/{layer_idx}' ] = layer_weights[i]
 
     return stats_dict
