@@ -273,7 +273,7 @@ class Trainer(): # pylint: disable=R0902
 
     def forward_pass( self, tokens, past_key_values, cache_length ):
 
-        torch._inductor.cudagraph_mark_step_begin() # type: ignore # pylint: disable=W0212
+        # torch._inductor.cudagraph_mark_step_begin() # type: ignore # pylint: disable=W0212
 
         outputs = self.model(
             input_ids=tokens,
@@ -778,7 +778,7 @@ class DPHTrainer():
     def forward_pass( self, pos_tokens: torch.LongTensor, neg_tokens: torch.LongTensor ) -> ForwardPassOutputs:
 
         # Mark start of forward pass (may not be needed as we aren't using graphs)
-        torch._inductor.cudagraph_mark_step_begin() # type: ignore # pylint: disable=W0212
+        # torch._inductor.cudagraph_mark_step_begin() # type: ignore # pylint: disable=W0212
 
         # Combine the positive and negative tokens
         tokens_combined = typing.cast( torch.LongTensor, torch.cat( [ pos_tokens, neg_tokens ], dim=0 ) )
@@ -1403,7 +1403,7 @@ class SteerTrainer():
     def forward_pass( self, tokens: torch.Tensor, selected_idx: torch.Tensor ) -> ForwardPassOutputs:
 
         # Mark start of forward pass (may not be needed as we aren't using graphs)
-        torch._inductor.cudagraph_mark_step_begin() # type: ignore # pylint: disable=W0212
+        # torch._inductor.cudagraph_mark_step_begin() # type: ignore # pylint: disable=W0212
 
         # Compute outputs for positive and negative sequences
         dph_model_outputs = self.model_dph(
