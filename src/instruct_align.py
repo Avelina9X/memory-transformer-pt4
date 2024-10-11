@@ -516,7 +516,7 @@ def instruct_align(
                 curr_line, curr_dict = evaluate_zero_shot_task( task, batcher, zero_nan=True, max_batch_size=validation_batch_size )
                 validation_lines.append( curr_line )
                 validation_dict.update( **curr_dict )
-            torch.cuda.empty_cache()
+                torch.cuda.empty_cache()
 
             # If rank is zero and prompt validate is enabled do prompt validation
             if validation_prompts is not None:
