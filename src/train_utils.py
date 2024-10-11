@@ -279,7 +279,7 @@ def compute_pooler_stats_dict( model: LSWTForDPH ):
         for i, layer_idx in enumerate( pooler_config.layer_pooling_select ):
             stats_dict[ f'pooler/layer_weights/{layer_idx}' ] = layer_weights[i]
         
-        stats_dict[ f'pooler/layer_weights/raw_weights' ] = wandb.Histogram( list( raw_weights.cpu().numpy() ) )
+        stats_dict[ 'pooler/layer_weights/raw_weights' ] = wandb.Histogram( list( raw_weights.cpu().numpy() ) )
 
     return stats_dict
 
