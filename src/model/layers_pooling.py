@@ -122,11 +122,17 @@ def _attention_factory(
 ) -> _AttentionBase:
     match attn_type:
         case 'self':
-            return _AttentionSelf( d_model=d_model, n_heads=n_heads, d_key=d_key, alibi_slope=alibi_slope )
+            cls = _AttentionSelf
         case 'pool':
-            return _AttentionPool( d_model=d_model, n_heads=n_heads, d_key=d_key, alibi_slope=alibi_slope )
+            cls = _AttentionPool
         case 'cross':
-            return _AttentionCross( d_model=d_model, n_heads=n_heads, d_key=d_key, alibi_slope=alibi_slope )
+            cls = _AttentionCross
+    return cls(
+        d_model=d_model,
+        n_heads=n_heads,
+        d_key=d_key,
+        alibi_slope=alibi_slope
+    )
 
 
 class LSWTLayerPoolerSingle( torch.nn.Module ):
