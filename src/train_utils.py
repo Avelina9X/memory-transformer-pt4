@@ -352,6 +352,8 @@ def parse_yaml_config( files: list[str] ) -> dict:
         for k, v in u.items():
             if isinstance(v, Mapping):
                 d[k] = nested_update(d.get(k, {}), v)
+            elif isinstance(v, list):
+                d[k] = d.get( k, [] ) + v
             else:
                 d[k] = v
         return d

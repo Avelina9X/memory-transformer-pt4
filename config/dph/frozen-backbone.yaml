@@ -1,3 +1,7 @@
+meta:
+  tags:
+    - frozen_backbone
+
 model:
   trainable_embeddings: true
 

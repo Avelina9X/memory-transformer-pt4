@@ -1,3 +1,7 @@
+meta:
+  tags:
+    - frozen_model
+
 model:
   trainable_embeddings: false
 
