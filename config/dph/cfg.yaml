@@ -50,7 +50,5 @@ dph:
   dph_decay_mask:
     - norm
     - bias
-    - ema
-    - token_rotate
 
   opt_split_norm: false
