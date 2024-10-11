@@ -26,3 +26,4 @@ model:
       
       include_prefix: true
       alibi_slope: 8.0
+      head_gate: true
