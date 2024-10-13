@@ -10,7 +10,7 @@ Contains:
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from operator import itemgetter
-from transformers import PreTrainedModel
+from transformers import PreTrainedModel, GenerationMixin
 from transformers.modeling_outputs import BaseModelOutputWithPast, CausalLMOutputWithPast, ModelOutput
 from transformers.activations import ACT2FN
 import torch
@@ -263,7 +263,7 @@ class LSWTModel( LSWTPreTrainedModel ):
 
 
 
-class LSWTForCausalLM( LSWTPreTrainedModel ):
+class LSWTForCausalLM( LSWTPreTrainedModel, GenerationMixin ):
     """
     Causal LM model class for the LSW Transformer.
 
