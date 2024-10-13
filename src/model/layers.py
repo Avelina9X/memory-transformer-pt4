@@ -3,7 +3,7 @@ Module containing all the layers required for the LSWTransformer architecture.
 """
 
 import torch
-from torch.cuda.amp import custom_bwd, custom_fwd
+from torch.amp import custom_bwd, custom_fwd
 
 from transformers.activations import ACT2FN
 
@@ -69,14 +69,14 @@ class ProLU(torch.autograd.Function):
     ReLU: torch.autograd.Function
 
     @staticmethod
-    @custom_fwd
+    @custom_fwd( device_type='cuda' )
     def forward(ctx, m, b): # pylint: disable=W0221
         gate = (m + b > 0) & (m > 0)
         ctx.save_for_backward(m, gate)
         return torch.where(gate, m, 0)
 
     @staticmethod
-    @custom_bwd
+    @custom_bwd( device_type='cuda' )
     def backward( ctx, grad_output ): # pylint: disable=W0221 # type: ignore
         raise NotImplementedError(
             "This method should be overridden by a subclass of ProLU to provide a backward implementation."
@@ -84,7 +84,7 @@ class ProLU(torch.autograd.Function):
 
 class ProLU_ReLU(ProLU): # pylint: disable=W0223
     @staticmethod
-    @custom_bwd
+    @custom_bwd( device_type='cuda' )
     def backward(ctx, grad_output):
         _, gate = ctx.saved_tensors
         gated_grad = torch.where(gate, grad_output, 0)
@@ -93,7 +93,7 @@ class ProLU_ReLU(ProLU): # pylint: disable=W0223
 
 class ProLU_STE(ProLU): # pylint: disable=W0223
     @staticmethod
-    @custom_bwd
+    @custom_bwd( device_type='cuda' )
     def backward(ctx, grad_output):
         m, gate = ctx.saved_tensors
         gated_grad = torch.where(gate, grad_output, 0)
