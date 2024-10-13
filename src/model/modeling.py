@@ -452,7 +452,6 @@ class LSWTPooler( torch.nn.Module ):
         output_embeddings=False,
         return_final=True,
     ) -> DPHOutput:
-        assert self.pooler_config
         
         # Perform layer pooling and normalise
         layer_states: torch.Tensor = self.layer_pooler( hidden_states )
