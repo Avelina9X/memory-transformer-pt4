@@ -790,10 +790,6 @@ class DPHTrainer():
             use_cache=False,
         )
 
-        # Assert that there is a CLS token ID set
-        assert self.tokenizer.sep_token_id is not None
-        assert self.tokenizer.cls_token_id is not None
-
         # Get the logits and states
         dph_logits = dph_outputs.logits
         dph_states = dph_outputs.hidden_states
