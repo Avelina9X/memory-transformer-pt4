@@ -3,7 +3,7 @@ Module containing all the layers required for the LSWTransformer architecture.
 """
 
 import torch
-from torch.amp import custom_bwd, custom_fwd
+# from torch.amp import custom_bwd, custom_fwd
 
 from transformers.activations import ACT2FN
 
@@ -64,55 +64,55 @@ ACT2FN['exp'] = Exp
 ACT2FN['elu1'] = ELU1
 
 
-class ProLU(torch.autograd.Function):
-    STE: torch.autograd.Function
-    ReLU: torch.autograd.Function
+# class ProLU(torch.autograd.Function):
+#     STE: torch.autograd.Function
+#     ReLU: torch.autograd.Function
 
-    @staticmethod
-    @custom_fwd( device_type='cuda' )
-    def forward(ctx, m, b): # pylint: disable=W0221
-        gate = (m + b > 0) & (m > 0)
-        ctx.save_for_backward(m, gate)
-        return torch.where(gate, m, 0)
+#     @staticmethod
+#     @custom_fwd( device_type='cuda' )
+#     def forward(ctx, m, b): # pylint: disable=W0221
+#         gate = (m + b > 0) & (m > 0)
+#         ctx.save_for_backward(m, gate)
+#         return torch.where(gate, m, 0)
 
-    @staticmethod
-    @custom_bwd( device_type='cuda' )
-    def backward( ctx, grad_output ): # pylint: disable=W0221 # type: ignore
-        raise NotImplementedError(
-            "This method should be overridden by a subclass of ProLU to provide a backward implementation."
-        )
+#     @staticmethod
+#     @custom_bwd( device_type='cuda' )
+#     def backward( ctx, grad_output ): # pylint: disable=W0221 # type: ignore
+#         raise NotImplementedError(
+#             "This method should be overridden by a subclass of ProLU to provide a backward implementation."
+#         )
 
-class ProLU_ReLU(ProLU): # pylint: disable=W0223
-    @staticmethod
-    @custom_bwd( device_type='cuda' )
-    def backward(ctx, grad_output):
-        _, gate = ctx.saved_tensors
-        gated_grad = torch.where(gate, grad_output, 0)
-        grad_m, grad_b = gated_grad.clone(), gated_grad.clone()
-        return grad_m, grad_b, None
+# class ProLU_ReLU(ProLU): # pylint: disable=W0223
+#     @staticmethod
+#     @custom_bwd( device_type='cuda' )
+#     def backward(ctx, grad_output):
+#         _, gate = ctx.saved_tensors
+#         gated_grad = torch.where(gate, grad_output, 0)
+#         grad_m, grad_b = gated_grad.clone(), gated_grad.clone()
+#         return grad_m, grad_b, None
 
-class ProLU_STE(ProLU): # pylint: disable=W0223
-    @staticmethod
-    @custom_bwd( device_type='cuda' )
-    def backward(ctx, grad_output):
-        m, gate = ctx.saved_tensors
-        gated_grad = torch.where(gate, grad_output, 0)
-        grad_b = gated_grad * m
-        grad_m = gated_grad + grad_b.clone()
-        return grad_m, grad_b, None
+# class ProLU_STE(ProLU): # pylint: disable=W0223
+#     @staticmethod
+#     @custom_bwd( device_type='cuda' )
+#     def backward(ctx, grad_output):
+#         m, gate = ctx.saved_tensors
+#         gated_grad = torch.where(gate, grad_output, 0)
+#         grad_b = gated_grad * m
+#         grad_m = gated_grad + grad_b.clone()
+#         return grad_m, grad_b, None
 
-ProLU.STE = ProLU_STE # type: ignore
-ProLU.ReLU = ProLU_ReLU # type: ignore
+# ProLU.STE = ProLU_STE # type: ignore
+# ProLU.ReLU = ProLU_ReLU # type: ignore
 
-def prolu_ste( m: torch.Tensor, b: torch.Tensor ) -> torch.Tensor:
-    out = ProLU_STE.apply( m, b )
-    assert out
-    return out
+# def prolu_ste( m: torch.Tensor, b: torch.Tensor ) -> torch.Tensor:
+#     out = ProLU_STE.apply( m, b )
+#     assert out
+#     return out
 
-def prolu_relu( m: torch.Tensor, b: torch.Tensor ) -> torch.Tensor:
-    out = ProLU_ReLU.apply( m, b )
-    assert out
-    return out
+# def prolu_relu( m: torch.Tensor, b: torch.Tensor ) -> torch.Tensor:
+#     out = ProLU_ReLU.apply( m, b )
+#     assert out
+#     return out
 
 
 class RMSHeadNorm( torch.nn.Module ):

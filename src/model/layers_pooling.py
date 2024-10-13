@@ -3,7 +3,6 @@ from typing import Literal
 
 import torch
 import torch.nn.functional as F
-from torch.nn.attention.flex_attention import flex_attention # type: ignore # pylint: disable=E0401
 import einops
 
 from .configuration import LSWTConfig, LSWTPoolerConfig

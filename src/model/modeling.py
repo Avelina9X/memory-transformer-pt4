@@ -19,7 +19,7 @@ import torch.nn.functional as F
 from .layers_pooling import LSWTLayerPoolerSingle, LSWTLayerPoolerWeighted, LSWTTokenPoolerAttention, LSWTTokenPoolerCLS
 
 from .configuration import LSWTConfig, LSWTPoolerConfig
-from .layers import SharedEmbeddings, RotaryEmbedding, LSWTBlock, ActGLU, prolu_ste, prolu_relu
+from .layers import SharedEmbeddings, RotaryEmbedding, LSWTBlock
 
 class LSWTPreTrainedModel( PreTrainedModel ):
     """
