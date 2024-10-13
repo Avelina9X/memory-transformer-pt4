@@ -563,6 +563,8 @@ class DPHTrainer():
     ):
         self.train_config = train_config
         self.dph_config = dph_config
+        
+        self.autocast_type = torch.bfloat16 if model_dph.config.use_bfloat16 else torch.float16
 
         self.model_ref = model_ref
         self.model_dph = model_dph
@@ -841,7 +843,7 @@ class DPHTrainer():
     def train_sub_step( self, pos_tokens, pos_target, neg_tokens, neg_target ):
 
         # Set autocast context # TODO: support bf16 in addition to fp16
-        with torch.autocast( device_type='cuda', dtype=torch.bfloat16 if self.model_dph.config.use_bfloat16 else torch.float16 ):
+        with torch.autocast( device_type='cuda', dtype=self.autocast_tyoe ):
             # Perform forward pass to get all relevant outputs
             outputs = self.forward_pass( pos_tokens, neg_tokens )
 
@@ -1241,6 +1243,8 @@ class SteerTrainer():
 
         self.model_ref = model_ref
         self.model_dph = model_dph
+        
+        self.autocast_type = torch.bfloat16 if model_dph.config.use_bfloat16 else torch.float16
 
         self.task_loader = task_loader
         self.formatter = task_loader.formatter
@@ -1459,7 +1463,7 @@ class SteerTrainer():
     def train_sub_step( self, tokens: torch.Tensor, targets: torch.Tensor, selected_idx: torch.Tensor, selected_weights: torch.Tensor, y_true: torch.Tensor ):
 
         # Set autocast context
-        with torch.autocast( device_type='cuda', dtype=torch.bfloat16 if self.model_dph.config.use_bfloat16 else torch.float16 ):
+        with torch.autocast( device_type='cuda', dtype=self.autocast_type ):
             # Perform forward pass to get all relevant outputs
             outputs = self.forward_pass( tokens, selected_idx )
 

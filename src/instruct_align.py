@@ -319,6 +319,7 @@ def instruct_align(
         train_config = LSWTConfigTraining()
         dph_config = LSWTConfigTrainingDPH()
         train_utils.modify_dicts( config, model_config, train_config, dph_config )
+        model_config.use_bfloat16 = source_config.torch_dtype == torch.bfloat16
 
         # Get reward head name
         assert model_config.pooler_config
@@ -328,7 +329,6 @@ def instruct_align(
 
         # Instantiate wrapped model with the inner model
         dph_model = typing.cast( WrappedLSWTForDPH, WrappedLSWTForDPH( model_config, source_model ).cuda() ) # type: ignore
-        dph_model.config.use_bfloat16 = source_config.torch_dtype == torch.bfloat16
 
 
         # Mask out parameters
