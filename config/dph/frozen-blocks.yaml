@@ -1,0 +1,12 @@
+meta:
+  tags:
+    - frozen_blocks
+
+model:
+  trainable_embeddings: true
+
+finetune:
+  trainable_backbone: true
+  frozen_params:
+    - .ffn.
+    - .att.
