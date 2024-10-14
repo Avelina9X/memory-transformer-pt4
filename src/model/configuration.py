@@ -121,6 +121,8 @@ class LSWTConfig( PretrainedConfig ):
         parent_embeddings='facebook/opt-125m',
 
         pooler_config: dict | LSWTPoolerConfig | None = None,
+        
+        gradient_as_bucket_view=False,
 
         **kwargs,
     ):
@@ -172,6 +174,8 @@ class LSWTConfig( PretrainedConfig ):
             parent_embeddings (str): Parent embeddings and tokenizer vocab. Defaults to 'facebook/opt-125m'.
 
             pooler_config (dict | LSWTPoolerConfig | None): Pooler config for DPH and beyond. Defaults to None.
+            
+            gradient_as_bucket_view (bool): Saves (some) memory during DDP training at the cost of (slightly) slower backward passes. Defaults to False.
         """
         super().__init__(
             pad_token_id=pad_token_id,
@@ -238,6 +242,8 @@ class LSWTConfig( PretrainedConfig ):
             self.pooler_config = LSWTPoolerConfig()
         else:
             self.pooler_config = pooler_config
+        
+        self.gradient_as_bucket_view = gradient_as_bucket_view
 
         # Assertions
         if d_model % n_heads != 0:
@@ -291,6 +297,8 @@ class LSWTConfigTraining():
         ortho_params: Sequence[str] = tuple(),
         ortho_beta: float = 1.0,
         ortho_norm_p: float | str = 2,
+        
+        parameters_as_bucket_view=False,
     ):
         """LSW Transformer Training Configuration
 
@@ -355,6 +363,8 @@ class LSWTConfigTraining():
         self.ortho_params = ortho_params
         self.ortho_beta = ortho_beta
         self.ortho_norm_p = ortho_norm_p
+        
+        self.parameters_as_bucket_view = parameters_as_bucket_view
 
         # Assertions
         if batch_size % batch_size_step != 0:

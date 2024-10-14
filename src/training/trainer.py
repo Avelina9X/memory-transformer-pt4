@@ -22,7 +22,7 @@ from torch.optim import AdamW
 from torcheval import metrics
 from torcheval.metrics.toolkit import sync_and_compute
 
-from constants import PARAMETERS_AS_BUCKET_VIEW, TORCH_COMPILE_OPTIONS
+from constants import TORCH_COMPILE_OPTIONS
 from model.configuration import LSWTConfigTraining, LSWTConfigTrainingDPH, LSWTConfigTrainingSteer
 from model.modeling import DPHOutput, LSWTForCausalLM, LSWTForDPH
 
@@ -440,7 +440,7 @@ class TrainerDDP( Trainer ):
             return ZeroRedundancyOptimizer(
                 params=params,
                 optimizer_class=LaProp,
-                parameters_as_bucket_view=PARAMETERS_AS_BUCKET_VIEW,
+                parameters_as_bucket_view=self.train_config.parameters_as_bucket_view,
                 lr=0.0,
                 betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
                 eps=self.train_config.opt_eps,
@@ -1113,7 +1113,7 @@ class DPHTrainerDDP( DPHTrainer ):
             return ZeroRedundancyOptimizer(
                 params=params,
                 optimizer_class=LaProp,
-                parameters_as_bucket_view=PARAMETERS_AS_BUCKET_VIEW,
+                parameters_as_bucket_view=self.train_config.parameters_as_bucket_view,
                 lr=0.0,
                 betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
                 eps=self.train_config.opt_eps,
@@ -1715,7 +1715,7 @@ class SteerTrainerDDP( SteerTrainer ):
             return ZeroRedundancyOptimizer(
                 params=params,
                 optimizer_class=LaProp,
-                parameters_as_bucket_view=PARAMETERS_AS_BUCKET_VIEW,
+                parameters_as_bucket_view=self.train_config.parameters_as_bucket_view,
                 lr=0.0,
                 betas=( self.train_config.opt_beta_1, self.train_config.opt_beta_2 ),
                 eps=self.train_config.opt_eps,
