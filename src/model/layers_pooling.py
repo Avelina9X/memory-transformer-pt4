@@ -173,7 +173,7 @@ class LSWTLayerPoolerWeighted( torch.nn.Module ):
         
         states = torch.stack(
             [ state for i, state in enumerate( hidden_states ) if i in self.layer_idx ]
-        )
+        ) # TODO: check for negative references
             
         drop_mask = states.new_ones( [ states.size( 0 ), states.size( 1 ), 1, 1 ] )
         drop_mask = self.dropout( drop_mask )
