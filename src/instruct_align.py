@@ -206,6 +206,9 @@ def instruct_align(
 
     # Ensure config is not none
     assert config
+    
+    if rank == 0 and config.get( 'meta.log_graph_breaks', False ):
+        torch._logging.set_logs( graph_breaks=True )
 
     # Ensure DDP stuff is/isn't there if DDP is/isn't enabled
     if world_size == 1:
