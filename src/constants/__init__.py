@@ -36,26 +36,3 @@ TORCH_COMPILE_OPTIONS = {
     'disable': False,
     'dynamic': None,
 }
-
-OPTIMIZER_KWARGS = { # pylint: disable=R6101
-    'AdamW' : {
-        'train.optimizer': 'AdamW',
-        'train.opt_weight_decay': 0.1,
-        'train.opt_eps': 1e-5,
-        'train.opt_beta_1': 0.9,
-        'train.opt_beta_2': 0.95,
-        'train.opt_rho': -1,
-    },
-    
-    'Minato' : {
-        'train.optimizer': 'Minato',
-        'train.opt_weight_decay': 0.2,
-        'train.opt_eps': -1,
-        'train.opt_beta_1': 0.9,
-        'train.opt_beta_2': -1,
-        'train.opt_rho': 0.05,
-    },
-}
-
-PARAMETERS_AS_BUCKET_VIEW = False
-GRADIENTS_AS_BUCKET_VIEW = False
