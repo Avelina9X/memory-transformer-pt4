@@ -169,7 +169,11 @@ class LSWTLayerPoolerWeighted( torch.nn.Module ):
         self.layer_weighting = torch.nn.Parameter( torch.zeros( len( self.layer_idx ), 1, 1, 1 ), requires_grad=True )
     
     def forward( self, hidden_states: tuple[torch.Tensor] ) -> torch.Tensor:
-        states = torch.stack( itemgetter( *self.layer_idx )( hidden_states ) )
+        # states = torch.stack( itemgetter( *self.layer_idx )( hidden_states ) )
+        
+        states = torch.stack(
+            [ state for i, state in enumerate( hidden_states ) if i in self.layer_idx ]
+        )
             
         drop_mask = states.new_ones( [ states.size( 0 ), states.size( 1 ), 1, 1 ] )
         drop_mask = self.dropout( drop_mask )
