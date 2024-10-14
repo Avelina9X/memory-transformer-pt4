@@ -777,9 +777,6 @@ class DPHTrainer():
 
     def forward_pass( self, pos_tokens: torch.LongTensor, neg_tokens: torch.LongTensor ) -> ForwardPassOutputs:
 
-        # Mark start of forward pass (may not be needed as we aren't using graphs)
-        # torch._inductor.cudagraph_mark_step_begin() # type: ignore # pylint: disable=W0212
-
         # Combine the positive and negative tokens
         tokens_combined = typing.cast( torch.LongTensor, torch.cat( [ pos_tokens, neg_tokens ], dim=0 ) )
 
@@ -796,15 +793,11 @@ class DPHTrainer():
 
         # Chunk the logits and states into positive and negative respectively
         dph_pos_logits, dph_neg_logits = dph_logits.chunk( 2, dim=0 )
-        # dph_pos_states, dph_neg_states = dph_states.chunk( 2, dim=0 )
-
-
-        # Compute the positive and negative rewards (honestly could be batched and then chunked)
-        # pos_rewards = self.model_dph.pooler.forward( dph_pos_states, False, False )
-        # neg_rewards = self.model_dph.pooler.forward( dph_neg_states, False, False )
 
         both_rewards = self.model_dph.compute_final_rewards( dph_states, tokens_combined )
         pos_rewards, neg_rewards = both_rewards[ self.reward_head_key ].chunk( 2, dim=0 )
+        
+        del dph_states
 
         with torch.no_grad():
             # Compute reference logits if we need a reference model (e.g. for DPO or KL)
