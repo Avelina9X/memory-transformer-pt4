@@ -1,0 +1,15 @@
+meta:
+  tags:
+    - frozen_baseline
+
+model:
+  trainable_embeddings: true
+  gradient_as_bucket_view: true
+
+train:
+  parameters_as_bucket_view: false
+
+finetune:
+  trainable_backbone: true
+  frozen_params:
+    - pooler

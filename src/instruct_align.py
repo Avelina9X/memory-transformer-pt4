@@ -566,15 +566,22 @@ def instruct_align(
             stats_log = train_utils.compute_stats_dict( trainer, i, None ) # type: ignore
 
             pooler_log = train_utils.compute_pooler_stats_dict( dph_model ) # type: ignore
-
-            # Log to WandB
-            wandb.log( {
+            
+            final_log_dict = {
                 **pooler_log,
                 **validation_prompt_dict,
                 **{ f'train/{name}': metric for name, metric in train_metrics.items() },
                 **stats_log,
                 **validation_dict,
-            } )
+            }
+            
+            if config.get( 'meta.skip_dph', False ):
+                final_log_dict = {
+                    k: v for k, v in final_log_dict.items() if 'dph' not in k
+                }
+
+            # Log to WandB
+            wandb.log( final_log_dict )
 
     if rank == 0:
         if config.get( 'finetune.wrapped_model', None ) is None:

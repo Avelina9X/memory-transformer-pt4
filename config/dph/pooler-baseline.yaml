@@ -1,0 +1,29 @@
+meta:
+  skip_dph: true
+
+model:
+  pooler_config:
+    reward_heads:
+      - reward_head
+    reward_head_bias: true
+    embedding_dropout: 0.0
+
+    layer_pooling: layer
+    layer_pooling_norm: null
+    layer_pooling_select: -1
+    layer_pooling_dropout: 0.0
+
+    token_pooling: cls
+    token_pooling_norm: null
+    token_pooling_config:
+      sep_token_id: 50265
+      cls_token_id: 50266
+      new_token_id: 50118
+      pad_token_id: 1
+
+dph:
+  dph_contrastive: true
+  dph_epsilon: 0.0
+  dph_weight: 0.0
+  dph_penalty: 0.0
+  dph_lr_multiplier: 0.0
