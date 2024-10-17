@@ -9,8 +9,6 @@ from torch.nn.functional import scaled_dot_product_attention
 
 from .configuration import LSWTConfig, LSWTPoolerConfig
 
-
-
 class _AttentionBase( torch.nn.Module, ):
     def __init__( self, d_model: int, n_heads: int, d_key: int, alibi_slope: float, head_gate: bool ):
         super().__init__()
@@ -135,14 +133,13 @@ class _AttentionCross( _AttentionBase ):
         # # Aggregate values
         # o = torch.einsum( 'bhqk,bkhd->bqhd', a, v )
         
-        with sdpa_kernel( [ SDPBackend.EFFICIENT_ATTENTION ] ):
-            o = scaled_dot_product_attention(
-                q.transpose( 1, 2 ),
-                k.transpose( 1, 2 ),
-                v.transpose( 1, 2 ),
-                attn_mask=bias_mask,
-                scale=self.key_scale,
-            ).transpose( 2, 1 )
+        o = scaled_dot_product_attention(
+            q.transpose( 1, 2 ),
+            k.transpose( 1, 2 ),
+            v.transpose( 1, 2 ),
+            attn_mask=bias_mask,
+            scale=self.key_scale,
+        ).transpose( 2, 1 )
         
         # Apply gate if present
         if self.g_proj:
