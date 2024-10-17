@@ -43,7 +43,7 @@ def create_validation_zeroshot_tasks( n_bins: int ) -> list[list[BaseChoiceInstr
         DIRECTORY_CHOICE[ 'sciq' ][ 'no_choice' ]( HF_CACHE_DIR ),
         DIRECTORY_CHOICE[ 'truthful_qa' ][ 'mc1' ]( HF_CACHE_DIR ),
         DIRECTORY_CHOICE[ 'mmlu' ][ 'all' ]( HF_CACHE_DIR ),
-        DIRECTORY_CHOICE[ 'hellaswag' ][ 'choice' ]( HF_CACHE_DIR ),
+        # DIRECTORY_CHOICE[ 'hellaswag' ][ 'choice' ]( HF_CACHE_DIR ),
 
         # GPT 4 ALL
         DIRECTORY_CHOICE[ 'hellaswag' ][ 'no_choice' ]( HF_CACHE_DIR ),
