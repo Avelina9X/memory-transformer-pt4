@@ -308,9 +308,6 @@ class DPHChoiceInstructionBatcher( ChoiceInstructionBatcher ):
             with torch.autocast( device_type='cuda', dtype=torch.bfloat16 if self.model.config.use_bfloat16 else torch.float16 ):
                 outputs = self.model( prepared_batch.tokens )
 
-                start_id = self.formatter.tokenizer.sep_token_id
-                end_id = self.formatter.tokenizer.cls_token_id
-
                 logits = outputs.logits
                 states = outputs.hidden_states
                 rewards = self.model.compute_final_rewards( states, prepared_batch.tokens )[ self.reward_head_key ]
@@ -342,9 +339,6 @@ class DPHChoiceInstructionBatcher( ChoiceInstructionBatcher ):
 
             with torch.autocast( device_type='cuda', dtype=torch.bfloat16 if self.model.config.use_bfloat16 else torch.float16 ):
                 outputs = self.model( tokens )
-
-                start_id = self.formatter.tokenizer.sep_token_id
-                end_id = self.formatter.tokenizer.cls_token_id
 
                 logits: torch.Tensor = outputs.logits
                 states = outputs.hidden_states
@@ -474,9 +468,6 @@ class SteerInstructionBatcher( BaseInstructionBatcher ):
 
             with torch.autocast( device_type='cuda', dtype=torch.bfloat16 if self.model.config.use_bfloat16 else torch.float16 ):
                 outputs = self.model( tokens )
-
-                start_id = self.formatter.tokenizer.sep_token_id
-                end_id = self.formatter.tokenizer.cls_token_id
 
                 states = outputs.hidden_states
                 rewards = self.model.compute_final_rewards( states, tokens )
