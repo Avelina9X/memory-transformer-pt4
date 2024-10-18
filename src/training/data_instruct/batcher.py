@@ -252,6 +252,39 @@ class ChoiceInstructionBatcher( BaseInstructionBatcher ):
 
             results = self.compute_batch( prepared_batch, logits )
         return results
+    
+    def evaluate_document_batched(
+        self,
+        task: BaseChoiceInstructDataset,
+        docs: list[dict],
+        fewshot: bool = False,
+        fewshot_allsys: bool = True,
+    ) -> list[dict]:
+        with torch.inference_mode():
+            self.model.eval()
+            device = self.model.get_input_embeddings().weight.device
+            prepared_batches = self.prepare_batches( task, docs, device, fewshot, fewshot_allsys )
+            
+            tokens = torch.cat( [ i.tokens for i in prepared_batches ], dim=0 )
+            tokens_shapes = ( [ i.tokens.shape[0] for i in prepared_batches ] )
+            out_dicts = []
+            
+            with torch.autocast( device_type='cuda', dtype=torch.bfloat16 if self.model.config.use_bfloat16 else torch.float16 ):
+                outputs = self.model( tokens )
+
+                logits: torch.Tensor = outputs.logits
+
+                logits_arr = logits.split( tokens_shapes, dim=0 )
+
+            for idx in range( len( docs ) ):
+                log_results = self.compute_batch( prepared_batches[idx], logits_arr[idx] )
+
+                out_dicts.append( {
+                    'references': log_results[ 'references' ],
+                    'predictions': log_results[ 'predictions' ],
+                } )
+        
+        return out_dicts
 
     def evaluate_dataset(
         self,
@@ -271,6 +304,32 @@ class ChoiceInstructionBatcher( BaseInstructionBatcher ):
         answer_list = [ i.item() for i in answer_list ]
 
         return task.compute_metric( references=correct_list, predictions=answer_list )
+
+    def evaluate_dataset_batched(
+        self,
+        task: BaseChoiceInstructDataset,
+        dataset: Iterable,
+        fewshot: bool = False,
+        fewshot_allsys: bool = True,
+        batch_size: int | None = None,
+    ):
+        if batch_size is None:
+            return self.evaluate_dataset( task, dataset, fewshot, fewshot_allsys )
+
+        correct_list = []
+        answer_list = []
+
+        for line in iter_n( dataset, batch_size ):
+            results = self.evaluate_document_batched( task, line, fewshot, fewshot_allsys )
+            for result in results:
+                correct_list.append( result[ 'references' ] )
+                answer_list.append( result[ 'predictions' ] )
+
+        answer_list = [ i.item() for i in answer_list ]
+
+        return task.compute_metric( references=correct_list, predictions=answer_list )
+
+
 
 class DPHChoiceInstructionBatcher( ChoiceInstructionBatcher ):
     def __init__(
