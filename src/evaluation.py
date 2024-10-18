@@ -1,6 +1,7 @@
 """ Module for benchmarking models. """
 
 from collections.abc import Callable
+import math
 import os
 import typing
 import argparse
@@ -22,7 +23,8 @@ from constants import HF_CACHE_DIR
 def evaluate_glue(
     batcher: ChoiceInstructionBatcher | DPHChoiceInstructionBatcher,
     eval_dir: str,
-    is_dph: bool
+    is_dph: bool,
+    max_batch_size: int,
 ):
     """ Evaluates on the GLUE dataset.
 
@@ -147,6 +149,7 @@ def evaluate_generic(
     is_dph: bool,
     eval_filename: str,
     task_map: list[tuple[str, bool, BaseChoiceInstructDataset, float]],
+    max_batch_size: int,
 ):
     """ Evaluates on an arbitrary weighted task list.
 
@@ -176,9 +179,13 @@ def evaluate_generic(
         # Get the dataset type according to LM Eval Harness
         test_ds = task.get_test_docs() if use_test else task.get_validation_docs()
         assert test_ds
+        
+        # Get batch size estimate
+        estimate_size = len( task.create_unlabelled_message_list( test_ds[0] ) )
+        batch_count = max( 1, math.floor( max_batch_size / estimate_size ) )
 
         # Compute the results
-        results = batcher.evaluate_dataset( task, test_ds, False, False )
+        results = batcher.evaluate_dataset_batched( task, test_ds, False, False, batch_count )
 
         # Add the weighting
         metrics_weights[ task_name ] = weight
@@ -213,7 +220,8 @@ def evaluate_generic(
 def evaluate_gpt4all(
     batcher: ChoiceInstructionBatcher | DPHChoiceInstructionBatcher,
     eval_dir: str,
-    is_dph: bool
+    is_dph: bool,
+    max_batch_size: int,
 ):
     """ Evaluates on the GPT4All tasks.
 
@@ -238,12 +246,13 @@ def evaluate_gpt4all(
         ( 'piqa', False, DIRECTORY_CHOICE[ 'piqa' ][ 'no_choice' ]( HF_CACHE_DIR ), 1.0 ),
     ]
 
-    evaluate_generic( batcher, eval_dir, is_dph, 'gpt4all.tsv', task_map )
+    evaluate_generic( batcher, eval_dir, is_dph, 'gpt4all.tsv', task_map, max_batch_size )
 
 def evaluate_race(
     batcher: ChoiceInstructionBatcher | DPHChoiceInstructionBatcher,
     eval_dir: str,
-    is_dph: bool
+    is_dph: bool,
+    max_batch_size: int,
 ):
     """ Evaluates RACE middle and high on the test splits.
 
@@ -261,15 +270,15 @@ def evaluate_race(
         ( 'RACE-h', True, DIRECTORY_CHOICE[ 'race' ][ 'high' ]( HF_CACHE_DIR ), 3498 ),
     ]
 
-    evaluate_generic( batcher, eval_dir, is_dph, 'race.tsv', task_map )
+    evaluate_generic( batcher, eval_dir, is_dph, 'race.tsv', task_map, max_batch_size )
 
-BENCHMARK_MAP: dict[str, Callable[[ChoiceInstructionBatcher | DPHChoiceInstructionBatcher, str, bool], None]] = {
+BENCHMARK_MAP: dict[str, Callable[[ChoiceInstructionBatcher | DPHChoiceInstructionBatcher, str, bool, int], None]] = {
     'glue': evaluate_glue,
     'gpt4all': evaluate_gpt4all,
     'race': evaluate_race,
 }
 
-def evaluate( model_dir: str, benchmark: str ):
+def evaluate( model_dir: str, benchmark: str, batch_size: int ):
     """ Evaluates a model using a specific benchmark
 
     Args:
@@ -314,9 +323,9 @@ def evaluate( model_dir: str, benchmark: str ):
     match benchmark:
         case 'all':
             for b in BENCHMARK_MAP.values():
-                b( batcher, eval_dir, is_dph )
+                b( batcher, eval_dir, is_dph, batch_size )
         case _:
-            BENCHMARK_MAP[benchmark]( batcher, eval_dir, is_dph )
+            BENCHMARK_MAP[benchmark]( batcher, eval_dir, is_dph, batch_size )
 
 
 def run():
@@ -341,12 +350,20 @@ def run():
         choices=[ 'all', *BENCHMARK_MAP.keys() ],
         help='Name of benchmark to perform',
     )
+    
+    # Benchmark
+    argparser.add_argument(
+        '--batch_size',
+        type=int,
+        default=1,
+        help='Approximate maximum batch size to use during evaluation.',
+    )
 
     # Parse the command line args
     arguments = argparser.parse_args()
 
     # Run evaluation
-    evaluate( arguments.dir, arguments.benchmark )
+    evaluate( arguments.dir, arguments.benchmark, arguments.batch_size )
 
 if __name__ == '__main__':
     run()
