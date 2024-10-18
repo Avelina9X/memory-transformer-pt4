@@ -275,7 +275,7 @@ class MixedTaskLoader( IterableDataset ):
             while True:
                 yield next( random.choice( generators ) )
         else:
-            probs = [ min( task.num_samples, self.task_elbow ) * task.sample_weight for task in self.tasks ]
+            probs = [ min( task.num_samples * task.sample_weight, self.task_elbow ) for task in self.tasks ]
             
             while True:
                 yield next( random.choices( generators, probs )[0] )
@@ -492,7 +492,7 @@ class DPHMultiTaskLoader( IterableDataset ):
 
     def example_generator( self ):
         iterators = [ ( task, iter( generate_forever( ds ) ) ) for task, ds, _ in self.task_list ]
-        probs = [ min( len( ds ), self.task_elbow or 1 ) * weight for _, ds, weight in self.task_list ]
+        probs = [ min( len( ds ) * weight, self.task_elbow or 1 ) for _, ds, weight in self.task_list ]
 
         while True:
             task, ds = random.choices( iterators, probs )[0]
