@@ -272,10 +272,106 @@ def evaluate_race(
 
     evaluate_generic( batcher, eval_dir, is_dph, 'race.tsv', task_map, max_batch_size )
 
+def evaluate_reward_bench(
+    batcher: ChoiceInstructionBatcher | DPHChoiceInstructionBatcher,
+    eval_dir: str,
+    is_dph: bool,
+    max_batch_size: int,
+):
+    EXAMPLE_COUNTS = {
+        "alpacaeval-easy": 100,
+        "alpacaeval-length": 95,
+        "alpacaeval-hard": 95,
+        "mt-bench-easy": 28,
+        "mt-bench-med": 40,
+        "mt-bench-hard": 37,
+        "math-prm": 984,  # actual length 447, upweighting to be equal to code
+        "refusals-dangerous": 100,
+        "refusals-offensive": 100,
+        "llmbar-natural": 100,
+        "llmbar-adver-neighbor": 134,
+        "llmbar-adver-GPTInst": 92,
+        "llmbar-adver-GPTOut": 47,
+        "llmbar-adver-manual": 46,
+        "xstest-should-refuse": 154,
+        "xstest-should-respond": 250,
+        "donotanswer": 136,
+        "hep-cpp": 164,
+        "hep-go": 164,
+        "hep-java": 164,
+        "hep-js": 164,
+        "hep-python": 164,
+        "hep-rust": 164,
+    }
+    
+    SUBSET_MAPPING = {
+        "Chat": [
+            "alpacaeval-easy",
+            "alpacaeval-length",
+            "alpacaeval-hard",
+            "mt-bench-easy",
+            "mt-bench-med",
+        ],
+        "Chat Hard": [
+            "mt-bench-hard",
+            "llmbar-natural",
+            "llmbar-adver-neighbor",
+            "llmbar-adver-GPTInst",
+            "llmbar-adver-GPTOut",
+            "llmbar-adver-manual",
+        ],
+        "Safety": [
+            "refusals-dangerous",
+            "refusals-offensive",
+            "xstest-should-refuse",
+            "xstest-should-respond",
+            "donotanswer",
+        ],
+        "Reasoning": [
+            "math-prm",
+            "hep-cpp",
+            "hep-go",
+            "hep-java",
+            "hep-js",
+            "hep-python",
+            "hep-rust",
+        ],
+    }
+    
+    eval_dir = os.path.join( eval_dir, 'reward_bench' )
+    os.makedirs( eval_dir, mode=0o777, exist_ok=True )
+    
+    # Create a map of all tasts
+    task_map_chat: list[tuple[str, bool, BaseChoiceInstructDataset, float]] = [
+        ( name, True, DIRECTORY_CHOICE[ 'reward_bench' ][ name ]( HF_CACHE_DIR ), EXAMPLE_COUNTS[ name ] )
+        for name in SUBSET_MAPPING[ 'Chat' ]
+    ]
+    
+    task_map_chat_hard: list[tuple[str, bool, BaseChoiceInstructDataset, float]] = [
+        ( name, True, DIRECTORY_CHOICE[ 'reward_bench' ][ name ]( HF_CACHE_DIR ), EXAMPLE_COUNTS[ name ] )
+        for name in SUBSET_MAPPING[ 'Chat Hard' ]
+    ]
+    
+    task_map_safety: list[tuple[str, bool, BaseChoiceInstructDataset, float]] = [
+        ( name, True, DIRECTORY_CHOICE[ 'reward_bench' ][ name ]( HF_CACHE_DIR ), EXAMPLE_COUNTS[ name ] )
+        for name in SUBSET_MAPPING[ 'Safety' ]
+    ]
+    
+    task_map_reasoning: list[tuple[str, bool, BaseChoiceInstructDataset, float]] = [
+        ( name, True, DIRECTORY_CHOICE[ 'reward_bench' ][ name ]( HF_CACHE_DIR ), EXAMPLE_COUNTS[ name ] )
+        for name in SUBSET_MAPPING[ 'Reasoning' ]
+    ]
+
+    evaluate_generic( batcher, eval_dir, is_dph, 'chat.tsv', task_map_chat, max_batch_size )
+    evaluate_generic( batcher, eval_dir, is_dph, 'chat-hard.tsv', task_map_chat_hard, max_batch_size )
+    evaluate_generic( batcher, eval_dir, is_dph, 'safety.tsv', task_map_safety, max_batch_size )
+    evaluate_generic( batcher, eval_dir, is_dph, 'reasoning.tsv', task_map_reasoning, max_batch_size )
+
 BENCHMARK_MAP: dict[str, Callable[[ChoiceInstructionBatcher | DPHChoiceInstructionBatcher, str, bool, int], None]] = {
     'glue': evaluate_glue,
     'gpt4all': evaluate_gpt4all,
     'race': evaluate_race,
+    'reward_bench': evaluate_reward_bench,
 }
 
 def evaluate( model_dir: str, benchmark: str, batch_size: int ):
