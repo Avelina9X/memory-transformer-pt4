@@ -9,6 +9,60 @@ from torch.nn.functional import scaled_dot_product_attention
 
 from .configuration import LSWTConfig, LSWTPoolerConfig
 
+def _group_cumsum( input: torch.Tensor, reset_mask: torch.Tensor ) -> torch.Tensor:
+    # Compute cumsum along sequence dim
+    input_sum = input.cumsum( 1 )
+
+    # Subtract input to get the exclusive cumsum
+    input_prime = input_sum - input
+
+    # Compute indicies of masked locations and scatter into unmasked locations
+    indicies = torch.arange( input.shape[1], device=input.device ) * reset_mask
+    indicies = indicies.cummax( 1 )[0].unsqueeze( -1 )
+
+    # Subtract the gathered values to reconstruct the group cumsums
+    return input_sum - input_prime.take_along_dim( indicies, 1 )
+
+def group_cumsum( embeddings: torch.Tensor, reset_mask: torch.Tensor ) -> torch.Tensor:
+    # Cast to float
+    input = embeddings.float()
+
+    # Compute cumsum in fp32
+    output = _group_cumsum( input, reset_mask )
+
+    # Cast back to input type and return
+    return output.to( embeddings.dtype )
+
+def group_cummean( embeddings: torch.Tensor, reset_mask: torch.Tensor ) -> torch.Tensor:
+    # Cast to float
+    input = embeddings.float()
+
+    # Create ones and compute group cumsum of segments
+    ones = torch.ones_like( reset_mask, dtype=torch.float ).unsqueeze( -1 )
+    scale = _group_cumsum( ones, reset_mask )
+
+    # Compute cumsum in fp32 and rescale
+    output = _group_cumsum( input, reset_mask ) / scale
+
+    return output.to( embeddings.dtype )
+
+def group_cummean_weighted( embeddings: torch.Tensor, reset_mask: torch.Tensor ) -> torch.Tensor:
+    # Cast to float
+    input = embeddings.float()
+
+    # Create ones and compute group cumsum of segments
+    ones = torch.ones_like( reset_mask, dtype=torch.float ).unsqueeze( -1 )
+    scale = _group_cumsum( ones, reset_mask )
+
+    # Compute scaled cumsum in fp32 and rescale
+    output = _group_cumsum( input * scale, reset_mask ) / scale
+
+    return output.to( embeddings.dtype )
+
+def group_cumsum_noop( embeddings: torch.Tensor, reset_mask: torch.Tensor ) -> torch.Tensor:
+    return embeddings
+
+
 class _AttentionBase( torch.nn.Module, ):
     def __init__( self, d_model: int, n_heads: int, d_key: int, alibi_slope: float, head_gate: bool ):
         super().__init__()
@@ -350,3 +404,34 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
             states = states + residual_states
         
         return states
+
+
+class LSWTEmbeddingPooler( torch.nn.Module ):
+    def __init__( self, pooler_config: LSWTPoolerConfig ):
+        super().__init__()
+        
+        self.cls_token_id = int( pooler_config.token_pooling_config[ 'cls_token_id' ] )
+        
+        match pooler_config.embedding_pooling:
+            case 'sgpt':
+                self.func = group_cummean_weighted
+            case None:
+                self.func = group_cumsum_noop
+            case _:
+                raise ValueError( f'`{pooler_config.embedding_pooling}` is not a valid value for pooler_config.embedding_pooling' )
+        
+    def forward( self, embeddings: torch.Tensor, input_ids: torch.Tensor, return_final: bool ) -> torch.Tensor:
+        
+        reset_mask = input_ids == self.cls_token_id
+        
+        embeddings = self.func( embeddings, reset_mask )
+        
+        # If return final, select the final CLS token
+        if return_final:
+            batch_ids = torch.arange( input_ids.shape[0], device=embeddings.device )
+            seq_ids = torch.arange( input_ids.shape[1], device=embeddings.device )
+            end_idx = torch.where( reset_mask, seq_ids, -1 ).max( -1 )[0]
+            
+            return embeddings[ batch_ids, end_idx ]
+        else:
+            return embeddings

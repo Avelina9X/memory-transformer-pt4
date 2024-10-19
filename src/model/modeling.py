@@ -16,7 +16,7 @@ from transformers.activations import ACT2FN
 import torch
 import torch.nn.functional as F
 
-from .layers_pooling import LSWTLayerPoolerSingle, LSWTLayerPoolerWeighted, LSWTTokenPoolerAttention, LSWTTokenPoolerCLS
+from .layers_pooling import LSWTEmbeddingPooler, LSWTLayerPoolerSingle, LSWTLayerPoolerWeighted, LSWTTokenPoolerAttention, LSWTTokenPoolerCLS
 
 from .configuration import LSWTConfig, LSWTPoolerConfig
 from .layers import SharedEmbeddings, RotaryEmbedding, LSWTBlock
@@ -439,6 +439,8 @@ class LSWTPooler( torch.nn.Module ):
                 self.token_pooler = LSWTTokenPoolerAttention( pooler_config, base_config )
             case _:
                 raise ValueError( f'`{pooler_config.token_pooling}` is not a valid value for pooler_config.token_pooling' )
+        
+        self.embedding_pooling = LSWTEmbeddingPooler( pooler_config )
 
         # Create dict of reward head projections
         self.reward_heads = torch.nn.ModuleDict( {
@@ -460,16 +462,11 @@ class LSWTPooler( torch.nn.Module ):
         layer_states: torch.Tensor = self.layer_norm_post( layer_states )
         
         # Perform token pooling and normalise
-        embeddings: torch.Tensor = self.token_pooler( layer_states, input_ids, return_final )
+        embeddings: torch.Tensor = self.token_pooler( layer_states, input_ids )
         embeddings: torch.Tensor = self.token_norm_post( embeddings )
         
-        # If return final, select the final CLS token
-        if return_final:
-            batch_ids = torch.arange( input_ids.shape[0], device=layer_states.device )
-            seq_ids = torch.arange( input_ids.shape[1], device=layer_states.device )
-            end_idx = torch.where( input_ids == self.cls_token_id, seq_ids, -1 ).max( -1 )[0]
-            
-            embeddings = embeddings[ batch_ids, end_idx ]
+        # Perform embedding pooling
+        embeddings: torch.Tensor = self.embedding_pooling( embeddings, input_ids, return_final )
 
         # Perform dropout for the heads
         dropped_states: torch.Tensor = self.embedding_dropout( embeddings )

@@ -7,7 +7,7 @@ model:
 
     layer_pooling: weighted_sum
     layer_pooling_norm: post
-    layer_pooling_select: [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18 ]
+    layer_pooling_select: [ 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18 ]
     layer_pooling_dropout: 0.2
 
     token_pooling: attn
@@ -19,11 +19,13 @@ model:
       pad_token_id: 1
 
       attn_layers:
-        - pool
+        - self
         - cross
-        - pool
+        - self
         - cross
       
       include_prefix: true
       alibi_slope: 8.0
       head_gate: false
+    
+    embedding_pooling: sgpt

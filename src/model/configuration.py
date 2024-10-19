@@ -33,6 +33,8 @@ class LSWTPoolerConfig( PretrainedConfig ):
         token_pooling: Literal['cls', 'attn'] = 'cls',
         token_pooling_norm: Literal['post', None] = None,
         token_pooling_config: dict | None = None,
+        
+        embedding_pooling: Literal['sgpt', None] = None,
 
         **kwargs
     ):
@@ -51,6 +53,8 @@ class LSWTPoolerConfig( PretrainedConfig ):
         self.token_pooling = token_pooling
         self.token_pooling_norm = token_pooling_norm
         self.token_pooling_config = token_pooling_config or {}
+        
+        self.embedding_pooling = embedding_pooling
 
 
 class LSWTConfig( PretrainedConfig ):
