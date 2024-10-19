@@ -414,6 +414,8 @@ class LSWTPooler( torch.nn.Module ):
 
         self.pooler_config = pooler_config
         self.base_config = base_config
+        
+        self.cls_token_id = int( pooler_config.token_pooling_config[ 'cls_token_id' ] )
 
         if pooler_config.reward_heads is None:
             raise ValueError( 'reward_heads must be defined. If no heads are desired please use an empty list.' )
@@ -460,6 +462,14 @@ class LSWTPooler( torch.nn.Module ):
         # Perform token pooling and normalise
         embeddings: torch.Tensor = self.token_pooler( layer_states, input_ids, return_final )
         embeddings: torch.Tensor = self.token_norm_post( embeddings )
+        
+        # If return final, select the final CLS token
+        if return_final:
+            batch_ids = torch.arange( input_ids.shape[0], device=layer_states.device )
+            seq_ids = torch.arange( input_ids.shape[1], device=layer_states.device )
+            end_idx = torch.where( input_ids == self.cls_token_id, seq_ids, -1 ).max( -1 )[0]
+            
+            embeddings = embeddings[ batch_ids, end_idx ]
 
         # Perform dropout for the heads
         dropped_states: torch.Tensor = self.embedding_dropout( embeddings )

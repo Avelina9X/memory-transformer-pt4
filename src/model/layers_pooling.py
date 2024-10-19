@@ -53,14 +53,7 @@ class _AttentionSelf( _AttentionBase ):
         k = self.k_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
         v = self.v_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
         
-        # # Calculate attention matrix
-        # a = torch.einsum( 'bqhd,bkhd->bhqk', q, k ) * self.key_scale + bias_mask
-        # a = a.softmax( -1 )
-        
-        # # Aggregate values
-        # o = torch.einsum( 'bhqk,bkhd->bqhd', a, v )
-        
-        o = scaled_dot_product_attention(
+        o = scaled_dot_product_attention( # pylint: disable=E1102
             q.transpose( 1, 2 ),
             k.transpose( 1, 2 ),
             v.transpose( 1, 2 ),
@@ -134,14 +127,7 @@ class _AttentionCross( _AttentionBase ):
         k = self.k_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
         v = self.v_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
         
-        # # Calculate attention matrix
-        # a = torch.einsum( 'bqhd,bkhd->bhqk', q, k ) * self.key_scale + bias_mask
-        # a = a.softmax( -1 )
-        
-        # # Aggregate values
-        # o = torch.einsum( 'bhqk,bkhd->bqhd', a, v )
-        
-        o = scaled_dot_product_attention(
+        o = scaled_dot_product_attention( # pylint: disable=E1102
             q.transpose( 1, 2 ),
             k.transpose( 1, 2 ),
             v.transpose( 1, 2 ),
@@ -205,14 +191,8 @@ class LSWTTokenPoolerCLS( torch.nn.Module ):
         
         self.cls_token_id = int( pooler_config.token_pooling_config[ 'cls_token_id' ] )
     
-    def forward( self, layer_states: torch.Tensor, input_ids: torch.Tensor, return_final: bool ) -> torch.Tensor:
-        assert return_final, 'Can only return final using CLS pooler'
-        
-        batch_ids = torch.arange( input_ids.shape[0], device=layer_states.device )
-        seq_ids = torch.arange( input_ids.shape[1], device=layer_states.device )
-        end_idx = torch.where( input_ids == self.cls_token_id, seq_ids, -1 ).max( -1 )[0]
-        
-        return layer_states[ batch_ids, end_idx ]
+    def forward( self, layer_states: torch.Tensor, input_ids: torch.Tensor ) -> torch.Tensor:       
+        return layer_states
 
 class LSWTTokenPoolerAttention( torch.nn.Module ):
     def __init__( self, pooler_config: LSWTPoolerConfig, base_config: LSWTConfig ):
@@ -337,7 +317,7 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
         
         return bias.where( mask, float( '-inf' ) )
     
-    def forward( self, states: torch.Tensor, input_ids: torch.Tensor, return_final: bool ) -> torch.Tensor:
+    def forward( self, states: torch.Tensor, input_ids: torch.Tensor ) -> torch.Tensor:
         if self.include_prefix:
             class_mask = input_ids == self.cls_token_id
             segment_mask = input_ids != self.pad_token_id
@@ -369,13 +349,4 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
             # Add residual to skip connection
             states = states + residual_states
         
-        # Return final cls states if that's what we want
-        if return_final:
-            batch_ids = torch.arange( input_ids.shape[0], device=states.device )
-            seq_ids = torch.arange( input_ids.shape[1], device=states.device )
-            end_idx = torch.where( class_mask, seq_ids, -1 ).max( -1 )[0]
-            return states[ batch_ids, end_idx ]
-        
-        # Otherwise return all states
-        else:
-            return states
+        return states
