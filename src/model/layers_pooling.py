@@ -53,12 +53,20 @@ class _AttentionSelf( _AttentionBase ):
         k = self.k_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
         v = self.v_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
         
-        # Calculate attention matrix
-        a = torch.einsum( 'bqhd,bkhd->bhqk', q, k ) * self.key_scale + bias_mask
-        a = a.softmax( -1 )
+        # # Calculate attention matrix
+        # a = torch.einsum( 'bqhd,bkhd->bhqk', q, k ) * self.key_scale + bias_mask
+        # a = a.softmax( -1 )
         
-        # Aggregate values
-        o = torch.einsum( 'bhqk,bkhd->bqhd', a, v )
+        # # Aggregate values
+        # o = torch.einsum( 'bhqk,bkhd->bqhd', a, v )
+        
+        o = scaled_dot_product_attention(
+            q.transpose( 1, 2 ),
+            k.transpose( 1, 2 ),
+            v.transpose( 1, 2 ),
+            attn_mask=bias_mask,
+            scale=self.key_scale,
+        ).transpose( 2, 1 )
         
         # Apply gate if present
         if self.g_proj:
