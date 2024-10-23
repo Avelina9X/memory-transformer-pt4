@@ -269,6 +269,8 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
         self.alibi_slope = float( pooler_config.token_pooling_config[ 'alibi_slope' ] )
         self.head_gate = bool( pooler_config.token_pooling_config[ 'head_gate' ] )
         
+        self.unskip = bool( pooler_config.token_pooling_config[ 'unskip' ] )
+        
         self.attn_layers = torch.nn.ModuleList()
         self.norm_layers = torch.nn.ModuleList()
         
@@ -384,6 +386,8 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
             'cross': self.compute_bias_mask_cross( segment_ids, class_mask ),
         }
         
+        skip = states
+        
         for attn_layer, norm_layer in zip( self.attn_layers, self.norm_layers ):
             assert isinstance( attn_layer, _AttentionBase )
             assert isinstance( norm_layer, torch.nn.LayerNorm )
@@ -402,6 +406,9 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
             
             # Add residual to skip connection
             states = states + residual_states
+        
+        if self.unskip:
+            states = states - skip
         
         return states
 
