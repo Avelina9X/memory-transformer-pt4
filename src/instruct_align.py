@@ -597,6 +597,9 @@ def instruct_align(
             # Create artifact for the model
             model_artifact = wandb.Artifact( name=dph_model.config.model_type, type="model" )
             model_artifact.add_dir( output_dir )
+            
+            if not config.get( 'meta.upload_model', False ):
+                model_artifact.remove( f'{output_dir}/model.safetensors' )
 
             # Link the model artificat (if we're even a real run)
             assert wandb.run is not None
