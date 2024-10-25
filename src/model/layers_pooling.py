@@ -123,8 +123,46 @@ class _AttentionSelf( _AttentionBase ):
         # Perform output projection and return
         return self.o_proj( o.flatten( start_dim=2 ) )
 
-
 class _AttentionPool( _AttentionBase ):
+    def __init__( self, d_model: int, n_heads: int, d_key: int, alibi_slope: float, head_gate: bool ):
+        super().__init__( d_model, n_heads, d_key, alibi_slope, head_gate )
+        
+        self.g_proj = torch.nn.Linear( d_model, n_heads, bias=True ) if head_gate else None
+        self.q_regs = torch.nn.Parameter( torch.zeros( 1, n_heads, 1, d_key ), requires_grad=True )
+        self.k_proj = torch.nn.Linear( d_model, d_model, bias=True )
+        self.v_proj = torch.nn.Linear( d_model, d_model, bias=True )
+        self.o_proj = torch.nn.Linear( d_model, d_model, bias=True )
+    
+    def mask_type( self ) -> Literal['self', 'cross']:
+        return 'self'
+    
+    def forward( self, states: torch.Tensor, bias_mask: torch.Tensor ) -> torch.Tensor:
+        # Scale mask by heads
+        bias_mask = bias_mask[ :, None, :, : ] * self.head_scale[ None, :, None, None ]
+        
+        # Compute qkv projections
+        q = self.q_regs.repeat( states.shape[0], 1, states.shape[1], 1 )
+        k = self.k_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
+        v = self.v_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
+        
+        o = scaled_dot_product_attention( # pylint: disable=E1102
+            q,
+            k.transpose( 1, 2 ),
+            v.transpose( 1, 2 ),
+            attn_mask=bias_mask,
+            scale=self.key_scale,
+        ).transpose( 2, 1 )
+        
+        # Apply gate if present
+        if self.g_proj:
+            g = self.g_proj( states )
+            o = o * g.sigmoid().unsqueeze( -1 )
+        
+        # Perform output projection and return
+        return self.o_proj( o.flatten( start_dim=2 ) )
+
+
+class _AttentionPoolLinear( _AttentionBase ):
     def __init__( self, d_model: int, n_heads: int, d_key: int, alibi_slope: float, head_gate: bool ):
         super().__init__( d_model, n_heads, d_key, alibi_slope, head_gate )
         
@@ -260,6 +298,7 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
         self.pad_token_id = int( pooler_config.token_pooling_config[ 'pad_token_id' ] )
         
         self.layer_names = list( pooler_config.token_pooling_config[ 'attn_layers' ] )
+        self.n_repeats = int( pooler_config.token_pooling_config[ 'n_repeats' ] )
         self.include_prefix = bool( pooler_config.token_pooling_config[ 'include_prefix' ] )
         
         self.d_model = base_config.d_model
@@ -269,24 +308,38 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
         self.alibi_slope = float( pooler_config.token_pooling_config[ 'alibi_slope' ] )
         self.head_gate = bool( pooler_config.token_pooling_config[ 'head_gate' ] )
         
+        norm = str( pooler_config.token_pooling_config[ 'norm' ] )
+        pre_norm = norm in [ 'pre', 'both' ]
+        post_norm = norm in [ 'post', 'both' ]
+        
         self.unskip = bool( pooler_config.token_pooling_config[ 'unskip' ] )
         
         self.attn_layers = torch.nn.ModuleList()
-        self.norm_layers = torch.nn.ModuleList()
+        self.norm_layers_pre = torch.nn.ModuleList()
+        self.norm_layers_post = torch.nn.ModuleList()
+        
+        self.n_layers_attn = len( self.layer_names )
+        self.n_layers_total = len( self.layer_names ) * self.n_repeats
         
         for attn_type in self.layer_names:
-            self.norm_layers.append( torch.nn.LayerNorm( self.d_model ) )
             self.attn_layers.append( self._attention_factory( attn_type ) )
+        
+        for _ in range( self.n_layers_total ):
+            self.norm_layers_pre.append( torch.nn.LayerNorm( self.d_model ) if pre_norm else torch.nn.Identity() )
+            self.norm_layers_post.append( torch.nn.LayerNorm( self.d_model ) if post_norm else torch.nn.Identity() )
+        
     
     def _attention_factory(
         self,
-        attn_type: Literal['self', 'pool', 'cross'],
+        attn_type: Literal['self', 'pool', 'pool_linear', 'cross'],
     ) -> _AttentionBase:
         match attn_type:
             case 'self':
                 cls = _AttentionSelf
             case 'pool':
                 cls = _AttentionPool
+            case 'pool_linear':
+                cls = _AttentionPoolLinear
             case 'cross':
                 cls = _AttentionCross
         return cls(
@@ -388,12 +441,17 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
         
         skip = states
         
-        for attn_layer, norm_layer in zip( self.attn_layers, self.norm_layers ):
+        for i in range( self.n_layers_total ):
+            attn_layer = self.attn_layers[i % self.n_layers_attn]
+            norm_layer_pre = self.norm_layers_pre[i]
+            norm_layer_post = self.norm_layers_post[i]
+            
             assert isinstance( attn_layer, _AttentionBase )
-            assert isinstance( norm_layer, torch.nn.LayerNorm )
+            assert isinstance( norm_layer_pre, torch.nn.Module )
+            assert isinstance( norm_layer_post, torch.nn.Module )
             
             # Pre-norm the states
-            normed_state = norm_layer( states )
+            normed_state = norm_layer_pre( states )
             
             # Get the mask type
             mask_type = attn_layer.mask_type()
@@ -404,8 +462,11 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
             # Get the residual stream
             residual_states = attn_layer( normed_state, bias_mask )
             
+            # Post norm the residual
+            normed_residual_states = norm_layer_post( residual_states )
+            
             # Add residual to skip connection
-            states = states + residual_states
+            states = states + normed_residual_states
         
         if self.unskip:
             states = states - skip
