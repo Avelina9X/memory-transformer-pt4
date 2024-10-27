@@ -2,6 +2,7 @@
 
 from datetime import timedelta
 from collections.abc import Sequence
+import logging
 import os
 import typing
 import math
@@ -239,6 +240,8 @@ def instruct_align(
         evaluate.utils.logging.disable_progress_bar()
         datasets.utils.logging.disable_progress_bar()
         torch._inductor.select_algorithm.PRINT_AUTOTUNE = False # type: ignore # pylint: disable=W0212
+        
+        transformers.modeling_utils.logger.setLevel( logging.ERROR )
 
     # Setup ddp if world size is greater than 1
     if world_size > 1:
@@ -596,10 +599,9 @@ def instruct_align(
 
             # Create artifact for the model
             model_artifact = wandb.Artifact( name=dph_model.config.model_type, type="model" )
-            model_artifact.add_dir( output_dir )
             
-            if not config.get( 'meta.upload_model', False ):
-                model_artifact.remove( f'{output_dir}/model.safetensors' )
+            if config.get( 'meta.upload_model', False ):
+                model_artifact.add_dir( output_dir )
 
             # Link the model artificat (if we're even a real run)
             assert wandb.run is not None
@@ -644,10 +646,14 @@ def run():
     # If we have other tags, add them to the list
     if 'meta.tags' in config:
         tags += config[ 'meta.tags' ]
+    
+    # Added supergroup for grouping and tagging
+    if 'meta.group' in config:
+        config[ 'meta.super_group' ] = ','.join( f'{k}:{v}' for k, v in config[ 'meta.group' ].items() )
 
     # Print the config to stdout
     rich.print( config )
-
+    
     device_count = torch.cuda.device_count()
 
     # Launch program with our settings
