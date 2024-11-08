@@ -1,6 +1,7 @@
 """ Module for SFT optimization. """
 
 from datetime import timedelta
+import logging
 import os
 import typing
 import math
@@ -204,6 +205,12 @@ def instruct_tune(
 
     # Ensure config is not none
     assert config
+    
+    if rank == 0:
+        torch._logging.set_logs(
+            graph_breaks=config.get( 'meta.log_graph_breaks', False ),
+            recompiles=config.get( 'meta.log_recompiles', False )
+        )
 
     # Ensure DDP stuff is/isn't there if DDP is/isn't enabled
     if world_size == 1:
@@ -216,19 +223,23 @@ def instruct_tune(
     assert rank < world_size
 
     # Log in to wandb
-    wandb.require( 'core' )
-    wandb.login( key=WANDB_API_KEY )
+    if rank == 0:
+        wandb.login( key=WANDB_API_KEY )
 
     # Set some performance flags
     torch.backends.cuda.matmul.allow_tf32 = True # type: ignore # pylint: disable=W0212
     torch.backends.cudnn.allow_tf32 = True # type: ignore # pylint: disable=W0212
     torch._dynamo.config.cache_size_limit = 1024 * 1024 * 1024 # type: ignore # pylint: disable=W0212
+    torch._dynamo.config.optimize_ddp = False # type: ignore # pylint: disable=W0212
+    torch.backends.cuda.enable_cudnn_sdp( False )
 
     if not __debug__:
         transformers.utils.logging.disable_progress_bar()
         evaluate.utils.logging.disable_progress_bar()
         datasets.utils.logging.disable_progress_bar()
         torch._inductor.select_algorithm.PRINT_AUTOTUNE = False # type: ignore # pylint: disable=W0212
+        
+        transformers.modeling_utils.logger.setLevel( logging.ERROR )
 
     # Setup ddp if world size is greater than 1
     if world_size > 1:
