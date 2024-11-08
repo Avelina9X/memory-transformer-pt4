@@ -120,5 +120,7 @@ class InfinityInstructDataset( BaseInstructDataset ):
 
 DIRECTORY: Mapping[str, Callable[[str], BaseInstructDataset]] = {
     'Infinity-Instruct-3M': lambda cache_dir: InfinityInstructDataset( cache_dir=cache_dir, split='3M' ),
+    'Infinity-Instruct-7M': lambda cache_dir: InfinityInstructDataset( cache_dir=cache_dir, split='7M' ),
     'Infinity-Instruct-0625': lambda cache_dir: InfinityInstructDataset( cache_dir=cache_dir, split='0625' ),
+    'Infinity-Instruct-Gen': lambda cache_dir: InfinityInstructDataset( cache_dir=cache_dir, split='Gen' ),
 }

@@ -1,6 +1,6 @@
 finetune:
   sft_mix_name: sft-mix-filtered
-  sft_mix_elbow: 1000000
+  sft_mix_elbow: 7000000
   sft_mix:
     glue/cola: 1.0
     glue/mnli: 1.0
@@ -12,9 +12,11 @@ finetune:
     glue/stsb: 1.0
 
     mmlu/all: 1.0
-    race/all: 1.0
+    race/middle: 1.0
+    race/high: 1.0
+    hellaswag/choice: 1.0
     squad/v2: 1.0
-    hellaswag/choice: 0.5
+    sciq/no_choice: 1.0
 
     hellaswag/no_choice: 1.0
     obqa/main: 1.0
@@ -23,7 +25,6 @@ finetune:
     arc/easy: 1.0
     super_glue/boolq: 1.0
     piqa/no_choice: 1.0
-    sciq/no_choice: 1.0
 
     drop/main: 1.0
     gsm8k/main: 1.0
@@ -33,8 +34,8 @@ finetune:
     tulu/v2: 1.0
     orca/SlimOrca: 1.0
     ultrachat/200k: 1.0
-    baai/Infinity-Instruct-3M: 1.0
-    baai/Infinity-Instruct-0625: 1.0
+    baai/Infinity-Instruct-7M: 1.0
+    baai/Infinity-Instruct-Gen: 1.0
     tasksource/instruct-v0: 1.0
 
     cnn_dailymail/3.0.0: 1.0
