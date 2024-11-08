@@ -352,8 +352,8 @@ def instruct_tune(
 
     # Update the base config
     config.update( {
-        **model_config.to_wandb_dict(),
-        **train_config.to_wandb_dict(),
+        **trainer.model.config.to_wandb_dict(),
+        **trainer.train_config.to_wandb_dict(),
         'params.total': params_total,
         'params.trainable': params_trainable,
         'params.non_trainable': params_non_trainable,
