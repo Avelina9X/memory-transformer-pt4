@@ -334,8 +334,8 @@ def instruct_tune(
 
     # Print out our configs
     if rank == 0:
-        rich.print( trainer.train_config )
-        rich.print( trainer.model.config )
+        rich.print( 'LSWTConfigTraining =', trainer.train_config.__dict__ )
+        rich.print( 'LSWTConfig =', trainer.model.config.to_diff_dict() )
 
     # Compute params
     params_total = sum( p.numel() for p in model.parameters() )
