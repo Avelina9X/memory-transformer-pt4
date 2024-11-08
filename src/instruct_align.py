@@ -225,8 +225,8 @@ def instruct_align(
     assert rank < world_size
 
     # Log in to wandb
-    wandb.require( 'core' )
-    wandb.login( key=WANDB_API_KEY )
+    if rank == 0:
+        wandb.login( key=WANDB_API_KEY )
 
     # Set some performance flags
     torch.backends.cuda.matmul.allow_tf32 = True # type: ignore # pylint: disable=W0212
