@@ -503,6 +503,10 @@ def run():
 
     # Print the config to stdout
     rich.print( config )
+    
+    # Added supergroup for grouping and tagging
+    if 'meta.group' in config:
+        config[ 'meta.super_group' ] = ','.join( f'{k}:{v}' for k, v in config[ 'meta.group' ].items() )
 
     device_count = torch.cuda.device_count()
 
