@@ -8,6 +8,7 @@ from torch.nn.attention import SDPBackend, sdpa_kernel
 from torch.nn.functional import scaled_dot_product_attention
 
 from .configuration import LSWTConfig, LSWTPoolerConfig
+from .layers import LSWTFeedForward
 
 def _group_cumsum( input: torch.Tensor, reset_mask: torch.Tensor ) -> torch.Tensor:
     # Compute cumsum along sequence dim
@@ -236,6 +237,14 @@ class _AttentionCross( _AttentionBase ):
         return self.o_proj( o.flatten( start_dim=2 ) )
 
 
+class _FFN( LSWTFeedForward ):
+    def mask_type( self ) -> Literal['ffn']:
+        return 'ffn'
+    
+    def forward( self, states: torch.Tensor, bias_mask=None ) -> torch.Tensor:
+        return super().forward( states )
+
+
 class LSWTLayerPoolerSingle( torch.nn.Module ):
     def __init__( self, pooler_config: LSWTPoolerConfig ):
         super().__init__()
@@ -292,6 +301,9 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
         
         assert pooler_config.token_pooling == 'attn'
         
+        self.pooler_config = pooler_config
+        self.base_config = base_config
+        
         self.sep_token_id = int( pooler_config.token_pooling_config[ 'sep_token_id' ] )
         self.cls_token_id = int( pooler_config.token_pooling_config[ 'cls_token_id' ] )
         self.new_token_id = int( pooler_config.token_pooling_config[ 'new_token_id' ] )
@@ -331,8 +343,8 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
     
     def _attention_factory(
         self,
-        attn_type: Literal['self', 'pool', 'pool_linear', 'cross'],
-    ) -> _AttentionBase:
+        attn_type: Literal['self', 'pool', 'pool_linear', 'cross', 'ffn'],
+    ) -> _AttentionBase | torch.nn.Module:
         match attn_type:
             case 'self':
                 cls = _AttentionSelf
@@ -342,6 +354,8 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
                 cls = _AttentionPoolLinear
             case 'cross':
                 cls = _AttentionCross
+            case 'ffn':
+                return _FFN( self.base_config )
         return cls(
             d_model=self.d_model,
             n_heads=self.n_heads,
@@ -437,6 +451,7 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
         bias_mask_map = {
             'self': self.compute_bias_mask_self( segment_ids, segment_mask ),
             'cross': self.compute_bias_mask_cross( segment_ids, class_mask ),
+            'ffn': None,
         }
         
         skip = states
@@ -446,7 +461,7 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
             norm_layer_pre = self.norm_layers_pre[i]
             norm_layer_post = self.norm_layers_post[i]
             
-            assert isinstance( attn_layer, _AttentionBase )
+            assert isinstance( attn_layer, torch.nn.Module )
             assert isinstance( norm_layer_pre, torch.nn.Module )
             assert isinstance( norm_layer_post, torch.nn.Module )
             
