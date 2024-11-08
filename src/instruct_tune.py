@@ -151,6 +151,7 @@ def evaluate_zero_shot_task(
     task: BaseChoiceInstructDataset,
     batcher: ChoiceInstructionBatcher,
     zero_nan=False,
+    max_batch_size=8,
 ) -> tuple[ str, dict[ str, float ] ]:
     """ Evaluates a task and returns the logp metrics.
 
@@ -158,15 +159,22 @@ def evaluate_zero_shot_task(
         task (BaseChoiceInstructDataset): Task to evaluate. Must have a validation split.
         batcher (DPHChoiceInstructionBatcher): Batcher used to evaluate tasks.
         zero_nan (bool): When true returns zero for NaN metrics. Defaults to False.
+        max_batch_size (int): The approximate maximum batch size when grouping multiple validation examples. Defaults to 8.
 
     Returns:
         log line (str): string suitable for file logging.
         metrics (dict[str, float]): dict suitable for WandB logging.
     """
 
+    # Get the task dataset and assert it's not None
     task_ds = task.get_validation_docs()
     assert task_ds is not None
-    val_metrics = batcher.evaluate_dataset( task, task_ds, False, False )
+
+    # Get batch size estimate
+    estimate_size = len( task.create_unlabelled_message_list( task_ds[0] ) )
+    batch_count = max( 1, math.floor( max_batch_size / estimate_size ) )
+    
+    val_metrics = batcher.evaluate_dataset_batched( task, task_ds, False, False, batch_count )
 
     if zero_nan:
         for key in val_metrics:
@@ -249,6 +257,8 @@ def instruct_tune(
     pretrained_run_name = config[ 'finetune.checkpoint' ]
     pretrained_run_dir = f'./checkpoints/{pretrained_run_name}'
     output_dir = f'./checkpoints/{wandb_run_name}'
+    
+    validation_batch_size = config[ 'meta.validation_batch' ]
 
     # Grab configs
     model_config = typing.cast( LSWTConfig, LSWTConfig.from_pretrained( pretrained_run_dir, torch_dtype=None ) )
@@ -399,7 +409,7 @@ def instruct_tune(
         # If validation flag is set (or it's the last epoch) run validation
         if should_validate or i + 1 == trainer.get_total_epochs():
             for task in validation_zeroshot_tasks[ rank ]:
-                curr_line, curr_dict = evaluate_zero_shot_task( task, batcher, True )
+                curr_line, curr_dict = evaluate_zero_shot_task( task, batcher, True, max_batch_size=validation_batch_size )
                 validation_lines.append( curr_line )
                 validation_dict.update( **curr_dict )
             torch.cuda.empty_cache()
