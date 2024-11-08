@@ -281,15 +281,25 @@ def instruct_tune(
     model.generation_config = train_utils.create_generation_config( tokenizer )
 
     # Create task mixes
-    train_tasks = train_utils.create_train_tasks( config[ 'finetune.sft_mix' ] )
+    while True:
+        try:
+            train_tasks = train_utils.create_train_tasks( config[ 'finetune.dph_mix' ] )
+                       
+            # Get the validation tasks
+            validation_zeroshot_tasks = create_validation_zeroshot_tasks( world_size )
 
-    validation_zeroshot_tasks = create_validation_zeroshot_tasks( world_size )
-
-    # If we're on rank zero we get validation prompts
-    if rank == 0 and config.get( 'meta.prompt_validate', False ):
-        validation_prompts = train_utils.create_validation_prompts( tokenizer )
-    else:
-        validation_prompts = None
+            # If we're on rank zero we get validation prompts
+            if rank == 0 and config.get( 'meta.prompt_validate', False ):
+                validation_prompts = train_utils.create_validation_prompts( tokenizer )
+            else:
+                validation_prompts = None
+            
+            break
+        except KeyboardInterrupt as e:
+            raise e
+        except Exception as e:
+            print( f'An exception occurred: {e}' )
+            continue
 
     # Instantiate instruct helpers
     train_formatter = InstructionFormatter( tokenizer, 0 )
