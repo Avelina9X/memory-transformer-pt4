@@ -263,9 +263,15 @@ def instruct_tune(
     # Mask out parameters
     if 'finetune.frozen_params' in config:
         frozen_list = train_utils.set_training_mask( model, config[ 'finetune.frozen_params' ] )
-        rich.print( 'Frozen params:' )
-        rich.print( frozen_list )
-        print()
+
+        if rank == 0:
+            if __debug__:
+                rich.print( 'Frozen params:' )
+                rich.print( frozen_list )
+                print()
+            else:
+                rich.print( f'Frozen param count: {len(frozen_list)}' )
+                print()
 
     # Load tokenizer and add new segment tokens
     tokenizer = AutoTokenizer.from_pretrained( model_config.parent_embeddings, use_fast=True, cache_dir=HF_CACHE_DIR )
