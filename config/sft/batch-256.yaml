@@ -1,0 +1,4 @@
+train:
+  batch_size: 256
+  batches_per_epoch: 64
+  lr_warmup_steps: 256
