@@ -72,7 +72,7 @@ def create_validation_zeroshot_tasks( n_bins: int ) -> list[list[BaseChoiceInstr
         DIRECTORY_CHOICE[ 'race' ][ 'middle' ]( HF_CACHE_DIR ),
         DIRECTORY_CHOICE[ 'race' ][ 'high' ]( HF_CACHE_DIR ),
     ]
-    
+
     def estimate_weight( task: BaseChoiceInstructDataset ):
         docs = task.get_validation_docs() or []
         length = len( docs )
@@ -173,7 +173,7 @@ def evaluate_zero_shot_task(
     # Get batch size estimate
     estimate_size = len( task.create_unlabelled_message_list( task_ds[0] ) )
     batch_count = max( 1, math.floor( max_batch_size / estimate_size ) )
-    
+
     val_metrics = batcher.evaluate_dataset_batched( task, task_ds, False, False, batch_count )
 
     if zero_nan:
@@ -213,7 +213,7 @@ def instruct_tune(
 
     # Ensure config is not none
     assert config
-    
+
     if rank == 0:
         torch._logging.set_logs(
             graph_breaks=config.get( 'meta.log_graph_breaks', False ),
@@ -246,7 +246,7 @@ def instruct_tune(
         evaluate.utils.logging.disable_progress_bar()
         datasets.utils.logging.disable_progress_bar()
         torch._inductor.select_algorithm.PRINT_AUTOTUNE = False # type: ignore # pylint: disable=W0212
-        
+
         transformers.modeling_utils.logger.setLevel( logging.ERROR )
 
     # Setup ddp if world size is greater than 1
@@ -257,7 +257,7 @@ def instruct_tune(
     pretrained_run_name = config[ 'finetune.checkpoint' ]
     pretrained_run_dir = f'./checkpoints/{pretrained_run_name}'
     output_dir = f'./checkpoints/{wandb_run_name}'
-    
+
     validation_batch_size = config[ 'meta.validation_batch' ]
 
     # Grab configs
@@ -293,8 +293,8 @@ def instruct_tune(
     # Create task mixes
     while True:
         try:
-            train_tasks = train_utils.create_train_tasks( config[ 'finetune.dph_mix' ] )
-                       
+            train_tasks = train_utils.create_train_tasks( config[ 'finetune.sft_mix' ] )
+
             # Get the validation tasks
             validation_zeroshot_tasks = create_validation_zeroshot_tasks( world_size )
 
@@ -303,7 +303,7 @@ def instruct_tune(
                 validation_prompts = train_utils.create_validation_prompts( tokenizer )
             else:
                 validation_prompts = None
-            
+
             break
         except KeyboardInterrupt as e:
             raise e
@@ -503,7 +503,7 @@ def run():
 
     # Print the config to stdout
     rich.print( config )
-    
+
     # Added supergroup for grouping and tagging
     if 'meta.group' in config:
         config[ 'meta.super_group' ] = ','.join( f'{k}:{v}' for k, v in config[ 'meta.group' ].items() )
