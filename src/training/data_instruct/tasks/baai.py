@@ -3,14 +3,15 @@ from datasets import DatasetDict, Dataset, load_dataset
 
 from ..task_base import BaseInstructDataset, InstructionDatasetTask, Message, MessageList
 from ..task_utils import phrase_filter
+from constants import HF_API_KEY
 
 class InfinityInstructDataset( BaseInstructDataset ):
     def __init__( self, cache_dir: str, split: str ):
         self.split = split
         super().__init__( cache_dir )
-        
+
     def download( self, cache_dir: str ) -> DatasetDict:
-        dataset = load_dataset( 'BAAI/Infinity-Instruct', self.split, cache_dir=cache_dir )
+        dataset = load_dataset( 'BAAI/Infinity-Instruct', self.split, cache_dir=cache_dir, token=HF_API_KEY )
         assert isinstance( dataset, DatasetDict )
         dataset = dataset.filter( lambda x: phrase_filter( x, 'value', 'conversations' ) )
         dataset = dataset.filter( lambda x: x[ 'langdetect' ] == 'en' )
@@ -45,7 +46,7 @@ class InfinityInstructDataset( BaseInstructDataset ):
             'You are a helpful AI assistant. '
             'Write a response that appropriately completes the request.'
         )
-        
+
         return Message(
             role='system',
             content=prompt,
@@ -66,16 +67,16 @@ class InfinityInstructDataset( BaseInstructDataset ):
 
     def create_unlabelled_message_target( self, doc: dict ) -> None:
         return None
-    
+
     def create_target_message_list( self, doc: dict ) -> list[MessageList]:
         role_map = {
             'system': 'system',
             'human': 'user',
             'gpt': 'assistant'
         }
-        
+
         first = doc[ 'conversations' ][0]
-        
+
         # If first message is from a human add our own system message
         if first[ 'from' ] == 'human':
             message_list = [ self.format_system_message( doc ) ]
@@ -90,7 +91,7 @@ class InfinityInstructDataset( BaseInstructDataset ):
                 )
 
             return [ message_list ]
-        
+
         # If first message is from GPT turn it into a system message
         elif first[ 'from' ] in [ 'gpt', 'system' ]:
             message_list = [
@@ -100,7 +101,7 @@ class InfinityInstructDataset( BaseInstructDataset ):
                     complete=True,
                 )
             ]
-            
+
             for sub_doc in doc[ 'conversations' ][ 1 : ]:
                 message_list.append(
                     Message(
@@ -109,9 +110,9 @@ class InfinityInstructDataset( BaseInstructDataset ):
                         complete=True,
                     )
                 )
-            
+
             return [ message_list ]
-        
+
         raise ValueError( f'How did we get here? Got role={first[ "from" ]}' )
 
     def compute_metric( self, predictions=None, references=None ) -> dict:
