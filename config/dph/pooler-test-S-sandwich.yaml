@@ -1,0 +1,18 @@
+meta:
+  group:
+    variant: S-sandwich
+
+model:
+  pooler_config:
+    token_pooling_config:
+      attn_layers:
+        - self
+        - ffn
+        - cross
+        - ffn
+        - self
+      
+      # norm: both
+      # head_gate: false
+
+      n_repeats: 1
