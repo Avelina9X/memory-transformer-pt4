@@ -3,12 +3,12 @@ model:
     reward_heads:
       - reward_head
     reward_head_bias: true
-    embedding_dropout: 0.1
+    embedding_dropout: 0.0
 
     layer_pooling: weighted_sum
     layer_pooling_norm: post
     layer_pooling_select: [ 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18 ]
-    layer_pooling_dropout: 0.2
+    layer_pooling_dropout: 0.0
 
     token_pooling: attn
     token_pooling_norm: post
@@ -18,14 +18,17 @@ model:
       new_token_id: 50118
       pad_token_id: 1
 
-      attn_layers:
-        - self
-        - cross
-        - self
-        - cross
+      # attn_layers:
+        # - pool
+        # - cross
+      
+      # norm: both
+
+      # n_repeats: 2
       
       include_prefix: true
       alibi_slope: 8.0
-      head_gate: false
+      # head_gate: false
+      unskip: false
     
-    embedding_pooling: sgpt
+    embedding_pooling: null
