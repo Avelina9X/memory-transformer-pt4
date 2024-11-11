@@ -65,11 +65,11 @@ class TaskLoader( IterableDataset ):
         self.mask_type = mask_type
         self.max_tokens = max_tokens
         self.shard_mode = shard_mode
-        
+
 
         dataset = self.task.get_training_docs()
         assert dataset is not None
-        
+
         self.num_samples = len( dataset )
         self.sample_weight = sample_weight
 
@@ -231,7 +231,7 @@ class MixedTaskLoader( IterableDataset ):
         task_elbow: int | None = None,
     ):
         """ Creates a task loader for multiple tasks.
-        
+
         The tasks are unweighted if `task_elbow` is None. Otherwise weights the probability of task
         being selected for training by the number of samples, clamped to the value of `task_elbow`.
 
@@ -245,7 +245,7 @@ class MixedTaskLoader( IterableDataset ):
             max_tokens (int | None, optional): Max number of tokens in a conversation before dropping. Defaults to None.
             task_elbow (int | None, optional): Number of samples in a task to clip and weight by. Defaults to None.
         """
-        
+
         self.batch_size = batch_size
         self.seq_length = seq_length
         self.task_elbow = task_elbow
@@ -276,7 +276,7 @@ class MixedTaskLoader( IterableDataset ):
                 yield next( random.choice( generators ) )
         else:
             probs = [ min( task.num_samples * task.sample_weight, self.task_elbow ) for task in self.tasks ]
-            
+
             while True:
                 yield next( random.choices( generators, probs )[0] )
 
@@ -316,7 +316,7 @@ class MixedTaskLoader( IterableDataset ):
             self,
             num_workers=1,
             batch_size=None,
-            prefetch_factor=4,
+            prefetch_factor=8,
         )
 
     def __getitem__( self, index ):
@@ -335,10 +335,10 @@ class ParallelMixedTaskLoader( IterableDataset ):
         task_elbow: int | None = None
     ):
         """ Creates a task loader for multiple tasks with optional worker sharding.
-        
+
         The tasks are unweighted if `task_elbow` is None. Otherwise weights the probability of task
         being selected for training by the number of samples, clamped to the value of `task_elbow`.
-        
+
         When `micro_batch_size` is 1 will spawn `batch_size` number of workers.
         When `micro_batch_size == batch_size` only 1 worker will be spawned.
 
@@ -352,9 +352,9 @@ class ParallelMixedTaskLoader( IterableDataset ):
             micro_batch_size (int, optional): Spawns `batch_size/micro_batch_size` workers. Defaults to 1.
             task_elbow (int | None, optional): Number of samples in a task to clip and weight by. Defaults to None.
         """
-        
+
         assert batch_size % micro_batch_size == 0
-        
+
         self.mixed_tasks = [
             MixedTaskLoader(
                 task_list=task_list,
@@ -406,10 +406,10 @@ class DPHMultiTaskLoader( IterableDataset ):
         task_elbow: int | None = None,
     ):
         """ Creates a task loader for multiple DPH tasks.
-        
+
         The tasks are unweighted if `task_elbow` is None. Otherwise weights the probability of task
         being selected for training by the number of samples, clamped to the value of `task_elbow`.
-        
+
         Note: all tasks must provide both target and distractor messages to be used for DPH training.
 
         Args:
@@ -423,14 +423,14 @@ class DPHMultiTaskLoader( IterableDataset ):
         Raises:
             ValueError: raised when `mask_type` isn't one of `all`, `train` or `test`.
         """
-        
+
         self.task_list = [ ( task, task.get_training_docs().shuffle(), weight ) for task, weight in task_list ] # type: ignore
 
         self.formatter = formatter
         self.seq_length = seq_length
         self.batch_size = batch_size
         self.mask_type = mask_type
-        
+
         self.task_elbow = task_elbow
 
         if mask_type not in [ 'all', 'train', 'test' ]:
@@ -470,10 +470,10 @@ class DPHMultiTaskLoader( IterableDataset ):
 
         pos_candidate = random.choice( pos_list )
         neg_candidate = random.choice( neg_list )
-        
+
         if pos_candidate[-1].role != 'assistant' or neg_candidate[-1].role != 'assistant':
             raise ValueError( 'Last message must be an assistant message!' )
-        
+
         if len( pos_candidate ) != len( neg_candidate ):
             raise ValueError( 'Both examples must be of equal message count!' )
 
@@ -554,19 +554,19 @@ class SteerTaskLoader( IterableDataset ):
         num_probes: int,
         labels: list[str]
     ):
-        
+
         self.task = task
         self.task_docs = task.get_training_docs().shuffle() # type: ignore
 
         self.formatter = formatter
         self.batch_size = batch_size
         self.mask_type = 'train'
-        
+
         self.labels = labels
-        
+
         self.num_probes = num_probes
         self.seq_length = self.formatter.max_total_tokens
-        
+
         if num_probes > self.formatter.min_trainable_tokens:
             raise ValueError( 'num_probes must not be larger than the formatter\'s min_trainable_tokens!' )
 
@@ -606,7 +606,7 @@ class SteerTaskLoader( IterableDataset ):
         convos = self.task.create_target_message_list( doc )
 
         candidate = random.choice( convos )
-        
+
         if candidate[-1].role != 'assistant':
             raise ValueError( 'Last message must be an assistant message!' )
 
@@ -614,18 +614,18 @@ class SteerTaskLoader( IterableDataset ):
 
         tokens, targets, segment_pos = self.pad_doc( messages )
         labels = self.task.get_labels( doc, self.labels )
-        
+
         segment_pos = torch.tensor( segment_pos, dtype=torch.long )
         final_pos, final_pos_idx = segment_pos.max( dim=-1, keepdims=True ) #type: ignore
-        
+
         trimmed_pos = segment_pos * ( segment_pos != final_pos )
-        
+
         selected_pos_idx = torch.multinomial( trimmed_pos.float(), num_samples=self.num_probes - 1 )
         selected_pos_idx = torch.sort( selected_pos_idx, dim=-1 )[0]
         selected_pos_idx = torch.cat( [ selected_pos_idx, final_pos_idx ], dim=-1 )
-        
+
         selected_pos_pos = segment_pos.gather( -1, selected_pos_idx )
-        
+
         selected_pos_weight = selected_pos_pos / selected_pos_pos.sum()
 
         return (
