@@ -517,6 +517,7 @@ def instruct_align(
         validation_lines = []
         validation_dict = {}
         validation_prompt_dict = {}
+        parameter_log = {}
 
         validate_freq = config.get( 'meta.validate_freq', 1 )
         should_validate = config[ 'meta.validate' ] and ( i % validate_freq == validate_freq - 1 )
@@ -566,6 +567,8 @@ def instruct_align(
                     **aggregate_glue_score( validation_dict, 'log' ),
                     **aggregate_race_score( validation_dict, 'log' ),
                 } )
+                
+                parameter_log.update( **train_utils.compute_trainable_parameter_stats( dph_model ) )
 
         # If rank is zero log all stats and metrics
         if rank == 0:
@@ -577,8 +580,6 @@ def instruct_align(
             stats_log = train_utils.compute_stats_dict( trainer, i, None ) # type: ignore
 
             pooler_log = train_utils.compute_pooler_stats_dict( dph_model ) # type: ignore
-            
-            parameter_log = train_utils.compute_trainable_parameter_stats( dph_model )
             
             if config.get( 'meta.skip_dph', False ):
                 validation_dict = {
