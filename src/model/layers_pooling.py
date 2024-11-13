@@ -96,7 +96,7 @@ class AdaLinear( AdaBaseLayer ):
         self.dropout = torch.nn.Dropout( lora_dropout )
 
         # Compute scale amount
-        self.scale = 0 if r == 0 else lora_alpha / r
+        self.scale = 0 if r == 0 else lora_alpha / math.sqrt( r )
 
         # If rank > 0 create LoRA lists
         if r > 0 and repeats > 0:
