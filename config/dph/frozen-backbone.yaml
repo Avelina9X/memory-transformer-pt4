@@ -1,6 +1,9 @@
 meta:
   tags:
     - frozen_backbone
+  
+  group:
+    trainable: embeddings
 
 model:
   trainable_embeddings: true
