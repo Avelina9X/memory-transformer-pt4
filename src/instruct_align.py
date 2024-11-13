@@ -578,18 +578,21 @@ def instruct_align(
 
             pooler_log = train_utils.compute_pooler_stats_dict( dph_model ) # type: ignore
             
+            parameter_log = train_utils.compute_trainable_parameter_stats( dph_model )
+            
+            if config.get( 'meta.skip_dph', False ):
+                validation_dict = {
+                    k: v for k, v in validation_dict.items() if 'dph' not in k
+                }
+            
             final_log_dict = {
                 **pooler_log,
+                **parameter_log,
                 **validation_prompt_dict,
                 **{ f'train/{name}': metric for name, metric in train_metrics.items() },
                 **stats_log,
                 **validation_dict,
             }
-            
-            if config.get( 'meta.skip_dph', False ):
-                final_log_dict = {
-                    k: v for k, v in final_log_dict.items() if 'dph' not in k
-                }
 
             # Log to WandB
             wandb.log( final_log_dict )

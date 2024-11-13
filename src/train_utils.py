@@ -539,3 +539,18 @@ def perform_prompt_validation( ds, tokenizer: PreTrainedTokenizerBase, model ): 
     torch.cuda.empty_cache()
 
     return wandb.Table( columns=columns, data=data )
+
+def compute_trainable_parameter_stats( model: torch.nn.Module ):
+    with torch.no_grad():
+        columns = [ 'param', 'mean', 'std' ]
+        data = []
+        
+        for name, p in model.named_parameters():
+            if p.requires_grad:
+                data.append( [
+                    name,
+                    p.mean().item(),
+                    p.std().item() if p.numel() > 1 else 0.0
+                ] )
+        
+        return { 'parameter_stats': wandb.Table( columns=columns, data=data ) }
