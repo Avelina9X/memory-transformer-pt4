@@ -1,5 +1,6 @@
 from operator import itemgetter
 from typing import Literal
+import math
 
 import torch
 import torch.nn.functional as F
@@ -64,185 +65,262 @@ def group_cumsum_noop( embeddings: torch.Tensor, reset_mask: torch.Tensor ) -> t
     return embeddings
 
 
-class _AttentionBase( torch.nn.Module, ):
-    def __init__( self, d_model: int, n_heads: int, d_key: int, alibi_slope: float, head_gate: bool ):
+class AdaBaseLayer( torch.nn.Module ):
+    ...
+
+class AdaLinear( AdaBaseLayer ):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        use_bias: bool = True,
+        repeats: int = 0,
+        r: int = 0,
+        lora_alpha: float = 1.0,
+        lora_dropout: float = 0.0,
+    ):
         super().__init__()
-        
+
+        self.in_features = in_features
+        self.out_features = out_features
+        self.use_bias = use_bias
+        self.repeats = repeats
+        self.r = r
+        self.lora_alpha = lora_alpha
+        self.lora_dropout = lora_dropout
+
+        # Create base layer
+        self.linear = torch.nn.Linear( in_features, out_features, use_bias )
+
+        # Create dropout layer
+        self.dropout = torch.nn.Dropout( lora_dropout )
+
+        # Compute scale amount
+        self.scale = 0 if r == 0 else lora_alpha / r
+
+        # If rank > 0 create LoRA lists
+        if r > 0 and repeats > 0:
+            self.lora_A_list = torch.nn.ParameterList()
+            self.lora_B_list = torch.nn.ParameterList()
+
+            for _ in range( repeats ):
+                lora_A = torch.nn.Parameter( torch.empty( r, in_features ), True )
+                lora_B = torch.nn.Parameter( torch.empty( out_features, r ), True )
+
+                # initialize A the same way as the default for nn.Linear and B to zero
+                # https://github.com/microsoft/LoRA/blob/a0a92e0f26c067cf94747bdbf1ce73793fa44d19/loralib/layers.py#L124
+                torch.nn.init.kaiming_uniform_( lora_A.data, a=math.sqrt( 5 ) )
+                torch.nn.init.zeros_( lora_B.data )
+
+                self.lora_A_list.append( lora_A )
+                self.lora_B_list.append( lora_B )
+        else:
+            self.lora_A_list = None
+            self.lora_B_list = None
+
+        # If bias is enabled create bias list
+        if use_bias and repeats > 0:
+            self.bias_list = torch.nn.ParameterList()
+
+            for _ in range( repeats ):
+                bias = torch.nn.Parameter( torch.zeros( out_features ), True )
+                self.bias_list.append( bias )
+        else:
+            self.bias_list = None
+
+    def forward( self, inputs: torch.Tensor, index: int ):
+        # Compute base value
+        result = self.linear( inputs )
+
+        if self.lora_A_list is not None and self.lora_B_list is not None:
+            # Get current LoRA params for this index
+            lora_A = self.lora_A_list[ index ]
+            lora_B = self.lora_B_list[ index ]
+
+            # Compute delta
+            d = self.dropout( inputs )
+            d = F.linear( d, lora_A ) # pylint: disable=E1102
+            d = F.linear( d, lora_B ) * self.scale # pylint: disable=E1102
+
+            # Add delta to result
+            result = result + d
+
+        if self.bias_list:
+            # Get current bias for this index
+            b = self.bias_list[ index ]
+
+            # Add bias to result
+            result = result + b
+
+        return result
+
+class AdaRegister( AdaBaseLayer ):
+    def __init__(
+        self,
+        n_heads: int,
+        d_key: int,
+        repeats: int = 0
+    ):
+        super().__init__()
+
+        self.n_heads = n_heads
+        self.d_key = d_key
+
+        self.register = torch.nn.Parameter( torch.zeros( 1, n_heads, 1, d_key ), True )
+
+        if repeats > 0:
+            self.bias_list = torch.nn.ParameterList()
+
+            for _ in range( repeats ):
+                bias = torch.nn.Parameter( torch.zeros( 1, n_heads, 1, d_key ), True )
+                self.bias_list.append( bias )
+        else:
+            self.bias_list = None
+
+
+    def forward( self, inputs: torch.Tensor, index: int ):
+        # Compute base value
+        result = self.register
+
+        if self.bias_list:
+            # Get current bias for this index
+            b = self.bias_list[ index ]
+
+            # Add bias to result
+            result = result + b
+
+        return result.repeat( inputs.shape[0], 1, inputs.shape[1], 1 )
+
+
+class AdaBaseModule( torch.nn.Module ):
+    ...
+
+    def forward( self, inputs: torch.Tensor, index: int ):
+        raise NotImplementedError()
+
+class AdaPoolAttention( AdaBaseModule ):
+    def __init__(
+        self,
+        d_model: int,
+        n_heads: int,
+        d_key: int,
+        repeats: int = 0,
+        r: int = 0,
+        lora_alpha: float = 1.0,
+        lora_dropout: float = 0.0,
+    ):
+        super().__init__()
+
         self.d_model = d_model
         self.n_heads = n_heads
         self.d_key = d_key
-        self.alibi_slope = alibi_slope
-        self.head_gate = head_gate
-        
+
+        self.repeats = repeats
+        self.r = r
+        self.lora_alpha = lora_alpha
+        self.lora_dropout = lora_dropout
+
         self.key_scale = self.d_key ** -0.5
-        
-        head_scale = torch.exp2( -( ( torch.arange( n_heads ) + 1.0 ) * alibi_slope / n_heads ) )
-        self.head_scale = torch.nn.Parameter( head_scale, requires_grad=False )
-    
-    def mask_type( self ) -> Literal['self', 'cross']:
-        raise NotImplementedError()
-    
-    def forward( self, states: torch.Tensor, bias_mask: torch.Tensor ) -> torch.Tensor:
-        raise NotImplementedError()
 
+        self.q_regs = AdaRegister( n_heads, d_key, repeats )
+        self.k_proj = AdaLinear( d_model, d_model, True, repeats, r, lora_alpha, lora_dropout )
+        self.v_proj = AdaLinear( d_model, d_model, True, repeats, r, lora_alpha, lora_dropout )
+        self.o_proj = AdaLinear( d_model, d_model, True, repeats, r, lora_alpha, lora_dropout )
 
-class _AttentionSelf( _AttentionBase ):
-    def __init__( self, d_model: int, n_heads: int, d_key: int, alibi_slope: float, head_gate: bool ):
-        super().__init__( d_model, n_heads, d_key, alibi_slope, head_gate )
-        
-        self.g_proj = torch.nn.Linear( d_model, n_heads, bias=True ) if head_gate else None
-        self.q_proj = torch.nn.Linear( d_model, d_model, bias=True )
-        self.k_proj = torch.nn.Linear( d_model, d_model, bias=True )
-        self.v_proj = torch.nn.Linear( d_model, d_model, bias=True )
-        self.o_proj = torch.nn.Linear( d_model, d_model, bias=True )
-    
-    def mask_type( self ) -> Literal['self', 'cross']:
-        return 'self'
-    
-    def forward( self, states: torch.Tensor, bias_mask: torch.Tensor ) -> torch.Tensor:
-        # Scale mask by heads
-        bias_mask = bias_mask[ :, None, :, : ] * self.head_scale[ None, :, None, None ]
-        
+    def forward( self, inputs: torch.Tensor, index: int, mask: torch.Tensor ):
         # Compute qkv projections
-        q = self.q_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
-        k = self.k_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
-        v = self.v_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
-        
-        o = scaled_dot_product_attention( # pylint: disable=E1102
-            q.transpose( 1, 2 ),
-            k.transpose( 1, 2 ),
-            v.transpose( 1, 2 ),
-            attn_mask=bias_mask,
-            scale=self.key_scale,
-        ).transpose( 2, 1 )
-        
-        # Apply gate if present
-        if self.g_proj:
-            g = self.g_proj( states )
-            o = o * g.sigmoid().unsqueeze( -1 )
-        
-        # Perform output projection and return
-        return self.o_proj( o.flatten( start_dim=2 ) )
+        q = self.q_regs( inputs, index )
+        k = self.k_proj( inputs, index ).unflatten( -1, [ self.n_heads, self.d_key ] )
+        v = self.v_proj( inputs, index ).unflatten( -1, [ self.n_heads, self.d_key ] )
 
-class _AttentionPool( _AttentionBase ):
-    def __init__( self, d_model: int, n_heads: int, d_key: int, alibi_slope: float, head_gate: bool ):
-        super().__init__( d_model, n_heads, d_key, alibi_slope, head_gate )
-        
-        self.g_proj = torch.nn.Linear( d_model, n_heads, bias=True ) if head_gate else None
-        self.q_regs = torch.nn.Parameter( torch.zeros( 1, n_heads, 1, d_key ), requires_grad=True )
-        self.k_proj = torch.nn.Linear( d_model, d_model, bias=True )
-        self.v_proj = torch.nn.Linear( d_model, d_model, bias=True )
-        self.o_proj = torch.nn.Linear( d_model, d_model, bias=True )
-    
-    def mask_type( self ) -> Literal['self', 'cross']:
-        return 'self'
-    
-    def forward( self, states: torch.Tensor, bias_mask: torch.Tensor ) -> torch.Tensor:
-        # Scale mask by heads
-        bias_mask = bias_mask[ :, None, :, : ] * self.head_scale[ None, :, None, None ]
-        
-        # Compute qkv projections
-        q = self.q_regs.repeat( states.shape[0], 1, states.shape[1], 1 )
-        k = self.k_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
-        v = self.v_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
-        
         o = scaled_dot_product_attention( # pylint: disable=E1102
             q,
             k.transpose( 1, 2 ),
             v.transpose( 1, 2 ),
-            attn_mask=bias_mask,
+            attn_mask=mask,
             scale=self.key_scale,
-        ).transpose( 2, 1 )
-        
-        # Apply gate if present
-        if self.g_proj:
-            g = self.g_proj( states )
-            o = o * g.sigmoid().unsqueeze( -1 )
-        
+        ).transpose( 2, 1 ).flatten( start_dim=2 )
+
         # Perform output projection and return
-        return self.o_proj( o.flatten( start_dim=2 ) )
+        return self.o_proj( o, index )
 
+class AdaAttention( AdaBaseModule ):
+    def __init__(
+        self,
+        d_model: int,
+        n_heads: int,
+        d_key: int,
+        repeats: int = 0,
+        r: int = 0,
+        lora_alpha: float = 1.0,
+        lora_dropout: float = 0.0,
+    ):
+        super().__init__()
 
-class _AttentionPoolLinear( _AttentionBase ):
-    def __init__( self, d_model: int, n_heads: int, d_key: int, alibi_slope: float, head_gate: bool ):
-        super().__init__( d_model, n_heads, d_key, alibi_slope, head_gate )
-        
-        self.g_proj = torch.nn.Linear( d_model, n_heads, bias=True ) if head_gate else None
-        self.a_proj = torch.nn.Linear( d_model, n_heads, bias=False )
-        self.v_proj = torch.nn.Linear( d_model, d_model, bias=True )
-        self.o_proj = torch.nn.Linear( d_model, d_model, bias=True )
-    
-    def mask_type( self ) -> Literal['self', 'cross']:
-        return 'self'
-    
-    def forward( self, states: torch.Tensor, bias_mask: torch.Tensor ) -> torch.Tensor:
-        # Scale mask by heads
-        bias_mask = bias_mask[ :, None, :, : ] * self.head_scale[ None, :, None, None ]
-        
-        # Compute v projection
-        v = self.v_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
-        
-        # Calculate linear attention matrix
-        a = self.a_proj( states ).permute( 0, 2, 1 )[ :, :, None, : ] + bias_mask
-        a = a.softmax( -1 )
-        
-        # Aggregate values
-        o = torch.einsum( 'bhqk,bkhd->bqhd', a, v )
-        
-        # Apply gate if present
-        if self.g_proj:
-            g = self.g_proj( states )
-            o = o * g.sigmoid().unsqueeze( -1 )
-        
-        # Perform output projection and return
-        return self.o_proj( o.flatten( start_dim=2 ) )
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.d_key = d_key
 
+        self.repeats = repeats
+        self.r = r
+        self.lora_alpha = lora_alpha
+        self.lora_dropout = lora_dropout
 
-class _AttentionCross( _AttentionBase ):
-    def __init__( self, d_model: int, n_heads: int, d_key: int, alibi_slope: float, head_gate: bool ):
-        super().__init__( d_model, n_heads, d_key, alibi_slope, head_gate )
-        
-        self.g_proj = torch.nn.Linear( d_model, n_heads, bias=True ) if head_gate else None
-        self.q_proj = torch.nn.Linear( d_model, d_model, bias=True )
-        self.k_proj = torch.nn.Linear( d_model, d_model, bias=True )
-        self.v_proj = torch.nn.Linear( d_model, d_model, bias=True )
-        self.o_proj = torch.nn.Linear( d_model, d_model, bias=True )
-    
-    def mask_type( self ) -> Literal['self', 'cross']:
-        return 'cross'
-    
-    def forward( self, states: torch.Tensor, bias_mask: torch.Tensor ) -> torch.Tensor:
-        # Scale mask by heads
-        bias_mask = bias_mask[ :, None, :, : ] * self.head_scale[ None, :, None, None ]
-        
+        self.key_scale = self.d_key ** -0.5
+
+        self.q_proj = AdaLinear( d_model, d_model, True, repeats, r, lora_alpha, lora_dropout )
+        self.k_proj = AdaLinear( d_model, d_model, True, repeats, r, lora_alpha, lora_dropout )
+        self.v_proj = AdaLinear( d_model, d_model, True, repeats, r, lora_alpha, lora_dropout )
+        self.o_proj = AdaLinear( d_model, d_model, True, repeats, r, lora_alpha, lora_dropout )
+
+    def forward( self, inputs: torch.Tensor, index: int, mask: torch.Tensor ):
         # Compute qkv projections
-        q = self.q_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
-        k = self.k_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
-        v = self.v_proj( states ).unflatten( -1, [ self.n_heads, self.d_key ] )
-        
+        q = self.q_proj( inputs, index ).unflatten( -1, [ self.n_heads, self.d_key ] )
+        k = self.k_proj( inputs, index ).unflatten( -1, [ self.n_heads, self.d_key ] )
+        v = self.v_proj( inputs, index ).unflatten( -1, [ self.n_heads, self.d_key ] )
+
         o = scaled_dot_product_attention( # pylint: disable=E1102
             q.transpose( 1, 2 ),
             k.transpose( 1, 2 ),
             v.transpose( 1, 2 ),
-            attn_mask=bias_mask,
+            attn_mask=mask,
             scale=self.key_scale,
-        ).transpose( 2, 1 )
-        
-        # Apply gate if present
-        if self.g_proj:
-            g = self.g_proj( states )
-            o = o * g.sigmoid().unsqueeze( -1 )
-        
+        ).transpose( 2, 1 ).flatten( start_dim=2 )
+
         # Perform output projection and return
-        return self.o_proj( o.flatten( start_dim=2 ) )
+        return self.o_proj( o, index )
 
+class AdaFeedForward( AdaBaseModule ):
+    def __init__(
+        self,
+        d_model: int,
+        d_ffn: int,
+        repeats: int = 0,
+        r: int = 0,
+        lora_alpha: float = 1.0,
+        lora_dropout: float = 0.0,
+    ):
+        super().__init__()
 
-class _FFN( LSWTFeedForward ):
-    def mask_type( self ) -> Literal['ffn']:
-        return 'ffn'
-    
-    def forward( self, states: torch.Tensor, bias_mask=None ) -> torch.Tensor:
-        return super().forward( states )
+        self.d_model = d_model
+        self.d_ffn = d_ffn
+
+        self.repeats = repeats
+        self.r = r
+        self.lora_alpha = lora_alpha
+        self.lora_dropout = lora_dropout
+
+        self.up_proj = AdaLinear( d_model, d_ffn, True, repeats, r, lora_alpha, lora_dropout )
+        self.gate_proj = AdaLinear( d_model, d_ffn, True, repeats, r, lora_alpha, lora_dropout )
+        self.down_proj = AdaLinear( d_ffn, d_model, True, repeats, r, lora_alpha, lora_dropout )
+
+    def forward( self, inputs: torch.Tensor, index: int ):
+        up = self.up_proj( inputs, index )
+        gate = self.gate_proj( inputs, index )
+
+        x = up * F.silu( gate )
+
+        return self.down_proj( x, index )
 
 
 class LSWTLayerPoolerSingle( torch.nn.Module ):
@@ -295,6 +373,7 @@ class LSWTTokenPoolerCLS( torch.nn.Module ):
     def forward( self, layer_states: torch.Tensor, input_ids: torch.Tensor ) -> torch.Tensor:       
         return layer_states
 
+
 class LSWTTokenPoolerAttention( torch.nn.Module ):
     def __init__( self, pooler_config: LSWTPoolerConfig, base_config: LSWTConfig ):
         super().__init__()
@@ -309,112 +388,39 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
         self.new_token_id = int( pooler_config.token_pooling_config[ 'new_token_id' ] )
         self.pad_token_id = int( pooler_config.token_pooling_config[ 'pad_token_id' ] )
         
-        self.layer_names = list( pooler_config.token_pooling_config[ 'attn_layers' ] )
+        self.self_type = str( pooler_config.token_pooling_config[ 'self_type' ] )
+
         self.n_repeats = int( pooler_config.token_pooling_config[ 'n_repeats' ] )
-        self.include_prefix = bool( pooler_config.token_pooling_config[ 'include_prefix' ] )
+        self.lora_r = int( pooler_config.token_pooling_config[ 'lora_r' ] )
+        self.lora_alpha = float( pooler_config.token_pooling_config[ 'lora_alpha' ] )
+        self.lora_dropout = float( pooler_config.token_pooling_config[ 'lora_dropout' ] )
         
         self.d_model = base_config.d_model
         self.n_heads = base_config.n_heads
         self.d_key = self.d_model // self.n_heads
+        self.d_ffn = base_config.d_ffn
         
         self.alibi_slope = float( pooler_config.token_pooling_config[ 'alibi_slope' ] )
-        self.head_gate = bool( pooler_config.token_pooling_config[ 'head_gate' ] )
         
-        norm = str( pooler_config.token_pooling_config[ 'norm' ] )
-        pre_norm = norm in [ 'pre', 'both' ]
-        post_norm = norm in [ 'post', 'both' ]
+        match self.self_type:
+            case 'self':
+                self.self_layer = AdaAttention( self.d_model, self.n_heads, self.d_key, self.n_repeats, self.lora_r, self.lora_alpha, self.lora_dropout )
+            case 'pool':
+                self.self_layer = AdaPoolAttention( self.d_model, self.n_heads, self.d_key, self.n_repeats, self.lora_r, self.lora_alpha, self.lora_dropout )
+            case _:
+                raise ValueError( f'Invalid `self_type` in pooler: {self.self_type}' )
         
-        self.unskip = bool( pooler_config.token_pooling_config[ 'unskip' ] )
+        self.cross_layer = AdaAttention( self.d_model, self.n_heads, self.d_key, self.n_repeats, self.lora_r, self.lora_alpha, self.lora_dropout )
+        self.ffn_layer = AdaFeedForward( self.d_model, self.d_ffn, self.n_repeats, self.lora_r, self.lora_alpha, self.lora_dropout )
         
-        self.attn_layers = torch.nn.ModuleList()
-        self.norm_layers_pre = torch.nn.ModuleList()
-        self.norm_layers_post = torch.nn.ModuleList()
-        
-        self.n_layers_attn = len( self.layer_names )
-        self.n_layers_total = len( self.layer_names ) * self.n_repeats
-        
-        for attn_type in self.layer_names:
-            self.attn_layers.append( self._attention_factory( attn_type ) )
+        self.self_norm = torch.nn.ModuleList()
+        self.cross_norm = torch.nn.ModuleList()
+        self.ffn_norm = torch.nn.ModuleList()
         
         for _ in range( self.n_layers_total ):
-            self.norm_layers_pre.append( torch.nn.LayerNorm( self.d_model ) if pre_norm else torch.nn.Identity() )
-            self.norm_layers_post.append( torch.nn.LayerNorm( self.d_model ) if post_norm else torch.nn.Identity() )
-        
-    
-    def _attention_factory(
-        self,
-        attn_type: Literal['self', 'pool', 'pool_linear', 'cross', 'ffn'],
-    ) -> _AttentionBase | torch.nn.Module:
-        match attn_type:
-            case 'self':
-                cls = _AttentionSelf
-            case 'pool':
-                cls = _AttentionPool
-            case 'pool_linear':
-                cls = _AttentionPoolLinear
-            case 'cross':
-                cls = _AttentionCross
-            case 'ffn':
-                return _FFN( self.base_config )
-        return cls(
-            d_model=self.d_model,
-            n_heads=self.n_heads,
-            d_key=self.d_key,
-            alibi_slope=self.alibi_slope,
-            head_gate=self.head_gate,
-        )
-    
-    @torch._dynamo.disable # type: ignore # pylint: disable=W0212
-    def compute_segments( self, tokens: torch.Tensor ):
-        # Tensors of current state and id for each sequnce in the batch
-        current_state = torch.zeros( [ tokens.shape[0] ], dtype=torch.int, device=tokens.device )
-        current_seg_id = torch.zeros( [ tokens.shape[0] ], dtype=torch.int, device=tokens.device )
-
-        # Tensors of all states and ids for each element of each sequence in the batch
-        states = torch.zeros_like( tokens, dtype=torch.int )
-        seg_ids = torch.zeros_like( tokens, dtype=torch.int )
-
-        # Get idxs of start, end and newline
-        im_start_arr = tokens == self.sep_token_id
-        im_end_arr = tokens == self.cls_token_id 
-        newline_arr = tokens == self.new_token_id
-
-        # Loop over all tokens
-        for i in range( tokens.shape[-1] ):
-            # If token is <|im_start|>
-            im_start = im_start_arr[ :, i ]
-
-            # If token is <|im_end|>
-            im_end = im_end_arr[ :, i ]
-
-            # If token is \n # TODO: check for multiple types of newline perhaps?
-            newline = newline_arr[ :, i ]
-
-            # 4->0 if \n
-            current_state.masked_fill_( ( current_state == 4 ).logical_and( newline ), 0 )
-
-            # 3->4 if im_end
-            current_state.masked_fill_( ( current_state == 3 ).logical_and( im_end ), 4 )
-
-            # 2->3 if anything
-            current_state.masked_fill_( ( current_state == 2 ), 3 )
-
-            # 1->2 if \n
-            current_state.masked_fill_( ( current_state == 1 ).logical_and( newline ), 2 )
-
-            # 0->1 if im_start
-            current_state.masked_fill_( ( current_state == 0 ).logical_and( im_start ), 1 )
-
-            # If im_start is seen increment seg_id
-            current_seg_id += ( im_start ).int()
-
-            states[ :, i ] = current_state
-            seg_ids[ :, i ] = current_seg_id
-        
-        segment_mask = torch.isin( states, torch.tensor( [ 1, 2, 3, 4 ] if self.include_prefix else [ 3, 4 ], device=states.device ) )
-        class_mask = im_end_arr
-        
-        return states, seg_ids, segment_mask, class_mask
+            self.self_norm.append( torch.nn.LayerNorm( self.d_model ) )
+            self.cross_norm.append( torch.nn.LayerNorm( self.d_model ) )
+            self.ffn_norm.append( torch.nn.LayerNorm( self.d_model ) )
     
     def compute_bias_mask_self( self, segment_ids: torch.Tensor, segment_mask: torch.Tensor ) -> torch.Tensor:
         seq_len = segment_ids.shape[-1]
@@ -441,50 +447,17 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
         return bias.where( mask, float( '-inf' ) )
     
     def forward( self, states: torch.Tensor, input_ids: torch.Tensor ) -> torch.Tensor:
-        if self.include_prefix:
-            class_mask = input_ids == self.cls_token_id
-            segment_mask = input_ids != self.pad_token_id
-            segment_ids = ( input_ids == self.sep_token_id ).int().cumsum( -1 )
-        else:
-            state_ids, segment_ids, segment_mask, class_mask = self.compute_segments( input_ids )
+        class_mask = input_ids == self.cls_token_id
+        segment_mask = input_ids != self.pad_token_id
+        segment_ids = ( input_ids == self.sep_token_id ).int().cumsum( -1 )
         
-        bias_mask_map = {
-            'self': self.compute_bias_mask_self( segment_ids, segment_mask ),
-            'cross': self.compute_bias_mask_cross( segment_ids, class_mask ),
-            'ffn': None,
-        }
+        self_mask = self.compute_bias_mask_self( segment_ids, segment_mask )
+        cross_mask = self.compute_bias_mask_cross( segment_ids, class_mask )
         
-        skip = states
-        
-        for i in range( self.n_layers_total ):
-            attn_layer = self.attn_layers[i % self.n_layers_attn]
-            norm_layer_pre = self.norm_layers_pre[i]
-            norm_layer_post = self.norm_layers_post[i]
-            
-            assert isinstance( attn_layer, torch.nn.Module )
-            assert isinstance( norm_layer_pre, torch.nn.Module )
-            assert isinstance( norm_layer_post, torch.nn.Module )
-            
-            # Pre-norm the states
-            normed_state = norm_layer_pre( states )
-            
-            # Get the mask type
-            mask_type = attn_layer.mask_type()
-            
-            # Select the correct bias mask
-            bias_mask = bias_mask_map[ mask_type ]
-            
-            # Get the residual stream
-            residual_states = attn_layer( normed_state, bias_mask )
-            
-            # Post norm the residual
-            normed_residual_states = norm_layer_post( residual_states )
-            
-            # Add residual to skip connection
-            states = states + normed_residual_states
-        
-        if self.unskip:
-            states = states - skip
+        for i in range( self.n_repeats ):
+            states = states + self.self_layer( self.self_norm[i]( states ), i, self_mask )
+            states = states + self.cross_layer( self.cross_norm[i]( states ), i, cross_mask )
+            states = states + self.ffn_layer( self.ffn_norm[i]( states ), i )
         
         return states
 
