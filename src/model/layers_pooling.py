@@ -104,14 +104,8 @@ class AdaLinear( AdaBaseLayer ):
             self.lora_B_list = torch.nn.ParameterList()
 
             for _ in range( repeats ):
-                lora_A = torch.nn.Parameter( torch.empty( r, in_features ), True )
-                lora_B = torch.nn.Parameter( torch.empty( out_features, r ), True )
-
-                with torch.no_grad():
-                    # initialize A the same way as the default for nn.Linear and B to zero
-                    # https://github.com/microsoft/LoRA/blob/a0a92e0f26c067cf94747bdbf1ce73793fa44d19/loralib/layers.py#L124
-                    torch.nn.init.kaiming_uniform_( lora_A, a=math.sqrt( 5.0 ) )
-                    torch.nn.init.zeros_( lora_B )
+                lora_A = torch.nn.Parameter( torch.randn( r, in_features ) / r, True )
+                lora_B = torch.nn.Parameter( torch.zeros( out_features, r ), True )
 
                 self.lora_A_list.append( lora_A )
                 self.lora_B_list.append( lora_B )
