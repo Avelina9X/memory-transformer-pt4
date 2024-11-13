@@ -1,9 +1,0 @@
-meta:
-  group:
-    norm: both
-
-model:
-  pooler_config:
-    token_pooling_config:      
-      norm: both
-      # head_gate: false
