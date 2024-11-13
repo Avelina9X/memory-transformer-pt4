@@ -421,7 +421,7 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
         self.cross_norm = torch.nn.ModuleList()
         self.ffn_norm = torch.nn.ModuleList()
         
-        for _ in range( self.n_layers_total ):
+        for _ in range( self.n_repeats ):
             self.self_norm.append( torch.nn.LayerNorm( self.d_model ) )
             self.cross_norm.append( torch.nn.LayerNorm( self.d_model ) )
             self.ffn_norm.append( torch.nn.LayerNorm( self.d_model ) )
