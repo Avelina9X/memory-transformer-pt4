@@ -1,0 +1,8 @@
+meta:
+  group:
+    repeat: 2
+
+model:
+  pooler_config:
+    token_pooling_config:
+      n_repeats: 2
