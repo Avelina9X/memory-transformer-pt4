@@ -523,6 +523,8 @@ def instruct_align(
 
         # If validation flag is set (or it's the last epoch) run validation
         if should_validate or i + 1 == trainer.get_total_epochs():
+            torch.cuda.empty_cache()
+            
             for task in validation_zeroshot_tasks[ rank ]:
                 curr_line, curr_dict = evaluate_zero_shot_task( task, batcher, zero_nan=True, max_batch_size=validation_batch_size )
                 validation_lines.append( curr_line )
@@ -538,6 +540,7 @@ def instruct_align(
                 )
 
                 validation_prompt_dict[ 'validation_generations' ] = validation_prompt_table
+                torch.cuda.empty_cache()
 
             # If there's a validation queue, gather all metrics
             if validation_queue:

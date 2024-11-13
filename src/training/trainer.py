@@ -379,9 +379,6 @@ class Trainer(): # pylint: disable=R0902
             print( '\r' + bar, end='', flush=True )
         print()
 
-        torch.cuda.empty_cache()
-        gc.collect()
-
         return self.reset_metrics()
 
 class TrainerDDP( Trainer ):
@@ -543,9 +540,6 @@ class TrainerDDP( Trainer ):
                 print( '\r' + bar, end='', flush=True )
         if self.ddp_rank == 0:
             print()
-
-        torch.cuda.empty_cache()
-        gc.collect()
 
         return self.reset_metrics()
 
@@ -1012,10 +1006,6 @@ class DPHTrainer():
             print( '\r' + bar_string, end='', flush=True )
         print()
 
-        # Clear the cache for validation loop
-        torch.cuda.empty_cache()
-        gc.collect()
-
         # Get and reset metrics
         return self.reset_metrics()
 
@@ -1213,9 +1203,6 @@ class DPHTrainerDDP( DPHTrainer ):
         if self.ddp_rank == 0:
             print()
 
-        # Clear the cache for validation loop
-        torch.cuda.empty_cache()
-        gc.collect()
 
         # Get and reset metrics
         return self.reset_metrics()
@@ -1630,9 +1617,6 @@ class SteerTrainer():
             print( '\r' + bar_string, end='', flush=True )
         print()
 
-        # Clear the cache for validation loop
-        torch.cuda.empty_cache()
-        gc.collect()
 
         # Get and reset metrics
         return self.reset_metrics()
@@ -1825,10 +1809,6 @@ class SteerTrainerDDP( SteerTrainer ):
                 print( '\r' + bar_string, end='', flush=True )
         if self.ddp_rank == 0:
             print()
-
-        # Clear the cache for validation loop
-        torch.cuda.empty_cache()
-        gc.collect()
 
         # Get and reset metrics
         return self.reset_metrics()
