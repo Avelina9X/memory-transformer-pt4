@@ -289,7 +289,8 @@ class DPHLoss( nn.Module ):
         neg_logits = neg_logits.float()
         
         # Penalty
-        penalty = self.penalty * ( pos_logits ** 2 + neg_logits ** 2 ).mean()
+        # penalty = self.penalty * ( pos_logits ** 2 + neg_logits ** 2 ).mean()
+        penalty = self.penalty * ( pos_logits + neg_logits ).square().mean()
 
         # Compute the contrastive loss
         con_logits = pos_logits - neg_logits
