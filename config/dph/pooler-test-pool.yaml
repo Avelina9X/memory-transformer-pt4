@@ -1,0 +1,8 @@
+meta:
+  group:
+    variant: pool
+
+model:
+  pooler_config:
+    token_pooling_config:
+      self_type: pool

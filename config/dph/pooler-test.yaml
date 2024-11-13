@@ -1,3 +1,7 @@
+meta:
+  tags:
+    - improved_pooler
+
 model:
   pooler_config:
     reward_heads:
@@ -17,18 +21,7 @@ model:
       cls_token_id: 50266
       new_token_id: 50118
       pad_token_id: 1
-
-      # attn_layers:
-        # - pool
-        # - cross
       
-      # norm: both
-
-      # n_repeats: 2
-      
-      include_prefix: true
       alibi_slope: 8.0
-      # head_gate: false
-      unskip: false
     
     embedding_pooling: null
