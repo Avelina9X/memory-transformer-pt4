@@ -402,6 +402,9 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
         
         self.alibi_slope = float( pooler_config.token_pooling_config[ 'alibi_slope' ] )
         
+        head_scale = torch.exp2( -( ( torch.arange( self.n_heads ) + 1.0 ) * self.alibi_slope / self.n_heads ) )
+        self.head_scale = torch.nn.Parameter( head_scale, requires_grad=False )
+        
         match self.self_type:
             case 'self':
                 self.self_layer = AdaAttention( self.d_model, self.n_heads, self.d_key, self.n_repeats, self.lora_r, self.lora_alpha, self.lora_dropout )
@@ -433,7 +436,11 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
         bias = seq_ids[ None, None, : ] - seq_ids[ None, :, None ]
         mask = ( seg_mask * val_mask + diagonal ).tril()
         
-        return bias.where( mask, float( '-inf' ) )
+        bias_mask = bias.where( mask, float( '-inf' ) )
+        
+        bias_mask = bias_mask[ :, None, :, : ] * self.head_scale[ None, :, None, None ]
+        
+        return bias_mask
         
     def compute_bias_mask_cross( self, segment_ids: torch.Tensor, class_mask: torch.Tensor ) -> torch.Tensor:
         seq_len = segment_ids.shape[-1]
@@ -444,7 +451,11 @@ class LSWTTokenPoolerAttention( torch.nn.Module ):
         bias = ( segment_ids[ :, None, : ] - segment_ids[ :, :, None ] ).float()
         mask = ( cls_mask + diagonal ).tril()
         
-        return bias.where( mask, float( '-inf' ) )
+        bias_mask = bias.where( mask, float( '-inf' ) )
+        
+        bias_mask = bias_mask[ :, None, :, : ] * self.head_scale[ None, :, None, None ]
+        
+        return bias_mask
     
     def forward( self, states: torch.Tensor, input_ids: torch.Tensor ) -> torch.Tensor:
         class_mask = input_ids == self.cls_token_id
