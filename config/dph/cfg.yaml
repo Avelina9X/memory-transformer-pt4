@@ -40,7 +40,7 @@ finetune:
 
 dph:
   dph_contrastive: true
-  dph_epsilon: 0.05
+  dph_epsilon: 0.0
   dph_weight: 1.0
   dph_penalty: 0.1
 
