@@ -1,0 +1,10 @@
+meta:  
+  group:
+    wrapped: Qwen1.5-0.5B-Chat
+
+finetune:
+  wrapped_model: Qwen/Qwen1.5-0.5B-Chat
+
+model:
+  pooler_config:
+    layer_pooling_select: [ 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24 ]
