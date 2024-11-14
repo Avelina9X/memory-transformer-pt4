@@ -302,7 +302,6 @@ def instruct_align(
         dph_model.generation_config = train_utils.create_generation_config( tokenizer )
         
     else:
-        """
         # Get the wrapped model name
         wrapped_model_name = config[ 'finetune.wrapped_model' ]
         pretrained_run_name = None
@@ -359,12 +358,16 @@ def instruct_align(
 
         if not tokenizer.cls_token_id:
             tokenizer.cls_token_id = tokenizer.get_vocab()[ '<|im_end|>' ]
+        model_config.pooler_config.token_pooling_config[ 'cls_token_id' ] = tokenizer.cls_token_id
 
         if not tokenizer.sep_token_id:
             tokenizer.sep_token_id = tokenizer.get_vocab()[ '<|im_start|>' ]
+        model_config.pooler_config.token_pooling_config[ 'sep_token_id' ] = tokenizer.sep_token_id
 
         if not tokenizer.bos_token_id:
             tokenizer.bos_token_id = tokenizer.eos_token_id
+        
+        model_config.pooler_config.token_pooling_config[ 'pad_token_id' ] = tokenizer.pad_token_id
 
         # Set generation config
         dph_model.generation_config = train_utils.create_generation_config( tokenizer )
@@ -381,11 +384,6 @@ def instruct_align(
         else:
             ref_model = dph_model
         ref_model.config.use_bfloat16 = dph_model.config.use_bfloat16
-
-        dph_model.config.pooler_config.prefix_sizes[ 'system' ] = len( tokenizer.encode( '<|im_start|>system\n', add_special_tokens=False ) )
-        dph_model.config.pooler_config.prefix_sizes[ 'user' ] = len( tokenizer.encode( '<|im_start|>user\n', add_special_tokens=False ) )
-        dph_model.config.pooler_config.prefix_sizes[ 'assistant' ] = len( tokenizer.encode( '<|im_start|>assistant\n', add_special_tokens=False ) )
-        """
 
     # Create task mixes
     while True:
