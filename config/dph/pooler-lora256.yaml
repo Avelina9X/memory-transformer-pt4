@@ -1,0 +1,11 @@
+meta:
+  group:
+    ada: lora
+    rank: 256
+
+model:
+  pooler_config:
+    token_pooling_config:
+      lora_r: 256
+      lora_alpha: 256.0
+      lora_dropout: 0.0

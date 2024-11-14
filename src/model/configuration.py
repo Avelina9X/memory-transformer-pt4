@@ -423,6 +423,7 @@ class LSWTConfigTrainingDPH():
         dph_contrastive=False,
         dph_epsilon=0.1,
         dph_penalty=0.1,
+        dph_penalty_centered=True,
         dph_weight=1.0,
 
         dph_decay_init=False,
@@ -479,6 +480,7 @@ class LSWTConfigTrainingDPH():
         self.dph_contrastive = dph_contrastive
         self.dph_epsilon = dph_epsilon
         self.dph_penalty = dph_penalty
+        self.dph_penalty_centered = dph_penalty_centered
         self.dph_weight = dph_weight
 
         self.dph_decay_init = dph_decay_init

@@ -252,6 +252,7 @@ class DPHLoss( nn.Module ):
         label_smoothing: float = 0.0,
         contrastive: bool = False,
         penalty: float = 0.0,
+        centered: bool = True,
     ):
         """ Instantiates the DPH Loss module.
 
@@ -266,6 +267,7 @@ class DPHLoss( nn.Module ):
         self.label_smoothing = label_smoothing
         self.contrastive = contrastive
         self.penalty = penalty
+        self.centered = centered
 
     def forward(
         self,
@@ -289,8 +291,10 @@ class DPHLoss( nn.Module ):
         neg_logits = neg_logits.float()
         
         # Penalty
-        # penalty = self.penalty * ( pos_logits ** 2 + neg_logits ** 2 ).mean()
-        penalty = self.penalty * ( pos_logits + neg_logits ).square().mean()
+        if self.centered:
+            penalty = self.penalty * ( pos_logits ** 2 + neg_logits ** 2 ).mean()
+        else:
+            penalty = self.penalty * ( pos_logits + neg_logits ).square().mean()
 
         # Compute the contrastive loss
         con_logits = pos_logits - neg_logits

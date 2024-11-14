@@ -1,0 +1,6 @@
+meta:
+  group:
+    centered: true
+
+dph:
+  dph_penalty_centered: true

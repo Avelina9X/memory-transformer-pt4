@@ -1,6 +1,15 @@
+meta:
+  tags:
+    - frozen_model
+  
+  group:
+    trainable: none
+
 finetune:
   frozen_params:
     - model.layers
     - model.embed_tokens
     - model.norm
     - lm_head
+  
+  use_wrapped_dtype: true 

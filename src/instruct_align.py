@@ -311,7 +311,7 @@ def instruct_align(
         source_model = AutoModelForCausalLM.from_pretrained(
             wrapped_model_name,
             cache_dir=HF_CACHE_DIR,
-            torch_dtype=None,
+            torch_dtype=source_config.torch_dtype if config.get( 'finetune.use_wrapped_dtype', False ) else None,
             _attn_implementation='flash_attention_2',
             output_hidden_states=True,
         ).cuda().eval()
@@ -336,6 +336,21 @@ def instruct_align(
         assert isinstance( model_config.pooler_config.reward_heads, Sequence )
         assert len( model_config.pooler_config.reward_heads ) > 0
         reward_head_name = model_config.pooler_config.reward_heads[0]
+        
+        tokenizer = AutoTokenizer.from_pretrained( wrapped_model_name, cache_dir=HF_CACHE_DIR )
+
+        if not tokenizer.cls_token_id:
+            tokenizer.cls_token_id = tokenizer.get_vocab()[ '<|im_end|>' ]
+        model_config.pooler_config.token_pooling_config[ 'cls_token_id' ] = tokenizer.cls_token_id
+
+        if not tokenizer.sep_token_id:
+            tokenizer.sep_token_id = tokenizer.get_vocab()[ '<|im_start|>' ]
+        model_config.pooler_config.token_pooling_config[ 'sep_token_id' ] = tokenizer.sep_token_id
+
+        if not tokenizer.bos_token_id:
+            tokenizer.bos_token_id = tokenizer.eos_token_id
+        
+        model_config.pooler_config.token_pooling_config[ 'pad_token_id' ] = tokenizer.pad_token_id
 
         # Instantiate wrapped model with the inner model
         dph_model = typing.cast( WrappedLSWTForDPH, WrappedLSWTForDPH( model_config, source_model ).cuda() ) # type: ignore
@@ -353,21 +368,6 @@ def instruct_align(
                 else:
                     rich.print( f'Frozen param count: {len(frozen_list)}' )
                     print()
-
-        tokenizer = AutoTokenizer.from_pretrained( wrapped_model_name, cache_dir=HF_CACHE_DIR )
-
-        if not tokenizer.cls_token_id:
-            tokenizer.cls_token_id = tokenizer.get_vocab()[ '<|im_end|>' ]
-        model_config.pooler_config.token_pooling_config[ 'cls_token_id' ] = tokenizer.cls_token_id
-
-        if not tokenizer.sep_token_id:
-            tokenizer.sep_token_id = tokenizer.get_vocab()[ '<|im_start|>' ]
-        model_config.pooler_config.token_pooling_config[ 'sep_token_id' ] = tokenizer.sep_token_id
-
-        if not tokenizer.bos_token_id:
-            tokenizer.bos_token_id = tokenizer.eos_token_id
-        
-        model_config.pooler_config.token_pooling_config[ 'pad_token_id' ] = tokenizer.pad_token_id
 
         # Set generation config
         dph_model.generation_config = train_utils.create_generation_config( tokenizer )

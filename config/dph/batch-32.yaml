@@ -1,0 +1,8 @@
+meta:
+  group:
+    batch: 32
+
+train:
+  batch_size: 32
+  batches_per_epoch: 512
+  lr_warmup_steps: 4096

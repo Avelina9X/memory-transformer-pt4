@@ -587,6 +587,7 @@ class DPHTrainer():
             label_smoothing=dph_config.dph_epsilon,
             contrastive=dph_config.dph_contrastive,
             penalty=dph_config.dph_penalty,
+            centered=dph_config.dph_penalty_centered,
         )
 
         self.kl_loss = KLPairsLoss(
