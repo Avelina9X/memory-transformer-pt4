@@ -30,7 +30,7 @@ finetune:
       orca/orca_dpo_pairs: 1.0
       hh/rlhf: 1.0
       OpenHermes/Preferences: 1.0
-      tasksource/dpo_pairs: 1.0
+      tasksource/dpo_pairs: 0.0
 
       glue/wnli: 1.0
       super_glue/copa: 1.0
