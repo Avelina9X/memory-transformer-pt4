@@ -31,6 +31,7 @@ train:
     - embedding.weight
     - norm
     - bias
+    - lora
 
 finetune:
   mask_override: train
@@ -50,5 +51,6 @@ dph:
   dph_decay_mask:
     - norm
     - bias
+    - lora
 
   opt_split_norm: false
