@@ -17,7 +17,7 @@ train:
   batches_per_epoch: 0
   length_sequence: 2048
   length_cache: 2048
-  lr_max: 3.0e-5
+  lr_max: 6.0e-5
   lr_warmup_steps: 0
   lr_cooldown_tokens: 30000000000
   lr_cooldown_ratio: 0.1
