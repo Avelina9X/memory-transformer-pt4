@@ -520,6 +520,7 @@ class LSWTForDPH( LSWTForCausalLM ):
         dph_decay_init: bool = False,
         dph_weight_decay: float = 0.0,
         dph_lr_multiplier: float = 1.0,
+        dph_lora_lr_multiplier: float = 10.0,
     ) -> list[dict]:
         """
         Returns optimizer parameter groups with weight decay disabled for certain params.
@@ -538,6 +539,7 @@ class LSWTForDPH( LSWTForCausalLM ):
         decay_params = []
         non_decay_params = []
 
+        dph_lora_params = []
         dph_decay_params = []
         dph_non_decay_params = []
 
@@ -550,7 +552,9 @@ class LSWTForDPH( LSWTForCausalLM ):
         for name, p in self.named_parameters():
             if p.requires_grad:
                 if check_dph( p ):
-                    if any( i in name for i in dph_decay_mask ):
+                    if 'lora' in name:
+                        dph_lora_params.append( p )
+                    elif any( i in name for i in dph_decay_mask ):
                         dph_non_decay_params.append( p )
                     else:
                         dph_decay_params.append( p )
@@ -566,6 +570,7 @@ class LSWTForDPH( LSWTForCausalLM ):
 
             { 'params': dph_decay_params, 'decay_init': dph_decay_init, 'weight_decay': dph_weight_decay, 'lr_multiplier': dph_lr_multiplier },
             { 'params': dph_non_decay_params, 'decay_init': dph_decay_init, 'weight_decay': 0.0, 'lr_multiplier': dph_lr_multiplier },
+            { 'params': dph_lora_params, 'decay_init': dph_decay_init, 'weight_decay': 0.0, 'lr_multiplier': dph_lora_lr_multiplier },
         ]
     
     def parameters_split( self, pooler: bool ):

@@ -683,6 +683,7 @@ class DPHTrainer():
             self.dph_config.dph_decay_init,
             self.dph_config.dph_weight_decay,
             self.dph_config.dph_lr_multiplier,
+            self.dph_config.dph_lora_lr_multiplier,
         )
 
         if self.train_config.optimizer == 'LaProp':
@@ -1091,6 +1092,7 @@ class DPHTrainerDDP( DPHTrainer ):
             self.dph_config.dph_decay_init,
             self.dph_config.dph_weight_decay,
             self.dph_config.dph_lr_multiplier,
+            self.dph_config.dph_lora_lr_multiplier,
         )
 
         if self.train_config.optimizer == 'LaProp':
@@ -1294,6 +1296,7 @@ class SteerTrainer():
             self.steer_config.dph_decay_init,
             self.steer_config.dph_weight_decay,
             self.steer_config.dph_lr_multiplier,
+            self.steer_config.dph_lora_lr_multiplier,
         )
 
         if self.train_config.optimizer == 'LaProp':
@@ -1687,6 +1690,7 @@ class SteerTrainerDDP( SteerTrainer ):
             self.steer_config.dph_decay_init,
             self.steer_config.dph_weight_decay,
             self.steer_config.dph_lr_multiplier,
+            self.steer_config.dph_lora_lr_multiplier
         )
 
         if self.train_config.optimizer == 'LaProp':
