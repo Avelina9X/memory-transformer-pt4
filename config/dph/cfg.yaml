@@ -7,6 +7,9 @@ meta:
   tags:
     - improved_dph
     - dph_sweep
+  
+finetune:
+  dph_mix_elbow: 160000
 
 model:
   trainable_embeddings: true
@@ -47,7 +50,7 @@ dph:
 
   dph_decay_init: false
   dph_weight_decay: 0.1
-  dph_lr_multiplier: 1.0
+  dph_lr_multiplier: 10.0
   dph_lora_lr_multiplier: 10.0
   dph_decay_mask:
     - norm
