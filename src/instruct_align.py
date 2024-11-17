@@ -22,6 +22,7 @@ import datasets
 import transformers
 from transformers import AutoTokenizer, AutoConfig, AutoModelForCausalLM
 
+from training.data_instruct.tasks import reward_bench, DIRECTORY_CHOICE
 from training.trainer import DPHTrainer, DPHTrainerDDP
 
 from training.data_instruct.task_base import BaseChoiceInstructDataset
@@ -39,6 +40,16 @@ from constants import HF_CACHE_DIR, WANDB_API_KEY, WANDB_PROJECT_NAME
 import train_utils
 from train_utils import ddp_cleanup, ddp_setup, DDPModelWrapper
 from instruct_tune import create_validation_zeroshot_tasks, load_balance_validation_tasks
+
+def create_validation_reward_tasks() -> list[BaseChoiceInstructDataset]:
+    
+    tasks = [
+        DIRECTORY_CHOICE[ 'reward_bench' ][ split ]( HF_CACHE_DIR )
+        for split in reward_bench.EXAMPLE_COUNTS.keys()
+    ]
+    
+    return tasks
+    
 
 def evaluate_zero_shot_task(
     task: BaseChoiceInstructDataset,
@@ -183,6 +194,32 @@ def aggregate_race_score(
     return {
         f'validation/{prefix}_race_avg': 100 * sum( macro_scores ) / ( 1.44 + 3.45 )
     }
+
+def aggregate_reward_bench_scores(
+    metrics: dict[str, float],
+    prefix: str
+) -> dict[str, float]:
+    def compute_subset( subset: str ):
+        values = [
+            (
+                metrics[ f'reward_bench/{split}/{prefix}_accuracy' ] * reward_bench.EXAMPLE_COUNTS[ split ],
+                reward_bench.EXAMPLE_COUNTS[ split ]
+            )
+            for split in reward_bench.SUBSET_MAPPING[ subset ]
+        ]
+        
+        metrics_values = [ i[0] for i in values ]
+        metrics_counts = [ i[1] for i in values ]
+        
+        return sum( metrics_values ) / sum( metrics_counts )
+    
+    return {
+        f'validation/RewardBench/{prefix}_Chat': compute_subset( 'Chat' ),
+        f'validation/RewardBench/{prefix}_ChatHard': compute_subset( 'Chat Hard' ),
+        f'validation/RewardBench/{prefix}_Safety': compute_subset( 'Safety' ),
+        f'validation/RewardBench/{prefix}_Reasoning': compute_subset( 'Reasoning' ),
+    }
+    
 
 def instruct_align(
     rank: int = 0,
@@ -391,7 +428,7 @@ def instruct_align(
             train_tasks = train_utils.create_train_tasks( config[ 'finetune.dph_mix' ] )
                        
             # Get the validation tasks
-            validation_zeroshot_tasks = create_validation_zeroshot_tasks()
+            validation_zeroshot_tasks = create_validation_zeroshot_tasks() + create_validation_reward_tasks()
             validation_zeroshot_tasks = load_balance_validation_tasks( validation_zeroshot_tasks, world_size )
 
             # If we're on rank zero we get validation prompts
@@ -562,9 +599,11 @@ def instruct_align(
                     **aggregate_gpt4all_score( validation_dict, 'dph' ),
                     **aggregate_glue_score( validation_dict, 'dph' ),
                     **aggregate_race_score( validation_dict, 'dph' ),
+                    **aggregate_reward_bench_scores( validation_dict, 'dph' ),
                     **aggregate_gpt4all_score( validation_dict, 'log' ),
                     **aggregate_glue_score( validation_dict, 'log' ),
                     **aggregate_race_score( validation_dict, 'log' ),
+                    **aggregate_reward_bench_scores( validation_dict, 'log' ),
                 } )
                 
                 parameter_log.update( **train_utils.compute_trainable_parameter_stats( dph_model ) )
