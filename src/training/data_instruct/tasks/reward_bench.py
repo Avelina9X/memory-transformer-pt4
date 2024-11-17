@@ -38,8 +38,8 @@ class RewardBenchInstructDataset( BaseChoiceInstructDataset ):
     def get_training_docs( self ) -> None:
         return None
 
-    def get_validation_docs( self ) -> None:
-        return None
+    def get_validation_docs( self ) -> Dataset:
+        return self.dataset[ 'test' ]
 
     def get_test_docs( self ) -> Dataset:
         return self.dataset[ 'test' ]
