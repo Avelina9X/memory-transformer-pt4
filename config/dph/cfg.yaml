@@ -7,9 +7,6 @@ meta:
   tags:
     - improved_dph
     - dph_sweep
-  
-finetune:
-  dph_mix_elbow: 160000
 
 model:
   trainable_embeddings: true
@@ -37,6 +34,7 @@ train:
     - lora
 
 finetune:
+  dph_mix_elbow: 160000
   mask_override: train
   mode: dph
   checkpoint: CHANGE_ME
