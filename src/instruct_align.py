@@ -38,7 +38,7 @@ from model.modeling import LSWTForCausalLM, LSWTForDPH, WrappedLSWTForDPH
 from constants import HF_CACHE_DIR, WANDB_API_KEY, WANDB_PROJECT_NAME
 import train_utils
 from train_utils import ddp_cleanup, ddp_setup, DDPModelWrapper
-from instruct_tune import create_validation_zeroshot_tasks
+from instruct_tune import create_validation_zeroshot_tasks, load_balance_validation_tasks
 
 def evaluate_zero_shot_task(
     task: BaseChoiceInstructDataset,
@@ -391,7 +391,8 @@ def instruct_align(
             train_tasks = train_utils.create_train_tasks( config[ 'finetune.dph_mix' ] )
                        
             # Get the validation tasks
-            validation_zeroshot_tasks = create_validation_zeroshot_tasks( world_size )
+            validation_zeroshot_tasks = create_validation_zeroshot_tasks()
+            validation_zeroshot_tasks = load_balance_validation_tasks( validation_zeroshot_tasks, world_size )
 
             # If we're on rank zero we get validation prompts
             if rank == 0 and config.get( 'meta.prompt_validate', False ):

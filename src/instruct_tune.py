@@ -37,7 +37,7 @@ from constants import HF_CACHE_DIR, WANDB_API_KEY, WANDB_PROJECT_NAME
 import train_utils
 from train_utils import ddp_cleanup, ddp_setup, DDPModelWrapper
 
-def create_validation_zeroshot_tasks( n_bins: int ) -> list[list[BaseChoiceInstructDataset]]:
+def create_validation_zeroshot_tasks() -> list[BaseChoiceInstructDataset]:
     tasks = [
         # Auxiliary datasets
         DIRECTORY_CHOICE[ 'super_glue' ][ 'copa' ]( HF_CACHE_DIR ),
@@ -72,6 +72,10 @@ def create_validation_zeroshot_tasks( n_bins: int ) -> list[list[BaseChoiceInstr
         DIRECTORY_CHOICE[ 'race' ][ 'middle' ]( HF_CACHE_DIR ),
         DIRECTORY_CHOICE[ 'race' ][ 'high' ]( HF_CACHE_DIR ),
     ]
+    
+    return tasks 
+
+def load_balance_validation_tasks( tasks: list[BaseChoiceInstructDataset], n_bins: int ) -> list[list[BaseChoiceInstructDataset]]:
 
     def estimate_weight( task: BaseChoiceInstructDataset ):
         docs = task.get_validation_docs() or []
@@ -296,7 +300,8 @@ def instruct_tune(
             train_tasks = train_utils.create_train_tasks( config[ 'finetune.sft_mix' ] )
 
             # Get the validation tasks
-            validation_zeroshot_tasks = create_validation_zeroshot_tasks( world_size )
+            validation_zeroshot_tasks = create_validation_zeroshot_tasks()
+            validation_zeroshot_tasks = load_balance_validation_tasks( validation_zeroshot_tasks, world_size )
 
             # If we're on rank zero we get validation prompts
             if rank == 0 and config.get( 'meta.prompt_validate', False ):
