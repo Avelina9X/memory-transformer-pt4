@@ -87,15 +87,22 @@ def evaluate_zero_shot_task(
     val_metrics = {}
     val_metrics.update( { f'log_{name}': metric for name, metric in val_metrics_log.items() } )
     val_metrics.update( { f'dph_{name}': metric for name, metric in val_metrics_dph.items() } )
+    
+    print_metrics = {}
+    print_metrics.update( { f'log_{name}': round( metric, 3 ) for name, metric in val_metrics_log.items() } )
+    print_metrics.update( { f'dph_{name}': round( metric, 3 ) for name, metric in val_metrics_dph.items() } )
 
     if zero_nan:
         for key in val_metrics:
             value = val_metrics[key]
             val_metrics[key] = 0.0 if math.isnan( value ) else value
+            
+            print_value = print_metrics[key]
+            print_metrics[key] = 0.0 if math.isnan( print_value ) else print_value
 
     # Format metric for logging and print
     task_name = f'{task.task_name}/{task.task_subset}'
-    curr_metrics = f'{task_name}={val_metrics}'
+    curr_metrics = f'{task_name}={print_metrics}'
     rich.print( curr_metrics )
 
     # Return logged string and annotated dict
@@ -595,16 +602,24 @@ def instruct_align(
 
             # If rank is zero update the validation dict with log and dph scores
             if rank == 0:
-                validation_dict.update( {
-                    **aggregate_gpt4all_score( validation_dict, 'dph' ),
-                    **aggregate_glue_score( validation_dict, 'dph' ),
-                    **aggregate_race_score( validation_dict, 'dph' ),
-                    **aggregate_reward_bench_scores( validation_dict, 'dph' ),
+                aggregated_metrics = {
                     **aggregate_gpt4all_score( validation_dict, 'log' ),
+                    **aggregate_gpt4all_score( validation_dict, 'dph' ),
+                    
                     **aggregate_glue_score( validation_dict, 'log' ),
+                    **aggregate_glue_score( validation_dict, 'dph' ),
+                    
                     **aggregate_race_score( validation_dict, 'log' ),
+                    **aggregate_race_score( validation_dict, 'dph' ),
+                    
                     **aggregate_reward_bench_scores( validation_dict, 'log' ),
-                } )
+                    **aggregate_reward_bench_scores( validation_dict, 'dph' ),
+                }
+                
+                for metric_name, metric_value in aggregated_metrics.items():
+                    rich.print( f'{metric_name}={metric_value}' )
+                
+                validation_dict.update( aggregated_metrics )
                 
                 parameter_log.update( **train_utils.compute_trainable_parameter_stats( dph_model ) )
 
@@ -636,6 +651,8 @@ def instruct_align(
             # Log to WandB
             wandb.log( final_log_dict )
 
+        torch.distributed.barrier()
+        
     if rank == 0:
         if config.get( 'finetune.wrapped_model', None ) is None:
             # Cast the model to half, save the model and tokenizer
