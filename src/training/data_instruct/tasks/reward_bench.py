@@ -29,7 +29,7 @@ class RewardBenchInstructDataset( BaseChoiceInstructDataset ):
 
     @property
     def task_name( self ) -> str:
-        return 'reward-bench'
+        return 'reward_bench'
 
     @property
     def task_subset( self ) -> str:
@@ -69,12 +69,12 @@ class RewardBenchInstructDataset( BaseChoiceInstructDataset ):
     def _format_single_target( self, doc: dict ) -> Message:
         return Message(
             role='assistant',
-            content=doc[ 'chosen' ] if doc[ 'label' ] == 0 else doc[ 'rejected'],
+            content=doc[ 'chosen' ] if doc[ 'label' ] == 0 else doc[ 'rejected' ],
             complete=True,
         )
     
     def _get_choices( self, doc: dict ) -> list:
-        return list( range( len( doc[ 'mc1_targets' ][ 'labels' ] ) ) )
+        return list( range( 2 ) )
 
     def _get_label_key( self ) -> str:
         return 'label'
