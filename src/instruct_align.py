@@ -214,10 +214,10 @@ def aggregate_reward_bench_scores(
         return sum( metrics_values ) / sum( metrics_counts )
     
     return {
-        f'validation/RewardBench/{prefix}_Chat': compute_subset( 'Chat' ),
-        f'validation/RewardBench/{prefix}_ChatHard': compute_subset( 'Chat Hard' ),
-        f'validation/RewardBench/{prefix}_Safety': compute_subset( 'Safety' ),
-        f'validation/RewardBench/{prefix}_Reasoning': compute_subset( 'Reasoning' ),
+        f'validation/RewardBench/{prefix}_Chat': compute_subset( 'Chat' ) * 100.0,
+        f'validation/RewardBench/{prefix}_ChatHard': compute_subset( 'Chat Hard' ) * 100.0,
+        f'validation/RewardBench/{prefix}_Safety': compute_subset( 'Safety' ) * 100.0,
+        f'validation/RewardBench/{prefix}_Reasoning': compute_subset( 'Reasoning' ) * 100.0,
     }
     
 
