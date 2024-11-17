@@ -11,7 +11,7 @@ model:
 
     layer_pooling: weighted_sum
     layer_pooling_norm: post
-    layer_pooling_dropout: 0.1
+    layer_pooling_dropout: 0.0
 
     token_pooling: attn
     token_pooling_norm: post

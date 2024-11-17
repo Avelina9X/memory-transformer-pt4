@@ -34,7 +34,6 @@ train:
     - lora
 
 finetune:
-  dph_mix_elbow: 160000
   mask_override: train
   mode: dph
   checkpoint: CHANGE_ME
